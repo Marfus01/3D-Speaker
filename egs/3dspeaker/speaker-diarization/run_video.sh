@@ -5,6 +5,7 @@
 # This script performs speaker diarization task based on video input.
 # It extracts both visual and audio speaker embeddings and generates more accurate results than audio-only diarization.
 
+# Try git
 set -e
 . ./path.sh || exit 1
 
