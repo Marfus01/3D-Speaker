@@ -44,3 +44,4 @@ Makefile
 **/onnx_runtime/
 **/exp/
 **/__pycache__/
+egs/3dspeaker/speaker-diarization/pretrained_models/face_recog_ir101.onnx

@@ -5,30 +5,31 @@
 # This script performs speaker diarization task based on video input.
 # It extracts both visual and audio speaker embeddings and generates more accurate results than audio-only diarization.
 
-# Try git
-set -e
-. ./path.sh || exit 1
+set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
+. ./path.sh || exit 1 # 加载 path.sh 文件以设置必要的环境变量，并在加载失败时退出脚本。
 
-stage=1
-stop_stage=6
+stage=1 # 标识每个处理步骤的index
+stop_stage=6  # 共6步
 
-examples=examples
-exp=exp_video
+examples=examples # 存储original video和说话人标注文件的目录
+video_list=$examples/video.list # 包含所有original video的路径
+
 conf_file=conf/diar_video.yaml
-onnx_dir=pretrained_models
-gpus="0 1 2 3"
-nj=4
+onnx_dir=pretrained_models  # 存储预训练模型的目录
+gpus="0 1 2 3"  # 指定可用的 GPU ID
+nj=4  # 并行任务数
+FFMPEG_PATH="/mnt/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1
 
-video_list=$examples/video.list
-raw_data_dir=$exp/raw
+exp=exp_video # 存储original video被处理后的所有中间文件和最终结果
+raw_data_dir=$exp/raw # 存储从original video中提取出的pure video和pure audio
 visual_embs_dir=$exp/embs_video
-rttm_dir=$exp/rttm
+rttm_dir=$exp/rttm  # 存储模型给出的说话人分离结果
 
-if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then
+if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_stage>=1 时执行
   if [ ! -f "$video_list" ]; then
-    echo "$(basename $0) Stage1: Prepare input videos..."
+    echo "$(basename $0) Stage1: Prepare input videos..." # 下载完整视频，说话人标注和所有前两种文件的list
     mkdir -p $examples
     wget "https://modelscope.cn/models/iic/speech_campplus_speaker-diarization_common/\
 resolve/master/examples/7speakers_example.mp4" -O $examples/7speakers_example.mp4
@@ -43,30 +44,32 @@ fi
 
 if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
   echo "$(basename $0) Stage2: Prepare onnx files and extrack raw videos and audios..."
+  # Download pretrained models
   mkdir -p $onnx_dir
-  mkdir -p $raw_data_dir
   for m in version-RFB-320.onnx asd.onnx fqa.onnx face_recog_ir101.onnx; do
     if [ ! -e $onnx_dir/$m ]; then
       echo "$(basename $0) Stage2: Download pretrained models $m"
       wget -O $onnx_dir/$m "https://modelscope.cn/models/iic/speech_campplus_speaker-diarization_common/resolve/master/onnx/$m"
     fi
   done
+  # Split each original video to pure video and pure audio(not segmented)
+  mkdir -p $raw_data_dir  
   cat $video_list | while read video_file; do
     filename=$(basename $video_file)
     out_video_file=$raw_data_dir/${filename%.*}.mp4
     out_wav_file=$raw_data_dir/${filename%.*}.wav
     if [ ! -e $out_video_file ]; then
       echo "$(basename $0) Stage2: Extract video from $filename"
-      ffmpeg -nostdin -y -i $video_file -qscale:v 2 -threads 16 -async 1 -r 25 $out_video_file -loglevel panic
+      $FFMPEG_PATH -nostdin -y -i $video_file -qscale:v 2 -threads 16 -async 1 -r 25 $out_video_file -loglevel panic
     fi
     if [ ! -e $out_wav_file ]; then
       echo "$(basename $0) Stage2: Extract audio from $filename"
-      ffmpeg -nostdin -y -i $out_video_file -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 $out_wav_file -loglevel panic
+      $FFMPEG_PATH -nostdin -y -i $out_video_file -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 $out_wav_file -loglevel panic
     fi
   done
 fi
 
-# write the input pair data list
+# write two list, video.list and wav.list, which contain paths of all pure video/audios respectively
 cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.mp4;done > $raw_data_dir/video.list
 cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.wav;done > $raw_data_dir/wav.list
 
