@@ -13,6 +13,7 @@ Usage:
 """
 
 import os
+import sys
 import json
 import pickle
 import argparse
@@ -26,6 +27,19 @@ except ImportError:
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
 
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.join(
+    os.path.dirname(current_file_path),  # local/
+    '..', '..', '..', '..'               # 回到 3D-Speaker/ 目录
+)
+project_root = os.path.abspath(project_root)
+speakerlab_path = os.path.join(project_root, 'speakerlab')
+assert os.path.exists(speakerlab_path), f"Cannot find speakerlab directory {speakerlab_path}. Please check the project root path."
+
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    print(f"Project root added to sys.path: {project_root}")
+    
 try:
     from speakerlab.utils.utils import merge_vad
 except:

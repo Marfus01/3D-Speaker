@@ -18,6 +18,20 @@ import torch
 import torchaudio
 import torch.distributed as dist
 
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.join(
+    os.path.dirname(current_file_path),  # local/
+    '..', '..', '..', '..'               # 回到 3D-Speaker/ 目录
+)
+project_root = os.path.abspath(project_root)
+speakerlab_path = os.path.join(project_root, 'speakerlab')
+assert os.path.exists(speakerlab_path), f"Cannot find speakerlab directory {speakerlab_path}. Please check the project root path."
+
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    print(f"Project root added to sys.path: {project_root}")
+
+
 from speakerlab.utils.config import yaml_config_loader, Config
 from speakerlab.utils.builder import build
 from speakerlab.utils.fileio import load_audio
