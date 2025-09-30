@@ -1,0 +1,572 @@
+{
+  "7speakers_example_0.0_1.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 0.0,
+    "stop": 1.5
+  },
+  "7speakers_example_0.75_2.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 0.75,
+    "stop": 2.25
+  },
+  "7speakers_example_1.5_3.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 1.5,
+    "stop": 3.0
+  },
+  "7speakers_example_2.25_3.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 2.25,
+    "stop": 3.75
+  },
+  "7speakers_example_3.0_4.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 3.0,
+    "stop": 4.5
+  },
+  "7speakers_example_3.75_5.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 3.75,
+    "stop": 5.25
+  },
+  "7speakers_example_4.5_6.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 4.5,
+    "stop": 6.0
+  },
+  "7speakers_example_5.25_6.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 5.25,
+    "stop": 6.75
+  },
+  "7speakers_example_6.0_7.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 6.0,
+    "stop": 7.5
+  },
+  "7speakers_example_6.75_8.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 6.75,
+    "stop": 8.25
+  },
+  "7speakers_example_7.5_9.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 7.5,
+    "stop": 9.0
+  },
+  "7speakers_example_8.25_9.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 8.25,
+    "stop": 9.75
+  },
+  "7speakers_example_9.0_10.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 9.0,
+    "stop": 10.5
+  },
+  "7speakers_example_9.75_11.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 9.75,
+    "stop": 11.25
+  },
+  "7speakers_example_10.5_12.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 10.5,
+    "stop": 12.0
+  },
+  "7speakers_example_11.25_12.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 11.25,
+    "stop": 12.75
+  },
+  "7speakers_example_12.0_13.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 12.0,
+    "stop": 13.5
+  },
+  "7speakers_example_12.75_14.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 12.75,
+    "stop": 14.25
+  },
+  "7speakers_example_13.5_15.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 13.5,
+    "stop": 15.0
+  },
+  "7speakers_example_14.25_15.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 14.25,
+    "stop": 15.75
+  },
+  "7speakers_example_15.0_16.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 15.0,
+    "stop": 16.5
+  },
+  "7speakers_example_15.75_17.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 15.75,
+    "stop": 17.25
+  },
+  "7speakers_example_16.5_18.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 16.5,
+    "stop": 18.0
+  },
+  "7speakers_example_17.25_18.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 17.25,
+    "stop": 18.75
+  },
+  "7speakers_example_18.0_19.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 18.0,
+    "stop": 19.5
+  },
+  "7speakers_example_18.75_20.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 18.75,
+    "stop": 20.25
+  },
+  "7speakers_example_19.5_21.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 19.5,
+    "stop": 21.0
+  },
+  "7speakers_example_20.25_21.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 20.25,
+    "stop": 21.75
+  },
+  "7speakers_example_21.0_22.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 21.0,
+    "stop": 22.5
+  },
+  "7speakers_example_21.75_23.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 21.75,
+    "stop": 23.25
+  },
+  "7speakers_example_22.5_24.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 22.5,
+    "stop": 24.0
+  },
+  "7speakers_example_23.25_24.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 23.25,
+    "stop": 24.75
+  },
+  "7speakers_example_24.0_25.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 24.0,
+    "stop": 25.5
+  },
+  "7speakers_example_24.75_26.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 24.75,
+    "stop": 26.25
+  },
+  "7speakers_example_25.5_27.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 25.5,
+    "stop": 27.0
+  },
+  "7speakers_example_26.25_27.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 26.25,
+    "stop": 27.75
+  },
+  "7speakers_example_27.0_28.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 27.0,
+    "stop": 28.5
+  },
+  "7speakers_example_27.75_29.25": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 27.75,
+    "stop": 29.25
+  },
+  "7speakers_example_28.5_30.0": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 28.5,
+    "stop": 30.0
+  },
+  "7speakers_example_29.25_30.75": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 29.25,
+    "stop": 30.75
+  },
+  "7speakers_example_30.0_31.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 30.0,
+    "stop": 31.5
+  },
+  "7speakers_example_31.78_33.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 31.78,
+    "stop": 33.28
+  },
+  "7speakers_example_32.53_34.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 32.53,
+    "stop": 34.03
+  },
+  "7speakers_example_33.28_34.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 33.28,
+    "stop": 34.78
+  },
+  "7speakers_example_34.03_35.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 34.03,
+    "stop": 35.53
+  },
+  "7speakers_example_34.78_36.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 34.78,
+    "stop": 36.28
+  },
+  "7speakers_example_35.53_37.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 35.53,
+    "stop": 37.03
+  },
+  "7speakers_example_36.28_37.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 36.28,
+    "stop": 37.78
+  },
+  "7speakers_example_37.03_38.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 37.03,
+    "stop": 38.53
+  },
+  "7speakers_example_37.78_39.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 37.78,
+    "stop": 39.28
+  },
+  "7speakers_example_38.53_40.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 38.53,
+    "stop": 40.03
+  },
+  "7speakers_example_39.28_40.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 39.28,
+    "stop": 40.78
+  },
+  "7speakers_example_40.03_41.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 40.03,
+    "stop": 41.53
+  },
+  "7speakers_example_40.78_42.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 40.78,
+    "stop": 42.28
+  },
+  "7speakers_example_41.53_43.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 41.53,
+    "stop": 43.03
+  },
+  "7speakers_example_42.28_43.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 42.28,
+    "stop": 43.78
+  },
+  "7speakers_example_43.03_44.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 43.03,
+    "stop": 44.53
+  },
+  "7speakers_example_43.78_45.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 43.78,
+    "stop": 45.28
+  },
+  "7speakers_example_44.53_46.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 44.53,
+    "stop": 46.03
+  },
+  "7speakers_example_45.28_46.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 45.28,
+    "stop": 46.78
+  },
+  "7speakers_example_46.03_47.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 46.03,
+    "stop": 47.53
+  },
+  "7speakers_example_46.78_48.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 46.78,
+    "stop": 48.28
+  },
+  "7speakers_example_47.53_49.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 47.53,
+    "stop": 49.03
+  },
+  "7speakers_example_48.28_49.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 48.28,
+    "stop": 49.78
+  },
+  "7speakers_example_49.03_50.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 49.03,
+    "stop": 50.53
+  },
+  "7speakers_example_49.78_51.28": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 49.78,
+    "stop": 51.28
+  },
+  "7speakers_example_50.53_52.03": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 50.53,
+    "stop": 52.03
+  },
+  "7speakers_example_51.28_52.78": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 51.28,
+    "stop": 52.78
+  },
+  "7speakers_example_52.03_53.53": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 52.03,
+    "stop": 53.53
+  },
+  "7speakers_example_52.78_53.71": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 52.78,
+    "stop": 53.71
+  },
+  "7speakers_example_54.99_56.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 54.99,
+    "stop": 56.49
+  },
+  "7speakers_example_55.74_57.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 55.74,
+    "stop": 57.24
+  },
+  "7speakers_example_56.49_57.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 56.49,
+    "stop": 57.99
+  },
+  "7speakers_example_57.24_58.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 57.24,
+    "stop": 58.74
+  },
+  "7speakers_example_57.99_59.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 57.99,
+    "stop": 59.49
+  },
+  "7speakers_example_58.74_60.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 58.74,
+    "stop": 60.24
+  },
+  "7speakers_example_59.49_60.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 59.49,
+    "stop": 60.99
+  },
+  "7speakers_example_60.24_61.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 60.24,
+    "stop": 61.74
+  },
+  "7speakers_example_60.99_62.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 60.99,
+    "stop": 62.49
+  },
+  "7speakers_example_61.74_63.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 61.74,
+    "stop": 63.24
+  },
+  "7speakers_example_62.49_63.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 62.49,
+    "stop": 63.99
+  },
+  "7speakers_example_63.24_64.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 63.24,
+    "stop": 64.74
+  },
+  "7speakers_example_63.99_65.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 63.99,
+    "stop": 65.49
+  },
+  "7speakers_example_64.74_66.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 64.74,
+    "stop": 66.24
+  },
+  "7speakers_example_65.49_66.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 65.49,
+    "stop": 66.99
+  },
+  "7speakers_example_66.24_67.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 66.24,
+    "stop": 67.74
+  },
+  "7speakers_example_66.99_68.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 66.99,
+    "stop": 68.49
+  },
+  "7speakers_example_67.74_69.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 67.74,
+    "stop": 69.24
+  },
+  "7speakers_example_68.49_69.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 68.49,
+    "stop": 69.99
+  },
+  "7speakers_example_69.24_70.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 69.24,
+    "stop": 70.74
+  },
+  "7speakers_example_69.99_71.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 69.99,
+    "stop": 71.49
+  },
+  "7speakers_example_70.74_72.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 70.74,
+    "stop": 72.24
+  },
+  "7speakers_example_71.49_72.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 71.49,
+    "stop": 72.99
+  },
+  "7speakers_example_72.24_73.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 72.24,
+    "stop": 73.74
+  },
+  "7speakers_example_72.99_74.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 72.99,
+    "stop": 74.49
+  },
+  "7speakers_example_73.74_75.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 73.74,
+    "stop": 75.24
+  },
+  "7speakers_example_74.49_75.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 74.49,
+    "stop": 75.99
+  },
+  "7speakers_example_75.24_76.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 75.24,
+    "stop": 76.74
+  },
+  "7speakers_example_75.99_77.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 75.99,
+    "stop": 77.49
+  },
+  "7speakers_example_76.74_78.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 76.74,
+    "stop": 78.24
+  },
+  "7speakers_example_77.49_78.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 77.49,
+    "stop": 78.99
+  },
+  "7speakers_example_78.24_79.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 78.24,
+    "stop": 79.74
+  },
+  "7speakers_example_78.99_80.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 78.99,
+    "stop": 80.49
+  },
+  "7speakers_example_79.74_81.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 79.74,
+    "stop": 81.24
+  },
+  "7speakers_example_80.49_81.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 80.49,
+    "stop": 81.99
+  },
+  "7speakers_example_81.24_82.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 81.24,
+    "stop": 82.74
+  },
+  "7speakers_example_81.99_83.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 81.99,
+    "stop": 83.49
+  },
+  "7speakers_example_82.74_84.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 82.74,
+    "stop": 84.24
+  },
+  "7speakers_example_83.49_84.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 83.49,
+    "stop": 84.99
+  },
+  "7speakers_example_84.24_85.74": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 84.24,
+    "stop": 85.74
+  },
+  "7speakers_example_84.99_86.49": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 84.99,
+    "stop": 86.49
+  },
+  "7speakers_example_85.74_87.24": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 85.74,
+    "stop": 87.24
+  },
+  "7speakers_example_86.49_87.99": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 86.49,
+    "stop": 87.99
+  },
+  "7speakers_example_87.24_88.01": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 87.24,
+    "stop": 88.01
+  }
+}

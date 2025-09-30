@@ -1,0 +1,17 @@
+{
+  "7speakers_example_0.0_31.5": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 0.0,
+    "stop": 31.5
+  },
+  "7speakers_example_31.78_53.71": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 31.78,
+    "stop": 53.71
+  },
+  "7speakers_example_54.99_88.01": {
+    "file": "exp_video/raw/7speakers_example.wav",
+    "start": 54.99,
+    "stop": 88.01
+  }
+}
