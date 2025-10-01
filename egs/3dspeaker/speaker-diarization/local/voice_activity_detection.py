@@ -58,7 +58,7 @@ VAD_PRETRAINED = {
 def main():
     args = parser.parse_args()
     out_dir = os.path.dirname(os.path.abspath(args.out_file))
-    segmentation_file = os.path.join(out_dir, 'segmentation.pkl')
+    segmentation_file = os.path.join(out_dir, 'segmentation.pkl') # 默认不存在
     if os.path.exists(segmentation_file):
         consider_segmentation = True
         with open(segmentation_file, 'rb') as f:
@@ -66,6 +66,7 @@ def main():
     else:
         consider_segmentation = False
 
+    # 将 wav.list中的所有内容读入为list
     wavs = []
     if args.wavs.endswith('.wav'):
         # input is a wav path
@@ -81,6 +82,7 @@ def main():
             wav_path = wav_path.strip()
             wavs.append(wav_path)
 
+    # 使用'iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/v2.0.4'模型,检测输入音频中有效语音的起止时间点信息。详见https://modelscope.cn/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch/summary
     vad_pipeline = pipeline(
         task=Tasks.voice_activity_detection, 
         model=VAD_PRETRAINED['model_id'], 
@@ -90,6 +92,7 @@ def main():
 
     json_dict = {}
     print(f'[INFO]: Start computing VAD...')
+    # 对每个音频文件，得到其中每段有效语音的起止时间点，汇总写入egs/3dspeaker/speaker-diarization/exp_video/json/vad.json
     for wpath in wavs:        
         vad_time = vad_pipeline(wpath)[0]
         vad_time = [[vad_t[0]/1000, vad_t[1]/1000] for vad_t in vad_time['value']]

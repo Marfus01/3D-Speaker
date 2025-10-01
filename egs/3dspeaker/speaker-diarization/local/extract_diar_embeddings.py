@@ -51,15 +51,19 @@ parser.add_argument('--use_gpu', action='store_true', help='Use gpu or not')
 parser.add_argument('--gpu', nargs='+', help='GPU id to use.')
 
 
+# common settings for feature extractor
+## assert sr=16k --> select single channel --> 提取形状为 [num_frames, n_mels] 的· --> 对每帧做均值归一化
+## 梅尔谱特征的提取过程：将输入[1, num_samples]的音频信号分帧（每帧 25ms，帧移 10ms）--> 将每帧加窗后做FFT --> 计算功率谱 --> 通过80组梅尔滤波器 --> 对数压缩 --> 得到梅尔谱特征
 FEATURE_COMMON = {
     'obj': 'speakerlab.process.processor.FBank',
     'args': {
         'n_mels': 80,
-        'sample_rate': 16000,
+        'sample_rate': 16000, # 将所有音频都转换到16kHz
         'mean_nor': True,
     },
 }
 
+# 可用 speaker embedding model 的清单及基本配置
 CAMPPLUS_VOX = {
     'obj': 'speakerlab.models.campplus.DTDNN.CAMPPlus',
     'args': {
@@ -108,13 +112,16 @@ supports = {
 }    
 
 def main():
+    # 初始化分布式计算环境
     args = parser.parse_args()
     conf = yaml_config_loader(args.conf)
-    rank = int(os.environ['LOCAL_RANK'])
-    threads_num = int(os.environ['WORLD_SIZE'])
+    rank = int(os.environ['LOCAL_RANK'])  # 当前进程id
+    threads_num = int(os.environ['WORLD_SIZE']) # 总进程数
     dist.init_process_group(backend='gloo')
+
+    # download the pretrained model(if necessary) and set the model config
     if args.model_id is not None:
-        # use the model id pretrained model
+        # obtain config of the selected model
         assert isinstance(args.model_id, str) and \
         is_official_hub_path(args.model_id), "Invalid modelscope model id."
         assert args.model_id in supports, "Model id not currently supported."
@@ -129,6 +136,7 @@ def main():
         else:
             obj_list = [None]
         dist.broadcast_object_list(obj_list, 0)
+        # set complete config according to the downloaded model
         cache_dir = obj_list[0]
         pretrained_model = os.path.join(cache_dir, model_config['model_pt'])
         conf['embedding_model'] = model_config['model']
@@ -144,12 +152,12 @@ def main():
         conf['feature_extractor'] = FEATURE_COMMON
         conf['embedding_model'] = CAMPPLUS_COMMON
     
-    os.makedirs(args.embs_out, exist_ok=True)
+    # 将 subseg_json 的内容按录音文件分组，整理为 dict 格式的 metadata，key(str) 是录音文件名，value(dict) 是从该录音文件中提取的所有sub-segment info(包含 id, start, stop, filepath)
     with open(args.subseg_json, "r") as f:
         subseg_json = json.load(f)
-
-    all_keys = subseg_json.keys()
-    A = [i.rsplit('_', 2)[0] for i in all_keys]
+    ## get unique wav filenames
+    all_keys = subseg_json.keys() # list of all sub-segment ids, like '7speakers_example_0.0_1.5'
+    A = [i.rsplit('_', 2)[0] for i in all_keys] # list of all wav filenames, like '7speakers_example'
     all_rec_ids = list(set(A))
     all_rec_ids.sort()
     if len(all_rec_ids) == 0:
@@ -157,7 +165,7 @@ def main():
     if len(all_rec_ids) <= rank:
         print("[WARNING]: The number of threads exceeds the number of files.")
         sys.exit()
-
+    ## group sub-segments by recording id
     metadata={}
     for rec_id in all_rec_ids:
         subset = {}
@@ -168,8 +176,8 @@ def main():
         metadata[rec_id]=subset
 
     print("[INFO]: Start computing embeddings...")
-    local_rec_ids = all_rec_ids[rank::threads_num]
 
+    # set gpu_id for current process and device
     if args.use_gpu:
         gpu_id = int(args.gpu[rank%len(args.gpu)])
         if gpu_id < torch.cuda.device_count():
@@ -180,6 +188,7 @@ def main():
     else:
         device = torch.device('cpu')
 
+    # get objects of feature extractor and embedding model
     config = Config(conf)
     feature_extractor = build('feature_extractor', config)
     embedding_model = build('embedding_model', config)
@@ -189,28 +198,35 @@ def main():
     embedding_model.load_state_dict(pretrained_state)
     embedding_model.eval()
     embedding_model.to(device)
+
     # compute embeddings of sub-segments
+    os.makedirs(args.embs_out, exist_ok=True)    
+    local_rec_ids = all_rec_ids[rank::threads_num]  # 当前进程负责处理的wav list。例如['file1', 'file5', ...]    
     for rec_id in local_rec_ids:
-        meta = metadata[rec_id]
+        # Input: dict of sub-segments info for the current wav file
+        meta = metadata[rec_id] 
+        # Output: save embeddings of all sub-segments from the same wav into one pkl file
         emb_file_name = rec_id + ".pkl"
         stat_emb_file = os.path.join(args.embs_out, emb_file_name)
         if not os.path.isfile(stat_emb_file):
-            embeddings = []
+            ## load whole audio
             wav_path = meta[list(meta.keys())[0]]['file']
             obj_fs = feature_extractor.sample_rate
-            wav = load_audio(wav_path, obj_fs=obj_fs)
- 
-            wavs = [wav[0, int(meta[i]['start']*obj_fs):int(meta[i]['stop']*obj_fs)] for i in meta]
+            wav = load_audio(wav_path, obj_fs=obj_fs) # torch.tensor, (num_channels, num_samples)
+
+            ## split original audio into sub-segments, pad to the same length, and convert to a batch
+            wavs = [wav[0, int(meta[i]['start']*obj_fs):int(meta[i]['stop']*obj_fs)] for i in meta] # only use the first channel
             max_len = max([x.shape[0] for x in wavs])
             wavs = [circle_pad(x, max_len) for x in wavs]
-            wavs = torch.stack(wavs).unsqueeze(1)
+            wavs = torch.stack(wavs).unsqueeze(1) # (num_subsegs, 1, num_samples)
 
+            ## extract embeddings in batch
             embeddings = []
             batch_st = 0
             with torch.no_grad():
                 while batch_st < wavs.shape[0]:
                     wavs_batch = wavs[batch_st: batch_st+args.batchsize].to(device)
-                    feats_batch = torch.vmap(feature_extractor)(wavs_batch)
+                    feats_batch = torch.vmap(feature_extractor)(wavs_batch) # convert each segment to mel feature, [num_subsegs, num_frames, n_mels]
                     embeddings_batch = embedding_model(feats_batch).cpu()
                     embeddings.append(embeddings_batch)
                     batch_st += args.batchsize

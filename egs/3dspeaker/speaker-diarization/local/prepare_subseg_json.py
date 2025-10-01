@@ -14,11 +14,13 @@ parser.add_argument('--dur', default=1.5, type=float, help='Duration of sub-segm
 parser.add_argument('--shift', default=0.75, type=float, help='Shift of sub-segments')
 
 def main():
+    # 读入vad json
     args = parser.parse_args()
     with open(args.vad, 'r') as f:
         vad_json = json.load(f)
     subseg_json = {}
     print(f'[INFO]: Generate sub-segmetns...')
+    # 使用滑动窗口(滑动步长 = args.shift, 窗宽 = args.dur)，将每段有效语音进一步切分为多个子片段
     for segid in vad_json:
         wavid = segid.rsplit('_', 2)[0]
         st = vad_json[segid]['start']
@@ -37,6 +39,7 @@ def main():
             subseg_json[subsegid] = item
             subseg_st += args.shift
 
+    # 将子片段信息写入json文件
     dirname = os.path.dirname(args.out_file)
     os.makedirs(dirname, exist_ok=True)
     with open(args.out_file, mode='w') as f:

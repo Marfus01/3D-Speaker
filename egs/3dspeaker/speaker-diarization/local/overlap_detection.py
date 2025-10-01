@@ -30,6 +30,7 @@ def main():
     args = parser.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
 
+    # 将 wav.list中的所有内容读入为list
     wavs = []
     if args.wavs.endswith('.wav'):
         # input is a wav path
@@ -51,6 +52,7 @@ def main():
         'use_auth_token':args.hf_access_token,
     }
 
+    # 加载预训练模型，并将其初始化为Inference对象。pyannote/segmentation-3.0的输入为处理10秒单声道16kHz音频，输出为帧级别的包含非语音、3个独立说话人及3种重叠说话人组合的7分类矩阵。参考https://blog.csdn.net/gitblog_02861/article/details/149852839
     model = Model.from_pretrained(
         segmentation_params['segmentation'], 
         use_auth_token=segmentation_params['use_auth_token'], 
@@ -80,10 +82,11 @@ def main():
                     start = c.middle
         return valid_field
     
+    # 遍历处理每一个wav文件
     segmentation_dict = {}
     for wpath in wavs:
         basename = os.path.basename(wpath).rsplit('.', 1)[0]
-        # segmentations: [chunk, frames_num, speakers_num]
+        # segmentations: [chunk_num, frames_num, speakers_num]
         segmentations = _segmentation({'audio':wpath})
         frame_windows = _segmentation.model.receptive_field
         # count: [total_frames_num, 1]

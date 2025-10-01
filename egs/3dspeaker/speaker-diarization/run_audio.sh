@@ -11,9 +11,9 @@ set -e
 stage=1
 stop_stage=7
 
-conf_file=conf/diar.yaml
+conf_file=conf/diar.yaml  # 在说话人特征提取时，仅作为template使用，实际参数均在脚本中指定
 gpus="0 1 2 3"
-nj=4
+nj=4  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_num的整数倍
 include_overlap=false
 hf_access_token=
 
@@ -47,20 +47,25 @@ resolve/master/examples/2speakers_example.rttm" -O $examples/2speakers_example.r
   fi
 fi
 
+###### Begin extracting speaker embeddings ######
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
+  # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用pyannote/segmentation-3.0做重叠说话人检测，汇总为 dict 后保存为 pkl。默认不进行。
   if [ "$include_overlap" = true ]; then
     echo "$(basename $0) Stage2: Do overlap detection for input wavs..."
     python local/overlap_detection.py --wavs $wav_list --out_dir $json_dir --hf_access_token $hf_access_token
   fi
   echo "$(basename $0) Stage2: Do vad for input wavs..."
+  # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用FSMN-Monophone VAD提取其中每段有效语音的起止时间点，汇总写入exp_video/json/vad.json
   python local/voice_activity_detection.py --wavs $wav_list --out_file $json_dir/vad.json
 fi
 
+# 使用滑动窗口(滑动步长 = 0.75, 窗宽 = 1.5)，将vad.json中记录的每段有效语音进一步切分为多个子片段，汇总写入exp_video/json/subseg.json
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename $0) Stage3: Prepare subsegments info..."
   python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
 fi
 
+# 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract speaker embeddings..."
   # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net 
@@ -68,6 +73,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
           --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
 fi
+###### End extracting speaker embeddings ######
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   echo "$(basename $0) Stage5: Perform clustering and postprocessing, and output sys rttms..."
