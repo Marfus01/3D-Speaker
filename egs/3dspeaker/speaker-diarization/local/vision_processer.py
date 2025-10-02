@@ -106,14 +106,14 @@ class VisionProcesser():
                 ## process each shot
                 if (index + 1) % self.shot_stride==0:
                     ### get corresponding audio of current shot
-                    audio = self.audio[(frame_st + index + 1 - self.shot_stride)*self.asvf_ratio:(frame_st + index + 1)*self.asvf_ratio]
+                    audio = self.audio[int((frame_st + index + 1 - self.shot_stride)*self.asvf_ratio):int((frame_st + index + 1)*self.asvf_ratio)]
                     ### process
                     self.process_one_shot(frames, face_det_frames, audio, frame_st + index + 1 - self.shot_stride)
                     ### reset
                     frames, face_det_frames = [], []
                 index += 1
             if len(frames) != 0:  # process the remaining frames as a shot
-                audio = self.audio[(frame_st + index - len(frames))*self.asvf_ratio:(frame_st + index)*self.asvf_ratio]
+                audio = self.audio[int((frame_st + index - len(frames))*self.asvf_ratio):int((frame_st + index)*self.asvf_ratio)]
                 self.process_one_shot(frames, face_det_frames, audio, frame_st + index - len(frames))
                 frames, face_det_frames = [], []
 
@@ -326,7 +326,7 @@ class VisionProcesser():
         for fidx, frame in enumerate(track['frame']):
             cs  = self.crop_scale
             bs  = dets['s'][fidx]   # detection box size
-            bsi = int(bs * (1 + cs))  # pad videos by this amount 
+            bsi = int(bs * (1 + 2 * cs))  # pad videos by this amount 
             ### pad bsi pixels for each side of the image to avoid out of boundary when cropping
             image = frames[frame]
             frame = np.pad(image, ((bsi,bsi), (bsi,bsi), (0, 0)), 'constant', constant_values=(110, 110))
@@ -334,11 +334,11 @@ class VisionProcesser():
             my  = dets['y'][fidx] + bsi  # BBox center Y
             mx  = dets['x'][fidx] + bsi  # BBox center X
             ### crop and resize face
-            face = frame[int(my-bsi):int(my+bsi),int(mx-bsi):int(mx+bsi)]
+            face = frame[int(my-bs):int(my+bs*(1+2*cs)),int(mx-bs*(1+cs)):int(mx+bs*(1+cs))]
             crop_frames.append(cv2.resize(face, (224, 224)))
         
         ## crop corresponding audio segment
-        cropaudio = audio[track['frame'][0]*self.asvf_ratio: (track['frame'][-1]+1)*self.asvf_ratio]
+        cropaudio = audio[int(track['frame'][0]*self.asvf_ratio): int((track['frame'][-1]+1)*self.asvf_ratio)]
         return {'track':track, 'proc_track':dets, 'data':[crop_frames, cropaudio]}
 
     def evaluate_asd(self, tracks):
