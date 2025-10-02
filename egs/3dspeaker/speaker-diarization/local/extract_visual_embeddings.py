@@ -43,6 +43,7 @@ parser.add_argument('--embs_out', default='', type=str, help='Out embedding dir'
 parser.add_argument('--use_gpu', action='store_true', help='Use gpu or not')
 parser.add_argument('--gpu', nargs='+', help='GPU id to use.')
 
+# 将一组可能有重叠的时间区间合并为一组无重叠的区间，便于后续处理
 def merge_overlap_region(vad_time_list):
     vad_time_list.sort(key=lambda x: x[0])
     out_vad_time_list = []
@@ -54,6 +55,7 @@ def merge_overlap_region(vad_time_list):
     return out_vad_time_list
 
 def main():
+    # Initialization
     args = parser.parse_args()
     conf = yaml_config_loader(args.conf)
     rank = int(os.environ['LOCAL_RANK'])
@@ -70,6 +72,7 @@ def main():
     else:
         device = 'cpu'
 
+    # obtain list of video filepaths
     with open(args.videos, 'r') as f:
         videos = [i.strip() for i in f.readlines()]
 
@@ -82,9 +85,9 @@ def main():
         print("[WARNING]: The number of threads exceeds the number of files.")
         sys.exit()
 
-    os.makedirs(args.embs_out, exist_ok=True)
+    # 将 vad.json 的内容按所属video分组，整理为 dict 格式的 vad_data，key(str) 是video文件名，value(dict) 是从该video中提取的所有segment info(包含 id, start, stop, filepath)
     with open(args.vad, "r") as f:
-        vad_json = json.load(f)
+        vad_json = json.load(f) # record the time regions which need to be extracted in each video
 
     vad_data={}
     for vpath in videos:
@@ -98,15 +101,21 @@ def main():
         vad_data[rec_id] = subset
 
     print("[INFO]: Start computing visual embeddings...")
-    local_videos = videos[rank::threads_num]
+    os.makedirs(args.embs_out, exist_ok=True)    
+    local_videos = videos[rank::threads_num]  # video files to be processed by this thread
 
     for vpath in local_videos:
+        # get filename without suffix of current video
         filename = os.path.basename(vpath)
         rec_id = filename.rsplit('.', 1)[0]
-        rec_vad_data = vad_data[rec_id]
+        # convert vad info to a list of sorted time regions without overlap 
+        rec_vad_data = vad_data[rec_id] # segments' info
         rec_vad_time_list = [[v['start'], v['stop']] for v in rec_vad_data.values()]
         rec_vad_time_list = merge_overlap_region(rec_vad_time_list)
+        # get corresponding audio path
         audio_path = os.path.join(os.path.dirname(vpath), '%s.wav'%rec_id)
+
+        # extract visual embeddings in current video and save them
         embs_out_path = os.path.join(args.embs_out, '%s.pkl'%rec_id)
         if not os.path.isfile(embs_out_path):
             vprocesser = VisionProcesser(vpath, audio_path, rec_vad_time_list, embs_out_path, 

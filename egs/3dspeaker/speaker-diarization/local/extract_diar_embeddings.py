@@ -152,7 +152,7 @@ def main():
         conf['feature_extractor'] = FEATURE_COMMON
         conf['embedding_model'] = CAMPPLUS_COMMON
     
-    # 将 subseg_json 的内容按录音文件分组，整理为 dict 格式的 metadata，key(str) 是录音文件名，value(dict) 是从该录音文件中提取的所有sub-segment info(包含 id, start, stop, filepath)
+    # 将 subseg.json 的内容按录音文件分组，整理为 dict 格式的 metadata，key(str) 是录音文件名，value(dict) 是从该录音文件中提取的所有sub-segment info(包含 id, start, stop, filepath)
     with open(args.subseg_json, "r") as f:
         subseg_json = json.load(f)
     ## get unique wav filenames

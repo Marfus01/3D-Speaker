@@ -73,11 +73,13 @@ fi
 cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.mp4;done > $raw_data_dir/video.list
 cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.wav;done > $raw_data_dir/wav.list
 
+# use run_audio.sh to save audio speaker embeddings
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename $0) Stage3: Extract audio speaker embeddings..."
   bash run_audio.sh --stage 2 --stop_stage 4 --examples $raw_data_dir --exp $exp
 fi
 
+# For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
   torchrun --nproc_per_node=$nj local/extract_visual_embeddings.py --conf $conf_file --videos $raw_data_dir/video.list \
