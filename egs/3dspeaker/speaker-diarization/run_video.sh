@@ -18,7 +18,7 @@ conf_file=conf/diar_video.yaml
 onnx_dir=pretrained_models  # 存储预训练模型的目录
 gpus="0 1 2 3"  # 指定可用的 GPU ID
 nj=4  # 并行任务数
-FFMPEG_PATH="/mnt/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
+FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1
 
