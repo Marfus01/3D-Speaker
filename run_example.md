@@ -77,3 +77,20 @@ Project root added to sys.path: D:\wangchen\Research\tv_series_plus\3D-Speaker
 (3D-speaker) 
 ```
 
+
+将 run_audio.sh中的stage 5 改为以下内容，
+```bash
+if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+  echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+  torchrun --nproc_per_node=$nj local/cluster_and_postprocess.py --conf conf/diar.yaml --wavs $raw_data_dir/wav.list \
+          --audio_embs_dir $exp/embs --rttm_dir $rttm_dir
+fi
+```
+并在git bash中运行
+```bash
+sed -i 's/\r$//' examples/refrttm.list  # 处理windows下的换行符问题
+bash run_video.sh
+```
+可以测试单一模态聚类的效果。结果为
+2025-10-03 17:00:28,323 - INFO: MS: 0.375888, FA: 0.670565, SER: 2.537241, DER: 3.583693
+效果比联合聚类差。

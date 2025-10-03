@@ -36,19 +36,46 @@ parser.add_argument('--rttm_dir', default=None, type=str, help='Rttm dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 
 def make_rttms(seg_list, out_rttm, rec_id):
+    """
+    Generate an RTTM (Rich Transcription Time Marked) file for speaker diarization results.
+
+    This function processes a list of speaker segments, merges overlapping or adjacent segments
+    with the same speaker ID, and writes the processed segments to an RTTM file. The RTTM file
+    is a standard format used for speaker diarization output.
+
+    Args:
+      seg_list (list of tuples): A list of tuples where each tuple contains:
+        - A pair of floats (start_time, end_time) representing the time range of the segment.
+        - An integer representing the speaker ID for the segment.
+      out_rttm (str): The output file path where the RTTM file will be saved.
+      rec_id (str): The recording ID to be included in the RTTM file.
+
+    Output:
+      Writes the processed speaker segments to the specified RTTM file in the following format:
+      SPEAKER <rec_id> 0 <start_time> <duration> <NA> <NA> <speaker_id> <NA> <NA>
+
+    Example:
+      seg_list = [((0.0, 1.5), 0), ((1.5, 3.0), 0), ((3.0, 4.0), 1)]
+      out_rttm = "output.rttm"
+      rec_id = "example_audio"
+      make_rttms(seg_list, out_rttm, rec_id)
+    """
     new_seg_list = []
     for i, seg in enumerate(seg_list):
+        # extract start time, end time, and speaker ID from the segment
         seg_st, seg_ed = seg[0]
         seg_st = float(seg_st)
         seg_ed = float(seg_ed)
         cluster_id = seg[1] + 1
         if i == 0:
             new_seg_list.append([rec_id, seg_st, seg_ed, cluster_id])
+        # merge segments with the same speaker ID if they are overlapping
         elif cluster_id == new_seg_list[-1][3]:
             if seg_st > new_seg_list[-1][2]:
                 new_seg_list.append([rec_id, seg_st, seg_ed, cluster_id])
             else:
                 new_seg_list[-1][2] = seg_ed
+        # if the speaker ID is different, check for overlap and adjust accordingly
         else:
             if seg_st < new_seg_list[-1][2]:
                 p = (new_seg_list[-1][2]+seg_st) / 2
@@ -56,6 +83,7 @@ def make_rttms(seg_list, out_rttm, rec_id):
                 seg_st = p
             new_seg_list.append([rec_id, seg_st, seg_ed, cluster_id])
 
+    # write the processed segments to the RTTM file
     line_str ="SPEAKER {} 0 {:.3f} {:.3f} <NA> <NA> {:d} <NA> <NA>\n"
     with open(out_rttm,'w') as f:
         for seg in new_seg_list:
@@ -63,8 +91,13 @@ def make_rttms(seg_list, out_rttm, rec_id):
             f.write(line_str.format(seg_id, seg_st, seg_ed-seg_st, cluster_id))
 
 def audio_only_func(local_wav_list, audio_embs_dir, rttm_dir, config):
+    """
+    仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
+    """
     cluster = build('cluster', config)
+    # 对每一个音频文件
     for wav_file in local_wav_list:
+        # 加载前序步骤从当前wav中提取的所有speaker embeddings
         wav_name = os.path.basename(wav_file)
         rec_id = wav_name.rsplit('.', 1)[0]
         embs_file = os.path.join(audio_embs_dir, rec_id + '.pkl')
@@ -78,16 +111,19 @@ def audio_only_func(local_wav_list, audio_embs_dir, rttm_dir, config):
         # cluster
         labels = cluster(embeddings)
         # output rttm
+        ## 根据簇出现的先后，对speaker ID重新编号，确保ID连续且从0开始
         new_labels = np.zeros(len(labels), dtype=int)
         uniq = np.unique(labels)
         for i in range(len(uniq)):
             new_labels[labels==uniq[i]] = i 
+        ## 将时间戳和对应的speaker ID打包成列表，传入make_rttms函数生成rttm文件
         seg_list = [(i,j) for i, j in zip(times, new_labels)]
         out_rttm = os.path.join(rttm_dir, rec_id+'.rttm')
         make_rttms(seg_list, out_rttm, rec_id)
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, rttm_dir, config):
     cluster = build('cluster', config)
+    # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
     for wav_file in local_wav_list:
         wav_name = os.path.basename(wav_file)
         rec_id = wav_name.rsplit('.', 1)[0]
@@ -103,6 +139,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, rttm_dir,
             visual_times = stat_obj['times']
 
         # cluster
+        ## 1. audio-only clustering: 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同
+        ## 2. visual-only clustering: 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
+        ## 3. 设置visual簇从max_audio_spk_id开始编号，筛选至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心），随后对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
         labels = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config)
         # output rttm
         new_labels = np.zeros(len(labels), dtype=int)
@@ -117,6 +156,7 @@ def main():
     rank = int(os.environ['LOCAL_RANK'])
     threads_num = int(os.environ['WORLD_SIZE'])
     args = parser.parse_args()
+    # 获取所有待处理的wav文件列表
     with open(args.wavs,'r') as f:
         wav_list = [i.strip() for i in f.readlines()]
     wav_list.sort()
@@ -126,7 +166,9 @@ def main():
 
     os.makedirs(args.rttm_dir, exist_ok=True)
     print("[INFO] Start clustering...")
+    # 当前进程处理的wav文件列表
     local_wav_list = wav_list[rank::threads_num]
+    # 加载yaml文件
     config = build_config(args.conf)
     if args.visual_embs_dir is None or args.visual_embs_dir == '':
         audio_only_func(local_wav_list, args.audio_embs_dir, args.rttm_dir, config)

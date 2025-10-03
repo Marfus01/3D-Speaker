@@ -27,6 +27,7 @@ def convert_to_yaml(overrides):
     return yaml_string.strip()
 
 
+# Load yaml config file
 def yaml_config_loader(conf_file, overrides=None):
     with open(conf_file, "r") as fr:
         conf_dict = yaml.load(fr, Loader=yaml.FullLoader)
@@ -37,6 +38,22 @@ def yaml_config_loader(conf_file, overrides=None):
 
 
 def build_config(config_file, overrides=None, copy=False):
+    """
+    Builds a configuration object from a YAML configuration file.
+
+    Args:
+      config_file (str): Path to the configuration file. The file must have a ".yaml" extension.
+      overrides (str, optional): Path to the configuration file to override the default configuration.
+        These overrides will be converted to YAML format and applied to the configuration.
+      copy (bool, optional): If True and the configuration contains an 'exp_dir' key, the
+        configuration will be saved as 'config.yaml' in the specified directory.
+
+    Returns:
+      Config: A configuration object created from the loaded and optionally overridden YAML file.
+
+    Raises:
+      ValueError: If the provided configuration file does not have a ".yaml" extension.
+    """
     if config_file.endswith(".yaml"):
         if overrides is not None:
             overrides = convert_to_yaml(overrides)

@@ -72,7 +72,7 @@ class VisionProcesser():
 
         self.min_track = conf['min_track']  # face track中第一张、最后一张人脸在原始视频中的最少相隔帧数
         self.num_failed_det = conf['num_failed_det']  # face track中相邻两张人脸在原始视频中的最大相隔帧数
-        self.crop_scale = conf['crop_scale']  # crop face with (1+*crop_scale) times of the detected bbox size
+        self.crop_scale = conf['crop_scale']  # 在为 talknet准备数据时，在人脸检测框的基础上，适当放大，以提供更丰富的上下文
         self.min_face_size = conf['min_face_size']  # face track中 max(face平均宽度, face平均高度) 的最小值
         self.face_det_stride = conf['face_det_stride']  # 每隔多少帧进行一次人脸检测。虽然后续face tracking会插值补全，以便于ASD，但是最后一步的 embedding 提取仍然只对检测（而非插值）得到的人脸进行。
         self.shot_stride = conf['shot_stride']  # treat every 'shot_stride' frames as a processing unit for face tracking and subsequent steps
