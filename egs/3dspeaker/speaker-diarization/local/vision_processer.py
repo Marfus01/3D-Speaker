@@ -20,8 +20,8 @@ import numpy as np
 from scipy.io import wavfile
 from scipy.interpolate import interp1d
 import os, time, torch, cv2, pickle, python_speech_features
+from facenet_pytorch import MTCNN
 
-import vision_tools.face_detection as face_detection
 import vision_tools.active_speaker_detection as active_speaker_detection
 import vision_tools.face_recognition as face_recognition
 import vision_tools.face_quality_assessment as face_quality_assessment
@@ -58,7 +58,12 @@ class VisionProcesser():
         print('video %s info: w: {}, h: {}, count: {}, fps: {}'.format(w, h, self.count, self.fps) % self.video_id)
 
         # initial vision models
-        self.face_detector = face_detection.Predictor(onnx_dir, device, device_id)
+        self.face_detector = MTCNN( # explain for the parameters: https://blog.csdn.net/m0_49963403/article/details/136160453
+          image_size=160, margin=0, min_face_size=20,
+          thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True,
+          device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
+          keep_all=True
+        )
         self.speaker_detector = active_speaker_detection.ASDTalknet(onnx_dir, device, device_id)
         self.face_quality_evaluator = face_quality_assessment.FaceQualityAssess(onnx_dir, device, device_id)
         self.face_embs_extractor = face_recognition.FaceRecIR101(onnx_dir, device, device_id)
@@ -199,11 +204,25 @@ class VisionProcesser():
             - 'conf' (float): The confidence score of the detection, 
               indicating the likelihood of the bounding box containing a face.
         """
+        def box_filter(boxes, probs, min_size, min_prob):
+            if type(boxes) == type(None):
+                return None, None, None
+            num = boxes.shape[0]
+            true_boxes = np.maximum(boxes, 0)
+            filtered_index = [i for i in range(num) if min(true_boxes[i][3]-true_boxes[i][1], true_boxes[i][2]-true_boxes[i][0]) >= min_size and probs[i] >= min_prob]
+            if len(filtered_index) == 0:
+                return torch.tensor([]), torch.tensor([]), torch.tensor([])
+            else:
+                true_boxes = torch.from_numpy(true_boxes[filtered_index])
+                true_box_probs = torch.from_numpy(probs[filtered_index])
+                filtered_index = torch.tensor(filtered_index)
+                return true_boxes, true_box_probs, filtered_index
         dets = []
         for fidx, image in enumerate(frames): # process each frame
-            image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb
-            bboxes, _, probs = self.face_detector(image_input, top_k=10, prob_threshold=0.9)
-            bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (1, 5), (x1, y1, x2, y2, conf)
+            image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb, ndarray (h, w, 3)
+            bboxes, probs = self.face_detector.detect(image_input)  # boxes(np.array) of shape (n, 4), probs(np.array) of shape (n,)
+            bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_size=0.8)
+            bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
             dets.append([])
             for bbox in bboxes:
                 frame_idex = fidx * self.face_det_stride

@@ -46,7 +46,7 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
   echo "$(basename $0) Stage2: Prepare onnx files and extrack raw videos and audios..."
   # Download pretrained models
   mkdir -p $onnx_dir
-  for m in version-RFB-320.onnx asd.onnx fqa.onnx face_recog_ir101.onnx; do
+  for m in asd.onnx fqa.onnx face_recog_ir101.onnx; do
     if [ ! -e $onnx_dir/$m ]; then
       echo "$(basename $0) Stage2: Download pretrained models $m"
       wget -O $onnx_dir/$m "https://modelscope.cn/models/iic/speech_campplus_speaker-diarization_common/resolve/master/onnx/$m"
