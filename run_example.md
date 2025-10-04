@@ -94,3 +94,8 @@ bash run_video.sh
 可以测试单一模态聚类的效果。结果为
 2025-10-03 17:00:28,323 - INFO: MS: 0.375888, FA: 0.670565, SER: 2.537241, DER: 3.583693
 效果比联合聚类差。
+
+
+将face detector替换为MTCNN，耗时和效果为：
+The total processing time for 7speakers_example is 84.97s, including faceTime 60.94s, trackTime 0.03s, cropTime 7.06s, asdTime 7.44s, visTime 0.00s, featTime 9.49s.
+2025-10-04 21:01:16,953 - INFO: MS: 0.375888, FA: 0.670565, SER: 1.232076, DER: 2.278528
