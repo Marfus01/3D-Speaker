@@ -211,7 +211,7 @@ class VisionProcesser():
             true_boxes = np.maximum(boxes, 0)
             filtered_index = [i for i in range(num) if min(true_boxes[i][3]-true_boxes[i][1], true_boxes[i][2]-true_boxes[i][0]) >= min_size and probs[i] >= min_prob]
             if len(filtered_index) == 0:
-                return torch.tensor([]), torch.tensor([]), torch.tensor([])
+                return torch.zeros((1, 4)), torch.zeros((1, 1)), torch.zeros((1, 1))
             else:
                 true_boxes = torch.from_numpy(true_boxes[filtered_index])
                 true_box_probs = torch.from_numpy(probs[filtered_index]).reshape(-1, 1)
