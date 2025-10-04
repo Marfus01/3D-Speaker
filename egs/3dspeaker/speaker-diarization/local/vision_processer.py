@@ -214,7 +214,7 @@ class VisionProcesser():
                 return torch.tensor([]), torch.tensor([]), torch.tensor([])
             else:
                 true_boxes = torch.from_numpy(true_boxes[filtered_index])
-                true_box_probs = torch.from_numpy(probs[filtered_index])
+                true_box_probs = torch.from_numpy(probs[filtered_index]).reshape(-1, 1)
                 filtered_index = torch.tensor(filtered_index)
                 return true_boxes, true_box_probs, filtered_index
         dets = []
@@ -222,7 +222,7 @@ class VisionProcesser():
             image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb, ndarray (h, w, 3)
             bboxes, probs = self.face_detector.detect(image_input)  # boxes(np.array) of shape (n, 4), probs(np.array) of shape (n,)
             bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_prob=0.8)
-            bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
+            bboxes = torch.cat([bboxes, probs], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
             dets.append([])
             for bbox in bboxes:
                 frame_idex = fidx * self.face_det_stride

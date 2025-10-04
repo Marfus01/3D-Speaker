@@ -12,8 +12,8 @@ stage=1
 stop_stage=7
 
 conf_file=conf/diar.yaml  # 在说话人特征提取时，仅作为template使用，实际参数均在脚本中指定
-gpus="0 1 2 3"
-nj=4  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_num的整数倍
+gpus="0"
+nj=1  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_num的整数倍
 include_overlap=false
 hf_access_token=
 
