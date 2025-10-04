@@ -206,12 +206,12 @@ class VisionProcesser():
         """
         def box_filter(boxes, probs, min_size, min_prob):
             if boxes is None or probs is None:
-                return torch.zeros((1, 4)), torch.zeros((1,)), torch.zeros((1,))
+                return torch.tensor([]), torch.tensor([]), torch.tensor([])
             num = boxes.shape[0]
             true_boxes = np.maximum(boxes, 0)
             filtered_index = [i for i in range(num) if min(true_boxes[i][3]-true_boxes[i][1], true_boxes[i][2]-true_boxes[i][0]) >= min_size and probs[i] >= min_prob]
             if len(filtered_index) == 0:
-                return torch.zeros((1, 4)), torch.zeros((1,)), torch.zeros((1,))
+                return torch.tensor([]), torch.tensor([]), torch.tensor([])
             else:
                 true_boxes = torch.from_numpy(true_boxes[filtered_index])
                 true_box_probs = torch.from_numpy(probs[filtered_index])
@@ -223,7 +223,7 @@ class VisionProcesser():
             image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb, ndarray (h, w, 3)
             bboxes, probs = self.face_detector.detect(image_input)  # boxes(np.array) of shape (n, 4), probs(np.array) of shape (n,)
             bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_prob=0.8)
-            bboxes = torch.cat([bboxes, probs.unsqueeze(1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
+            bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
             dets.append([])
             for bbox in bboxes:
                 frame_idex = fidx * self.face_det_stride
