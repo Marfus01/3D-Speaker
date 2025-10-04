@@ -1,5 +1,5 @@
 ## 阶段 0：现有项目改进
-### 人脸检测替换为MTCNN
+### 人脸检测替换为MTCNN✅
 目前使用的是version-RFB，主要优势是速度快，但精度应该低于MTCNN。考虑到之前已经测试了后者在当前数据集的表现，且效果不错，因此替换为MTCNN。为了降低开发成本，仅修改vision_processer.py。
 > a. 为了与之前项目保持一致，目前采用了facenet-pytorch中的MTCNN实现。后续如果要做多卡推理，可以考虑使用onnxruntime，参考https://pypi.org/project/mtcnn-onnxruntime/#description。
 > b. 输入输出数据类型、内部顺序已经与 3d speaker 的 pipeline 适配。
