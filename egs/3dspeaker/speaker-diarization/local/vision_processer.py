@@ -221,7 +221,7 @@ class VisionProcesser():
         for fidx, image in enumerate(frames): # process each frame
             image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb, ndarray (h, w, 3)
             bboxes, probs = self.face_detector.detect(image_input)  # boxes(np.array) of shape (n, 4), probs(np.array) of shape (n,)
-            bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_size=0.8)
+            bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_prob=0.8)
             bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
             dets.append([])
             for bbox in bboxes:
