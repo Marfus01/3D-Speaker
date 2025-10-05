@@ -13,7 +13,7 @@ stop_stage=6  # 共6步
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="the big bang theory"
-language="en" # 语言类型，支持 "en" 和 "zh"
+language="en" # 语言类型，支持 "en" 和 "zh-cn"
 examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
 
 video_list=$examples/video.list # 包含所有original video的路径
@@ -77,7 +77,7 @@ cat "$video_list" | while read video_file; do filename=$(basename "$video_file")
 # use run_audio.sh to save audio speaker embeddings
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename "$0") Stage3: Extract audio speaker embeddings..."
-  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --examples "$raw_data_dir" --exp "$exp"
+  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --language $language --examples "$raw_data_dir" --exp "$exp"
 fi
 
 # # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'

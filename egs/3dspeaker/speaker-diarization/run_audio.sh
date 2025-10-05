@@ -14,6 +14,7 @@ stop_stage=7
 conf_file=conf/diar.yaml  # 在说话人特征提取时，仅作为template使用，实际参数均在脚本中指定
 gpus="0"
 nj=1  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_num的整数倍
+language="en" # 语言类型，支持 "en" 和 "zh-cn"
 from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
 include_overlap=false
 hf_access_token=
@@ -67,20 +68,27 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
   else
     echo "$(basename $0) Stage3: Prepare audio&visual subsegments info from subtitle..."
-    python local/prepare_all_json_from_subtitle.py --wavs $wav_list \
-      --out_file_vad $json_dir/vad.json --out_file_subseg $json_dir/subseg.json
+    python local/prepare_all_json_from_subtitle.py --wavs "$wav_list" \
+      --out_file_vad "$json_dir/vad.json" --out_file_subseg "$json_dir/subseg.json"
   
   fi
 fi
 
-# 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
-if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
-  echo "$(basename $0) Stage4: Extract speaker embeddings..."
-  # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net 
-  speaker_model_id=iic/speech_campplus_sv_zh_en_16k-common_advanced
-  torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
-          --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
-fi
+# # 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
+# if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
+#   echo "$(basename $0) Stage4: Extract speaker embeddings..."
+#   # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
+#   if [ "$language" = "en" ]; then
+#     speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
+#   elif [ "$language" = "zh-cn" ]; then
+#     speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
+#   else
+#     echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
+#     exit 1
+#   fi
+#   torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
+#           --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
+# fi
 ###### End extracting speaker embeddings ######
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
