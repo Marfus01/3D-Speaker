@@ -18,11 +18,12 @@ face track需要改进。一帧里有多张人脸，优先选择iou最大的。�
 里面movie origin包含字幕、音频、视频，movie在此基础上去除了字幕。
 #### 字幕文件
 选择直接从
-> 超算上生活大爆炸现在用的数据集：F:\data\TV_series\tv_data\the big bang theory\triples_clean
-> 超算上我爱我家现在用的数据集：F:\data\TV_series\tv_data\I love my family\triples_clean
-中的speaker_text开始，里面包含了起止时间，片段名称。这部分数据原始获取方式如下
-> a. 读取srt文件，延长台词时间窗口、切分语音、转为txt文件的过程，参见 tv_series\code\data_preprocess\movie_seg.py。经过check, triples保存的语音。更进一步的，语音、图像都是根据txt的时间戳切分的，而txt文件时间戳与延长后的台词时间窗口对齐。
-> b. 对字幕台词筛选的过程，参见tv_series/code/data_preprocess/testset_construct/0.create_xlsx_to_label.py
+1. 超算上生活大爆炸现在用的数据集：F:\data\TV_series\tv_data\the big bang theory\triples_clean
+2. 超算上我爱我家现在用的数据集：F:\data\TV_series\tv_data\I love my family\triples_clean
+中的speaker_text开始，里面包含了起止时间，片段名称。片段名称和标注文件时对齐的。
+> 这部分数据原始获取方式如下
+> a. 读取srt文件，延长台词时间窗口、切分语音、转为txt文件，参见 tv_series\code\data_preprocess\movie_seg.py。经过check, triples保存的语音。更进一步的，语音、图像都是根据txt的时间戳切分的，而txt文件时间戳与延长后的台词时间窗口对齐。
+> b. 对字幕台词筛选，参见tv_series/code/data_preprocess/testset_construct/0.create_xlsx_to_label.py
 #### 我爱我家字幕文件时间戳问题
 在一期项目中，我爱我家triples的获取方式是，先把新、旧视频的字幕文件内容统一，然后用旧视频的时间戳，把 audio segment切出来；再用新视频的使劲戳，把中间帧切出来。文本内容和时间戳用新视频的。这种处理方式在仅需要中间帧时可行，但在需要对整段视频做face tracking时不合适。
 现在的做法是，直接用新视频的字幕文件和时间戳，切分音频、视频。尽管新视频字幕文件中部分台词结束时间戳偏早（相较音频），但这一问题似乎只出现在同一个人连续说话时，在说话人交替时基本不会发生，因此不影响说话人识别，暂时不做调整。
