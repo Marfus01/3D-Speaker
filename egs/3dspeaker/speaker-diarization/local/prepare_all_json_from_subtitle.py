@@ -37,6 +37,10 @@ def parse_subtitle_line(line):
     
     return episode_idx, line_idx, start_time, end_time, text
 
+def normalize_path(path):
+    """Normalize file paths to use the correct separator for the current OS."""
+    return os.path.normpath(path)
+
 def main():
     parser = argparse.ArgumentParser(description='Voice activity detection from subtitle files')
     parser.add_argument('--wavs', default='', type=str, help='Wav list file')
@@ -62,7 +66,7 @@ def main():
             wavs.append(wav_path)
 
     for wav_path in wav_list:
-        wav_path = wav_path.strip()
+        wav_path = normalize_path(wav_path.strip())
         wavs.append(wav_path)
     
     json_dict = {}
@@ -74,7 +78,8 @@ def main():
         # Convert wav path to subtitle path
         # Example: '/f/data/tv_series_plus/tv_data/the big bang theory/raw/E01.wav'
         # ->       '/f/data/tv_series_plus/tv_data/the big bang theory/speaker_text/E01.txt'
-        subtitle_path = wpath.replace('/raw/', '/speaker_text/').replace('.wav', '.txt')
+        subtitle_path = wpath.replace(os.path.join('raw', ''), os.path.join('speaker_text', '')).replace('.wav', '.txt')
+        subtitle_path = normalize_path(subtitle_path)
         
         if not os.path.exists(subtitle_path):
             print(f'[WARNING]: Subtitle file not found: {subtitle_path}')
@@ -105,7 +110,7 @@ def main():
     
     # Save individual segments
     if not json_dict:
-      raise ValueError("json_dict is empty. No valid subtitle data was processed.")
+        raise ValueError("json_dict is empty. No valid subtitle data was processed.")
     os.makedirs(os.path.dirname(args.out_file_subseg), exist_ok=True)
     with open(args.out_file_subseg, 'w') as f:
         json.dump(json_dict, f, indent=2)
