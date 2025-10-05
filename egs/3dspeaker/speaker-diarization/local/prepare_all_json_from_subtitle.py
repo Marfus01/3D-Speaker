@@ -151,7 +151,7 @@ def main():
             while j < len(segments):
                 next_seg_id, next_seg = segments[j]
                 # Check if next segment starts within 1 second of current segment end
-                if next_seg['start'] - merge_end <= 1.0:
+                if next_seg['start'] - merge_end <= 2:
                     merge_end = next_seg['stop']
                     merged_indices.append(int(next_seg_id.split('-')[-1]))
                     j += 1
