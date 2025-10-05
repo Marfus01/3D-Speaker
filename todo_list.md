@@ -10,13 +10,25 @@ face track需要改进。一帧里有多张人脸，优先选择iou最大的。�
 
 
 ## 阶段 1：搭建 pipeline
-搭建电视剧数据集上的pipeline，包括输入和evaluation（同时包含视觉和语音），仅做聚类不做重新训练
-需要重点注意以下几方面：
+搭建电视剧数据集上的pipeline，包括输入和evaluation（同时包含视觉和语音），仅做聚类不做重新训练。
+### 数据集
+#### 视频文件
+我爱我家：F:\data\TV_series\tv_data\I love my family_new，相较old，声音、画面质量更好，且字幕内容经过了修正。
+生活大爆炸：F:\data\TV_series\tv_data\the big bang theory。
+里面movie origin包含字幕、音频、视频，movie在此基础上去除了字幕。
+#### 字幕文件
+选择直接从
+> 超算上生活大爆炸现在用的数据集：F:\data\TV_series\tv_data\the big bang theory\triples_clean
+> 超算上我爱我家现在用的数据集：F:\data\TV_series\tv_data\I love my family\triples_clean
+中的speaker_text开始，里面包含了起止时间，片段名称。这部分数据原始获取方式如下
+> a. 读取srt文件，延长台词时间窗口、切分语音、转为txt文件的过程，参见 tv_series\code\data_preprocess\movie_seg.py。经过check, triples保存的语音。更进一步的，语音、图像都是根据txt的时间戳切分的，而txt文件时间戳与延长后的台词时间窗口对齐。
+> b. 对字幕台词筛选的过程，参见tv_series/code/data_preprocess/testset_construct/0.create_xlsx_to_label.py
+#### 我爱我家字幕文件时间戳问题
+在一期项目中，我爱我家triples的获取方式是，先把新、旧视频的字幕文件内容统一，然后用旧视频的时间戳，把 audio segment切出来；再用新视频的使劲戳，把中间帧切出来。文本内容和时间戳用新视频的。这种处理方式在仅需要中间帧时可行，但在需要对整段视频做face tracking时不合适。
+现在的做法是，直接用新视频的字幕文件和时间戳，切分音频、视频。尽管新视频字幕文件中部分台词结束时间戳偏早（相较音频），但这一问题似乎只出现在同一个人连续说话时，在说话人交替时基本不会发生，因此不影响说话人识别，暂时不做调整。
 
 ### 数据预处理
 1. stage1：删除下载视频和标注的步骤，转为检查视频、字幕文件、标注文件是否存在。
-> 生活大爆炸现在用的数据集：F:\data\TV_series\tv_data\the big bang theory\triples_clean
-> 我爱我家现在用的数据集：F:\data\TV_series\tv_data\I love my family\triples_clean
 2. stage2.1：根据语言类型，下载合适的语音特征提取 checkpoint；在语音、视觉特征提取时，根据语言类型，选择合适的模型和（人脸检测）超参数（包括在conf中设置的min_face_size和筛选候选框时的min_size，min_prob=0.75）。
 > a. CAM++有多个 checkpoint 可用，但是为了能讲清预训练模型来源，英文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k，中文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_zh-cn_3dspeaker_16k/summary。更多选择参考https://www.modelscope.cn/organization/iic?tab=model。
 > b. talknet、人脸质量评估、人脸识别模型的checkpoint不随语言类型变化，它们的训练集都涵盖了多语言/人种。
