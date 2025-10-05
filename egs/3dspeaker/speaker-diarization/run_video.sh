@@ -59,25 +59,25 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
     fi
   done
   # Split each original video to pure video and pure audio(not segmented)
-  mkdir -p $raw_data_dir  
-  cat $video_list | while read video_file; do
-    filename=$(basename $video_file)
+  mkdir -p "$raw_data_dir"
+  cat "$video_list" | while read video_file; do
+    filename=$(basename "$video_file")
     out_video_file=$raw_data_dir/${filename%.*}.mp4
     out_wav_file=$raw_data_dir/${filename%.*}.wav
-    if [ ! -e $out_video_file ]; then
-      echo "$(basename $0) Stage2: Extract video from $filename"
-      $FFMPEG_PATH -nostdin -y -i $video_file -qscale:v 2 -threads 16 -async 1 -r 25 $out_video_file -loglevel panic
+    if [ ! -e "$out_video_file" ]; then
+      echo "$(basename "$0") Stage2: Extract video from $filename"
+      $FFMPEG_PATH -nostdin -y -i "$video_file" -qscale:v 2 -threads 16 -async 1 -r 25 "$out_video_file" -loglevel panic
     fi
-    if [ ! -e $out_wav_file ]; then
-      echo "$(basename $0) Stage2: Extract audio from $filename"
-      $FFMPEG_PATH -nostdin -y -i $out_video_file -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 $out_wav_file -loglevel panic
+    if [ ! -e "$out_wav_file" ]; then
+      echo "$(basename "$0") Stage2: Extract audio from $filename"
+      $FFMPEG_PATH -nostdin -y -i "$out_video_file" -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 "$out_wav_file" -loglevel panic
     fi
   done
 fi
 
 # write two list, video.list and wav.list, which contain paths of all pure video/audios respectively
-cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.mp4;done > $raw_data_dir/video.list
-cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.wav;done > $raw_data_dir/wav.list
+cat "$video_list" | while read video_file; do filename=$(basename "$video_file");echo "$raw_data_dir/${filename%.*}.mp4";done > "$raw_data_dir/video.list"
+cat "$video_list" | while read video_file; do filename=$(basename "$video_file");echo "$raw_data_dir/${filename%.*}.wav";done > "$raw_data_dir/wav.list"
 
 # # use run_audio.sh to save audio speaker embeddings
 # if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
