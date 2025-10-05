@@ -28,7 +28,7 @@ FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1
 
-exp=runs/$tv_name/exp_video # 存储original video被处理后的所有中间文件和最终结果
+exp="runs/$tv_name/exp_video" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
 rttm_dir=$exp/rttm  # 存储模型给出的说话人分离结果
 
