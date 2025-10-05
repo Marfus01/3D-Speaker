@@ -39,6 +39,14 @@ def parse_subtitle_line(line):
 
 def normalize_path(path):
     """Normalize file paths to use the correct separator for the current OS."""
+    # Handle Windows drive letters when running on Windows
+    if os.name == 'nt':  # Windows
+        # Convert Unix-style absolute paths to Windows format
+        if path.startswith('/') and len(path) > 2 and path[2] == '/':
+            # Convert /f/path/to/file to F:/path/to/file
+            drive_letter = path[1].upper()
+            path = drive_letter + ':' + path[2:]
+    
     return os.path.normpath(path)
 
 def main():
@@ -53,7 +61,7 @@ def main():
     wavs = []
     if args.wavs.endswith('.wav'):
         # input is a wav path
-        wavs.append(args.wavs)
+        wavs.append(normalize_path(args.wavs.strip()))
     else:
         try:
             # input is wav list
@@ -62,12 +70,8 @@ def main():
         except:
             raise Exception('Input should be a wav file or a wav list.')
         for wav_path in wav_list:
-            wav_path = wav_path.strip()
+            wav_path = normalize_path(wav_path.strip())
             wavs.append(wav_path)
-
-    for wav_path in wav_list:
-        wav_path = normalize_path(wav_path.strip())
-        wavs.append(wav_path)
     
     json_dict = {}
     
