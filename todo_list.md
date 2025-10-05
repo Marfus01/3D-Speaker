@@ -30,7 +30,7 @@ face track需要改进。一帧里有多张人脸，优先选择iou最大的。�
 
 ### 数据预处理
 1. stage1：删除下载视频和标注的步骤，转为检查视频、字幕文件、标注文件是否存在。✅
-2. stage2：现在的项目强制要求语音的sample rate 为16k，视频帧率为25fps（active speaker detection模块要求），需要在stage 2切分音频&视频时利用ffmpeg进行转换，结果保存到硬盘。字幕文件不重新提取，直接用现有的，但需要转换为config文件。
+2. stage2：现在的项目强制要求语音的sample rate 为16k，视频帧率为25fps（active speaker detection模块要求），需要在stage 2切分音频&视频时利用ffmpeg进行转换，结果保存到硬盘。✅
 3. stage3.1：删除overlap detection，voice_activity_detection和prepare_subseg_json，改为根据字幕文件获取 subseg.json和 vad.json。需要注意的是，由于后面的视觉聚类对视觉片段连续性有要求，因此在得到 vad.json时，需要将间隔小于 2s 的片段合并。考虑到后面数据读入仍采取读入整段音频/视频再定位的方式，因此不需要对音频/视频做切分，也不需要调整起止时间为为0.04的倍数。需要注意的是，subseg.json中每一个 segment的名称、segment的总数量要和之前的数据集对齐，以便于后续 evaluation 代码的复用。
 > a. 后面如果需要，可以去除对处理过程对字幕文件的依赖，仅利用字幕文件构建标注数据集。这样就彻底变成了 speaker diarization 任务。此时，后面的语音 embedding 提取也可以按原来 batchwise提取每小段时长为1.5s的语音片段做。
 > b. 当前人脸聚类要求提取人脸的视频片段在时间上不能过于碎片化，否则很难形成同一 visual speaker id连续出现的时间段，难以实现有效的联合聚类。
