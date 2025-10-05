@@ -35,10 +35,10 @@ if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_
   if [ ! -f "$video_list" ]; then
     echo "$(basename $0) Stage1: Prepare input videos..." # 下载完整视频，说话人标注和所有前两种文件的list
     # 获取 movie 目录下的所有 mkv 文件，按集数排序
-    find "$tv_path/movie" -type f -name "E*.mkv" | sort > $video_list
+    find "$examples/movie" -type f -name "E*.mkv" | sort > "$video_list"
 
     # 将路径中的 movie/E01.mkv 替换为 speaker_text/E01.txt，保存为 subtitle.list
-    sed 's|movie/\(E[0-9]*\.mkv\)|speaker_text/\1.txt|g' $video_list > $subtitle_list
+    sed 's|movie/\(E[0-9]*\.mkv\)|speaker_text/\1.txt|g' "$video_list" > "$subtitle_list"
 
     echo "Video list saved to $video_list"
     echo "Subtitle list saved to $subtitle_list"
