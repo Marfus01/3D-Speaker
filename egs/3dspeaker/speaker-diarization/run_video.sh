@@ -15,8 +15,10 @@ data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根�
 tv_name="the big bang theory"
 language="en" # 语言类型，支持 "en" 和 "zh"
 examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
+
 video_list=$examples/video.list # 包含所有original video的路径
 subtitle_list=$examples/subtitle.list # 包含所有subtitle文件的路径
+raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
 conf_file=conf/diar_video.yaml
 onnx_dir=pretrained_models  # 存储预训练模型的目录
@@ -27,7 +29,6 @@ FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 . local/parse_options.sh || exit 1
 
 exp=exp_video # 存储original video被处理后的所有中间文件和最终结果
-raw_data_dir=$exp/raw # 存储从original video中提取出的pure video和pure audio
 visual_embs_dir=$exp/embs_video
 rttm_dir=$exp/rttm  # 存储模型给出的说话人分离结果
 
@@ -47,36 +48,36 @@ if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_
   fi
 fi
 
-# if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
-#   echo "$(basename $0) Stage2: Prepare onnx files and extrack raw videos and audios..."
-#   # Download pretrained models
-#   mkdir -p $onnx_dir
-#   for m in asd.onnx fqa.onnx face_recog_ir101.onnx; do
-#     if [ ! -e $onnx_dir/$m ]; then
-#       echo "$(basename $0) Stage2: Download pretrained models $m"
-#       wget -O $onnx_dir/$m "https://modelscope.cn/models/iic/speech_campplus_speaker-diarization_common/resolve/master/onnx/$m"
-#     fi
-#   done
-#   # Split each original video to pure video and pure audio(not segmented)
-#   mkdir -p $raw_data_dir  
-#   cat $video_list | while read video_file; do
-#     filename=$(basename $video_file)
-#     out_video_file=$raw_data_dir/${filename%.*}.mp4
-#     out_wav_file=$raw_data_dir/${filename%.*}.wav
-#     if [ ! -e $out_video_file ]; then
-#       echo "$(basename $0) Stage2: Extract video from $filename"
-#       $FFMPEG_PATH -nostdin -y -i $video_file -qscale:v 2 -threads 16 -async 1 -r 25 $out_video_file -loglevel panic
-#     fi
-#     if [ ! -e $out_wav_file ]; then
-#       echo "$(basename $0) Stage2: Extract audio from $filename"
-#       $FFMPEG_PATH -nostdin -y -i $out_video_file -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 $out_wav_file -loglevel panic
-#     fi
-#   done
-# fi
+if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
+  echo "$(basename $0) Stage2: Prepare onnx files and extrack raw videos and audios..."
+  # Download pretrained models
+  mkdir -p $onnx_dir
+  for m in asd.onnx fqa.onnx face_recog_ir101.onnx; do
+    if [ ! -e $onnx_dir/$m ]; then
+      echo "$(basename $0) Stage2: Download pretrained models $m"
+      wget -O $onnx_dir/$m "https://modelscope.cn/models/iic/speech_campplus_speaker-diarization_common/resolve/master/onnx/$m"
+    fi
+  done
+  # Split each original video to pure video and pure audio(not segmented)
+  mkdir -p $raw_data_dir  
+  cat $video_list | while read video_file; do
+    filename=$(basename $video_file)
+    out_video_file=$raw_data_dir/${filename%.*}.mp4
+    out_wav_file=$raw_data_dir/${filename%.*}.wav
+    if [ ! -e $out_video_file ]; then
+      echo "$(basename $0) Stage2: Extract video from $filename"
+      $FFMPEG_PATH -nostdin -y -i $video_file -qscale:v 2 -threads 16 -async 1 -r 25 $out_video_file -loglevel panic
+    fi
+    if [ ! -e $out_wav_file ]; then
+      echo "$(basename $0) Stage2: Extract audio from $filename"
+      $FFMPEG_PATH -nostdin -y -i $out_video_file -qscale:a 0 -ac 1 -vn -threads 16 -ar 16000 $out_wav_file -loglevel panic
+    fi
+  done
+fi
 
-# # write two list, video.list and wav.list, which contain paths of all pure video/audios respectively
-# cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.mp4;done > $raw_data_dir/video.list
-# cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.wav;done > $raw_data_dir/wav.list
+# write two list, video.list and wav.list, which contain paths of all pure video/audios respectively
+cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.mp4;done > $raw_data_dir/video.list
+cat $video_list | while read video_file; do filename=$(basename $video_file);echo $raw_data_dir/${filename%.*}.wav;done > $raw_data_dir/wav.list
 
 # # use run_audio.sh to save audio speaker embeddings
 # if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then

@@ -30,18 +30,20 @@ face track需要改进。一帧里有多张人脸，优先选择iou最大的。�
 
 ### 数据预处理
 1. stage1：删除下载视频和标注的步骤，转为检查视频、字幕文件、标注文件是否存在。✅
-2. stage2.1：根据语言类型，下载合适的语音特征提取 checkpoint；在语音、视觉特征提取时，根据语言类型，选择合适的模型和（人脸检测）超参数（包括在conf中设置的min_face_size和筛选候选框时的min_size，min_prob=0.75）。
-> a. CAM++有多个 checkpoint 可用，但是为了能讲清预训练模型来源，英文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k，中文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_zh-cn_3dspeaker_16k/summary。更多选择参考https://www.modelscope.cn/organization/iic?tab=model。
-> b. talknet、人脸质量评估、人脸识别模型的checkpoint不随语言类型变化，它们的训练集都涵盖了多语言/人种。
-3. stage2.2：现在的项目强制要求语音的sample rate 为16k，视频帧率为25fps（active speaker detection模块要求），需要在stage 2切分音频&视频时利用ffmpeg进行转换，结果保存到硬盘。字幕文件不重新提取，直接用现有的，但需要转换为config文件。
-4. stage3.1：删除overlap detection，voice_activity_detection和prepare_subseg_json，改为根据字幕文件获取 subseg.json和 vad.json。需要注意的是，由于后面的视觉聚类对视觉片段连续性有要求，因此在得到 vad.json时，需要将间隔小于 2s 的片段合并。考虑到后面数据读入仍采取读入整段音频/视频再定位的方式，因此不需要对音频/视频做切分，也不需要调整起止时间为为0.04的倍数。需要注意的是，subseg.json中每一个 segment的名称、segment的总数量要和之前的数据集对齐，以便于后续 evaluation 代码的复用。
+2. stage2：现在的项目强制要求语音的sample rate 为16k，视频帧率为25fps（active speaker detection模块要求），需要在stage 2切分音频&视频时利用ffmpeg进行转换，结果保存到硬盘。字幕文件不重新提取，直接用现有的，但需要转换为config文件。
+3. stage3.1：删除overlap detection，voice_activity_detection和prepare_subseg_json，改为根据字幕文件获取 subseg.json和 vad.json。需要注意的是，由于后面的视觉聚类对视觉片段连续性有要求，因此在得到 vad.json时，需要将间隔小于 2s 的片段合并。考虑到后面数据读入仍采取读入整段音频/视频再定位的方式，因此不需要对音频/视频做切分，也不需要调整起止时间为为0.04的倍数。需要注意的是，subseg.json中每一个 segment的名称、segment的总数量要和之前的数据集对齐，以便于后续 evaluation 代码的复用。
 > a. 后面如果需要，可以去除对处理过程对字幕文件的依赖，仅利用字幕文件构建标注数据集。这样就彻底变成了 speaker diarization 任务。此时，后面的语音 embedding 提取也可以按原来 batchwise提取每小段时长为1.5s的语音片段做。
 > b. 当前人脸聚类要求提取人脸的视频片段在时间上不能过于碎片化，否则很难形成同一 visual speaker id连续出现的时间段，难以实现有效的联合聚类。
 
 ### 特征提取
+4. stage3.1：根据语言类型，下载合适的语音特征提取 checkpoint；在语音、视觉特征提取时，根据语言类型，选择合适的模型。
+> a. CAM++有多个 checkpoint 可用，但是为了能讲清预训练模型来源，英文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_en_voxceleb_16k，中文使用https://www.modelscope.cn/models/iic/speech_campplus_sv_zh-cn_3dspeaker_16k/summary。更多选择参考https://www.modelscope.cn/organization/iic?tab=model。
+> b. 视觉特征提取部分，MTCNN、talknet、人脸质量评估、人脸识别模型的checkpoint不随语言类型变化，它们的训练集都涵盖了多语言/人种。
 5. stage3.2：使用CAM++，将 batchwise提取每小段语音的 embedding 改为，逐句处理台词语音，提取台词语音的 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 > b. 尽管可以参照speakerlab/bin/infer_sv_batch.py的方式，将完整的语音分割/pad到固定长度的 chunk, 做 embedding 提取，然后将源自相同语音的 chunk embedding 做平均，但考虑到台词普遍没有很长，且CAM++的模型可以处理不等长语音，因此直接逐个处理台词语音，提取 embedding。
-6. stage4：整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
+6. stage4：根据人种，设置合适的人脸检测超参数，包括在conf中设置的min_face_size和筛选候选框时的min_size，min_prob=0.75）。
+
+> 整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 
 ### 聚类
 1. 现在的语音聚类中，所有 minor cluster 都被重新分配到 major cluster 中。如果以others作为单独一类，需要重新考虑其划分。
