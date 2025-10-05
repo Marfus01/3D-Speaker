@@ -102,7 +102,7 @@ def main():
                 continue
             
             episode_idx, line_idx, start_time, end_time, text = parsed
-            
+            line_idx = line_idx - 1
             # Create segment ID
             segment_id = f"{episode_name}-{line_idx}"
             
