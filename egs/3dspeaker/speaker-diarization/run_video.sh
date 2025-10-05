@@ -17,9 +17,9 @@ language="en" # 语言类型，支持 "en" 和 "zh"
 examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
 
 video_list=$examples/video.list # 包含所有original video的路径
-subtitle_list=$examples/subtitle.list # 包含所有subtitle文件的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
+from_subtitle=true  # 是否直接从字幕文件中提取说话人分割信息
 conf_file=conf/diar_video.yaml
 onnx_dir=pretrained_models  # 存储预训练模型的目录
 gpus="0"  # 指定可用的 GPU ID
@@ -28,7 +28,7 @@ FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1
 
-exp=exp_video # 存储original video被处理后的所有中间文件和最终结果
+exp=runs/$tv_name/exp_video # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
 rttm_dir=$exp/rttm  # 存储模型给出的说话人分离结果
 
@@ -37,12 +37,7 @@ if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_
     echo "$(basename $0) Stage1: Prepare input videos..." # 下载完整视频，说话人标注和所有前两种文件的list
     # 获取 movie 目录下的所有 mkv 文件，按集数排序
     find "$examples/movie" -type f -name "E*.mkv" | sort > "$video_list"
-
-    # 将路径中的 movie/E01.mkv 替换为 speaker_text/E01.txt，保存为 subtitle.list
-    sed 's|movie/\(E[0-9]*\.mkv\)|speaker_text/\1.txt|g' "$video_list" > "$subtitle_list"
-
     echo "Video list saved to $video_list"
-    echo "Subtitle list saved to $subtitle_list"
   else
     echo "$(basename $0) Stage 1: $video_list exists. Skip this stage."
   fi
@@ -82,7 +77,7 @@ cat "$video_list" | while read video_file; do filename=$(basename "$video_file")
 # use run_audio.sh to save audio speaker embeddings
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename "$0") Stage3: Extract audio speaker embeddings..."
-  bash run_audio.sh --stage 2 --stop_stage 4 --examples "$raw_data_dir" --exp "$exp"
+  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --examples "$raw_data_dir" --exp "$exp"
 fi
 
 # # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'

@@ -14,6 +14,7 @@ stop_stage=7
 conf_file=conf/diar.yaml  # 在说话人特征提取时，仅作为template使用，实际参数均在脚本中指定
 gpus="0"
 nj=1  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_num的整数倍
+from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
 include_overlap=false
 hf_access_token=
 
@@ -48,7 +49,7 @@ resolve/master/examples/2speakers_example.rttm" -O $examples/2speakers_example.r
 fi
 
 ###### Begin extracting speaker embeddings ######
-if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
+if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ "$from_subtitle" = false ]; then
   # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用pyannote/segmentation-3.0做重叠说话人检测，汇总为 dict 后保存为 pkl。默认不进行。
   if [ "$include_overlap" = true ]; then
     echo "$(basename $0) Stage2: Do overlap detection for input wavs..."
@@ -61,8 +62,15 @@ fi
 
 # 使用滑动窗口(滑动步长 = 0.75, 窗宽 = 1.5)，将vad.json中记录的每段有效语音进一步切分为多个子片段，汇总写入exp_video/json/subseg.json
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
-  echo "$(basename $0) Stage3: Prepare subsegments info..."
-  python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
+  if [ "$from_subtitle" = false ]; then
+    echo "$(basename $0) Stage3: Prepare subsegments info..."
+    python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
+  else
+    echo "$(basename $0) Stage3: Prepare audio&visual subsegments info from subtitle..."
+    python local/prepare_all_json_from_subtitle.py --wavs $wav_list \
+      --out_file_vad $json_dir/vad.json --out_file_subseg $json_dir/subseg.json
+  
+  fi
 fi
 
 # 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
