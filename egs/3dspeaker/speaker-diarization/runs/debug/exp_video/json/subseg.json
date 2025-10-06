@@ -1,0 +1,1917 @@
+{
+  "E01-0": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 2.38,
+    "stop": 4.84
+  },
+  "E01-1": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 4.96,
+    "stop": 6.53
+  },
+  "E01-2": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 6.53,
+    "stop": 7.53
+  },
+  "E01-3": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 7.65,
+    "stop": 8.83
+  },
+  "E01-4": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 8.95,
+    "stop": 11.39
+  },
+  "E01-5": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 11.48,
+    "stop": 12.68
+  },
+  "E01-6": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 12.69,
+    "stop": 14.06
+  },
+  "E01-7": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 14.23,
+    "stop": 16.24
+  },
+  "E01-8": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 16.43,
+    "stop": 19.62
+  },
+  "E01-10": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 31.1,
+    "stop": 32.72
+  },
+  "E01-11": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 32.84,
+    "stop": 34.23
+  },
+  "E01-12": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 34.36,
+    "stop": 36.71
+  },
+  "E01-13": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 36.98,
+    "stop": 39.28
+  },
+  "E01-14": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 40.16,
+    "stop": 42.79
+  },
+  "E01-15": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 44.43,
+    "stop": 47.65
+  },
+  "E01-16": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 49.15,
+    "stop": 50.15
+  },
+  "E01-18": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 56.15,
+    "stop": 59.4
+  },
+  "E01-19": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 60.97,
+    "stop": 63.66
+  },
+  "E01-20": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 64.84,
+    "stop": 66.41
+  },
+  "E01-23": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 71.59,
+    "stop": 73.75
+  },
+  "E01-24": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 75.05,
+    "stop": 76.33
+  },
+  "E01-25": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 87.5,
+    "stop": 89.53999999999999
+  },
+  "E01-26": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 89.76,
+    "stop": 92.07
+  },
+  "E01-27": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 93.25,
+    "stop": 95.58
+  },
+  "E01-28": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 95.75999999999999,
+    "stop": 97.46000000000001
+  },
+  "E01-29": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 97.49000000000001,
+    "stop": 99.17
+  },
+  "E01-30": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 99.18,
+    "stop": 101.94
+  },
+  "E01-31": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 102.06,
+    "stop": 103.72
+  },
+  "E01-32": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 104.96000000000001,
+    "stop": 106.8
+  },
+  "E01-33": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 107.05,
+    "stop": 108.17
+  },
+  "E01-34": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 108.18,
+    "stop": 110.56
+  },
+  "E01-35": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 110.62,
+    "stop": 113.32
+  },
+  "E01-36": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 114.32,
+    "stop": 115.45
+  },
+  "E01-37": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 115.49000000000001,
+    "stop": 117.63
+  },
+  "E01-38": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 117.67,
+    "stop": 120.28
+  },
+  "E01-39": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 120.41,
+    "stop": 123.85
+  },
+  "E01-41": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 129.52,
+    "stop": 131.01
+  },
+  "E01-42": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 131.13,
+    "stop": 132.13
+  },
+  "E01-43": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 133.93,
+    "stop": 135.27
+  },
+  "E01-44": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 135.62,
+    "stop": 138.86
+  },
+  "E01-45": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 140.4,
+    "stop": 141.85
+  },
+  "E01-47": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 159.2,
+    "stop": 160.93
+  },
+  "E01-48": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 161.04,
+    "stop": 161.56
+  },
+  "E01-49": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 163.32,
+    "stop": 166.23
+  },
+  "E01-50": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 166.7,
+    "stop": 167.75
+  },
+  "E01-51": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 168.47,
+    "stop": 171.32999999999998
+  },
+  "E01-53": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 175.68,
+    "stop": 177.47
+  },
+  "E01-54": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 177.59,
+    "stop": 180.01
+  },
+  "E01-55": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 180.13,
+    "stop": 181.66
+  },
+  "E01-56": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 183.06,
+    "stop": 184.93
+  },
+  "E01-57": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 185.06,
+    "stop": 187.73
+  },
+  "E01-58": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 193.74,
+    "stop": 194.77
+  },
+  "E01-59": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 194.99,
+    "stop": 195.99
+  },
+  "E01-60": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 196.44,
+    "stop": 199.06
+  },
+  "E01-61": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 200.14,
+    "stop": 202.25
+  },
+  "E01-62": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 202.37,
+    "stop": 203.37
+  },
+  "E01-64": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 212.64,
+    "stop": 214.85
+  },
+  "E01-65": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 215.09,
+    "stop": 216.77
+  },
+  "E01-66": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 217.82999999999998,
+    "stop": 219.77
+  },
+  "E01-67": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 220.47,
+    "stop": 221.57
+  },
+  "E01-68": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 221.69,
+    "stop": 224.67000000000002
+  },
+  "E01-69": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 226.1,
+    "stop": 227.1
+  },
+  "E01-70": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 227.29,
+    "stop": 229.16
+  },
+  "E01-72": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 235.75,
+    "stop": 236.79
+  },
+  "E01-73": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 237.66,
+    "stop": 239.0
+  },
+  "E01-74": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 239.43,
+    "stop": 241.6
+  },
+  "E01-75": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 241.72,
+    "stop": 243.53
+  },
+  "E01-77": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 252.79,
+    "stop": 254.52
+  },
+  "E01-78": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 254.98,
+    "stop": 257.59
+  },
+  "E01-79": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 258.22,
+    "stop": 260.2
+  },
+  "E01-80": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 260.32,
+    "stop": 261.5
+  },
+  "E01-81": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 264.18,
+    "stop": 266.13
+  },
+  "E01-82": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 266.25,
+    "stop": 268.14
+  },
+  "E01-83": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 268.65,
+    "stop": 271.32
+  },
+  "E01-84": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 272.53,
+    "stop": 274.17
+  },
+  "E01-85": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 274.3,
+    "stop": 275.74
+  },
+  "E01-86": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 276.15,
+    "stop": 278.28
+  },
+  "E01-87": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 279.18,
+    "stop": 281.21
+  },
+  "E01-88": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 283.18,
+    "stop": 285.34000000000003
+  },
+  "E01-89": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 286.09000000000003,
+    "stop": 287.44
+  },
+  "E01-90": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 289.85,
+    "stop": 291.45
+  },
+  "E01-91": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 291.95,
+    "stop": 294.52
+  },
+  "E01-92": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 294.73,
+    "stop": 297.48
+  },
+  "E01-93": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 299.86,
+    "stop": 301.19
+  },
+  "E01-94": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 301.31,
+    "stop": 302.83
+  },
+  "E01-95": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 302.95,
+    "stop": 305.77
+  },
+  "E01-96": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 307.17,
+    "stop": 308.17
+  },
+  "E01-97": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 310.15,
+    "stop": 311.75
+  },
+  "E01-98": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 311.87,
+    "stop": 313.75
+  },
+  "E01-99": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 315.03,
+    "stop": 316.05
+  },
+  "E01-100": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 316.63,
+    "stop": 318.15
+  },
+  "E01-101": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 319.17,
+    "stop": 320.17
+  },
+  "E01-102": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 320.69,
+    "stop": 322.86
+  },
+  "E01-103": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 322.99,
+    "stop": 325.16
+  },
+  "E01-104": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 325.29,
+    "stop": 328.44
+  },
+  "E01-105": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 329.66,
+    "stop": 332.81
+  },
+  "E01-106": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 332.93,
+    "stop": 335.56
+  },
+  "E01-107": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 335.88,
+    "stop": 337.67
+  },
+  "E01-108": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 339.46,
+    "stop": 342.28
+  },
+  "E01-109": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 342.40999999999997,
+    "stop": 344.86
+  },
+  "E01-110": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 345.48,
+    "stop": 347.23
+  },
+  "E01-111": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 348.31,
+    "stop": 348.81
+  },
+  "E01-112": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 349.65,
+    "stop": 351.61
+  },
+  "E01-113": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 351.78,
+    "stop": 352.78
+  },
+  "E01-114": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 352.93,
+    "stop": 355.28
+  },
+  "E01-115": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 356.07,
+    "stop": 358.7
+  },
+  "E01-116": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 386.05,
+    "stop": 387.88
+  },
+  "E01-117": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 388.16,
+    "stop": 389.16
+  },
+  "E01-118": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 389.49,
+    "stop": 390.62
+  },
+  "E01-119": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 394.96,
+    "stop": 396.7
+  },
+  "E01-121": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 401.84000000000003,
+    "stop": 404.33
+  },
+  "E01-122": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 404.45,
+    "stop": 406.67
+  },
+  "E01-123": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 406.79,
+    "stop": 408.29
+  },
+  "E01-124": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 408.40999999999997,
+    "stop": 411.28
+  },
+  "E01-125": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 412.7,
+    "stop": 416.02
+  },
+  "E01-126": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 417.1,
+    "stop": 417.81
+  },
+  "E01-128": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 422.16,
+    "stop": 424.24
+  },
+  "E01-129": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 425.33,
+    "stop": 426.59
+  },
+  "E01-130": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 426.71,
+    "stop": 428.17
+  },
+  "E01-131": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 428.3,
+    "stop": 430.16
+  },
+  "E01-132": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 430.31,
+    "stop": 433.34
+  },
+  "E01-134": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 435.68,
+    "stop": 439.29
+  },
+  "E01-135": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 439.68,
+    "stop": 442.21
+  },
+  "E01-136": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 442.33,
+    "stop": 443.6
+  },
+  "E01-137": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 443.73,
+    "stop": 445.18
+  },
+  "E01-139": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 449.45,
+    "stop": 450.86
+  },
+  "E01-140": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 451.46,
+    "stop": 452.46
+  },
+  "E01-141": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 453.32,
+    "stop": 454.59000000000003
+  },
+  "E01-142": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 456.59000000000003,
+    "stop": 457.76
+  },
+  "E01-143": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 459.58,
+    "stop": 461.0
+  },
+  "E01-144": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 462.65,
+    "stop": 463.65999999999997
+  },
+  "E01-146": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 466.65999999999997,
+    "stop": 468.97
+  },
+  "E01-147": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 469.09000000000003,
+    "stop": 471.94
+  },
+  "E01-148": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 472.09000000000003,
+    "stop": 474.45
+  },
+  "E01-149": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 474.6,
+    "stop": 476.52
+  },
+  "E01-150": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 476.68,
+    "stop": 478.26
+  },
+  "E01-151": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 478.38,
+    "stop": 480.82
+  },
+  "E01-152": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 480.98,
+    "stop": 483.39
+  },
+  "E01-153": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 483.51,
+    "stop": 486.72
+  },
+  "E01-154": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 489.99,
+    "stop": 491.28
+  },
+  "E01-156": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 495.59,
+    "stop": 496.59
+  },
+  "E01-157": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 514.81,
+    "stop": 515.88
+  },
+  "E01-158": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 521.51,
+    "stop": 522.83
+  },
+  "E01-159": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 523.04,
+    "stop": 524.63
+  },
+  "E01-160": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 524.75,
+    "stop": 527.47
+  },
+  "E01-162": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 529.11,
+    "stop": 530.94
+  },
+  "E01-163": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 530.96,
+    "stop": 531.97
+  },
+  "E01-166": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 539.39,
+    "stop": 540.87
+  },
+  "E01-167": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 541.0,
+    "stop": 543.32
+  },
+  "E01-168": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 543.47,
+    "stop": 544.6
+  },
+  "E01-169": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 548.02,
+    "stop": 550.92
+  },
+  "E01-170": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 551.82,
+    "stop": 553.04
+  },
+  "E01-171": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 553.53,
+    "stop": 554.87
+  },
+  "E01-172": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 555.0,
+    "stop": 557.31
+  },
+  "E01-173": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 557.45,
+    "stop": 560.6
+  },
+  "E01-174": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 560.73,
+    "stop": 562.01
+  },
+  "E01-175": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 562.13,
+    "stop": 565.07
+  },
+  "E01-176": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 565.19,
+    "stop": 567.01
+  },
+  "E01-177": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 569.76,
+    "stop": 571.11
+  },
+  "E01-178": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 571.61,
+    "stop": 573.5
+  },
+  "E01-179": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 573.62,
+    "stop": 576.52
+  },
+  "E01-180": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 576.99,
+    "stop": 579.17
+  },
+  "E01-181": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 579.94,
+    "stop": 581.75
+  },
+  "E01-182": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 581.88,
+    "stop": 583.91
+  },
+  "E01-183": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 584.03,
+    "stop": 586.08
+  },
+  "E01-184": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 588.73,
+    "stop": 589.81
+  },
+  "E01-185": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 590.14,
+    "stop": 592.16
+  },
+  "E01-186": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 596.24,
+    "stop": 598.5
+  },
+  "E01-187": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 599.55,
+    "stop": 601.69
+  },
+  "E01-188": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 602.28,
+    "stop": 603.55
+  },
+  "E01-189": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 603.67,
+    "stop": 604.73
+  },
+  "E01-190": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 604.85,
+    "stop": 607.29
+  },
+  "E01-191": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 608.45,
+    "stop": 610.73
+  },
+  "E01-192": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 610.85,
+    "stop": 613.93
+  },
+  "E01-193": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 614.05,
+    "stop": 617.57
+  },
+  "E01-194": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 619.2,
+    "stop": 620.96
+  },
+  "E01-195": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 621.15,
+    "stop": 622.24
+  },
+  "E01-196": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 626.49,
+    "stop": 628.55
+  },
+  "E01-197": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 628.67,
+    "stop": 629.71
+  },
+  "E01-198": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 630.19,
+    "stop": 632.01
+  },
+  "E01-199": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 633.37,
+    "stop": 635.08
+  },
+  "E01-200": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 635.64,
+    "stop": 637.09
+  },
+  "E01-201": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 638.26,
+    "stop": 639.78
+  },
+  "E01-202": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 641.15,
+    "stop": 642.15
+  },
+  "E01-203": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 642.77,
+    "stop": 645.24
+  },
+  "E01-204": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 649.03,
+    "stop": 650.07
+  },
+  "E01-205": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 653.07,
+    "stop": 655.38
+  },
+  "E01-206": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 655.5,
+    "stop": 658.45
+  },
+  "E01-207": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 658.57,
+    "stop": 660.58
+  },
+  "E01-208": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 663.27,
+    "stop": 666.07
+  },
+  "E01-209": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 671.02,
+    "stop": 673.63
+  },
+  "E01-210": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 673.75,
+    "stop": 675.45
+  },
+  "E01-211": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 675.6,
+    "stop": 677.72
+  },
+  "E01-212": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 677.89,
+    "stop": 680.89
+  },
+  "E01-213": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 681.61,
+    "stop": 683.15
+  },
+  "E01-214": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 684.17,
+    "stop": 685.17
+  },
+  "E01-215": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 685.42,
+    "stop": 685.97
+  },
+  "E01-216": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 688.74,
+    "stop": 691.15
+  },
+  "E01-217": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 692.11,
+    "stop": 693.6
+  },
+  "E01-218": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 693.85,
+    "stop": 697.35
+  },
+  "E01-219": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 697.47,
+    "stop": 699.95
+  },
+  "E01-220": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 700.07,
+    "stop": 701.91
+  },
+  "E01-221": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 702.03,
+    "stop": 704.33
+  },
+  "E01-222": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 704.45,
+    "stop": 707.7
+  },
+  "E01-223": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 710.29,
+    "stop": 711.95
+  },
+  "E01-224": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 714.32,
+    "stop": 716.37
+  },
+  "E01-225": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 716.8,
+    "stop": 718.93
+  },
+  "E01-226": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 719.05,
+    "stop": 720.64
+  },
+  "E01-227": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 720.76,
+    "stop": 721.82
+  },
+  "E01-228": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 723.67,
+    "stop": 725.62
+  },
+  "E01-231": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 729.94,
+    "stop": 731.31
+  },
+  "E01-232": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 731.59,
+    "stop": 732.59
+  },
+  "E01-233": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 732.85,
+    "stop": 734.29
+  },
+  "E01-234": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 741.0,
+    "stop": 743.45
+  },
+  "E01-235": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 746.49,
+    "stop": 747.49
+  },
+  "E01-236": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 747.65,
+    "stop": 749.8
+  },
+  "E01-237": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 749.92,
+    "stop": 751.6
+  },
+  "E01-238": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 752.4,
+    "stop": 754.22
+  },
+  "E01-239": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 754.36,
+    "stop": 756.78
+  },
+  "E01-240": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 758.89,
+    "stop": 760.59
+  },
+  "E01-241": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 760.71,
+    "stop": 762.55
+  },
+  "E01-242": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 762.68,
+    "stop": 765.0
+  },
+  "E01-243": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 766.39,
+    "stop": 769.29
+  },
+  "E01-244": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 770.33,
+    "stop": 773.19
+  },
+  "E01-245": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 774.12,
+    "stop": 775.19
+  },
+  "E01-246": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 775.46,
+    "stop": 777.5
+  },
+  "E01-247": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 777.72,
+    "stop": 779.99
+  },
+  "E01-248": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 780.13,
+    "stop": 782.12
+  },
+  "E01-249": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 783.42,
+    "stop": 785.71
+  },
+  "E01-250": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 785.83,
+    "stop": 787.75
+  },
+  "E01-251": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 788.23,
+    "stop": 790.39
+  },
+  "E01-252": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 791.39,
+    "stop": 793.73
+  },
+  "E01-253": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 793.85,
+    "stop": 795.6
+  },
+  "E01-254": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 796.0,
+    "stop": 797.08
+  },
+  "E01-255": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 797.75,
+    "stop": 800.67
+  },
+  "E01-256": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 800.79,
+    "stop": 802.34
+  },
+  "E01-257": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 804.7,
+    "stop": 805.82
+  },
+  "E01-258": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 807.39,
+    "stop": 809.71
+  },
+  "E01-259": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 809.84,
+    "stop": 813.26
+  },
+  "E01-260": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 814.52,
+    "stop": 816.25
+  },
+  "E01-261": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 817.91,
+    "stop": 819.82
+  },
+  "E01-263": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 825.26,
+    "stop": 826.26
+  },
+  "E01-264": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 827.5,
+    "stop": 831.63
+  },
+  "E01-265": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 831.75,
+    "stop": 832.84
+  },
+  "E01-266": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 832.96,
+    "stop": 836.01
+  },
+  "E01-268": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 841.45,
+    "stop": 842.65
+  },
+  "E01-269": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 842.77,
+    "stop": 844.36
+  },
+  "E01-270": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 844.98,
+    "stop": 847.46
+  },
+  "E01-271": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 850.74,
+    "stop": 853.27
+  },
+  "E01-272": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 853.55,
+    "stop": 855.96
+  },
+  "E01-273": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 857.16,
+    "stop": 860.18
+  },
+  "E01-274": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 860.68,
+    "stop": 862.32
+  },
+  "E01-275": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 862.45,
+    "stop": 863.74
+  },
+  "E01-276": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 863.87,
+    "stop": 866.24
+  },
+  "E01-277": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 866.36,
+    "stop": 869.14
+  },
+  "E01-278": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 869.85,
+    "stop": 872.91
+  },
+  "E01-279": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 873.51,
+    "stop": 875.53
+  },
+  "E01-280": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 877.64,
+    "stop": 879.62
+  },
+  "E01-281": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 881.53,
+    "stop": 884.6
+  },
+  "E01-282": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 884.73,
+    "stop": 886.86
+  },
+  "E01-283": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 886.98,
+    "stop": 889.49
+  },
+  "E01-284": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 889.61,
+    "stop": 892.04
+  },
+  "E01-285": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 893.13,
+    "stop": 895.44
+  },
+  "E01-286": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 896.03,
+    "stop": 897.86
+  },
+  "E01-287": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 898.39,
+    "stop": 899.39
+  },
+  "E01-288": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 900.14,
+    "stop": 901.54
+  },
+  "E01-289": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 901.71,
+    "stop": 903.52
+  },
+  "E01-290": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 903.64,
+    "stop": 906.32
+  },
+  "E01-291": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 907.2,
+    "stop": 908.91
+  },
+  "E01-292": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 910.54,
+    "stop": 911.91
+  },
+  "E01-293": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 917.01,
+    "stop": 919.32
+  },
+  "E01-295": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 921.11,
+    "stop": 923.15
+  },
+  "E01-297": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 929.04,
+    "stop": 930.65
+  },
+  "E01-298": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 930.78,
+    "stop": 931.78
+  },
+  "E01-299": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 932.41,
+    "stop": 935.51
+  },
+  "E01-300": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 936.45,
+    "stop": 937.84
+  },
+  "E01-301": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 938.06,
+    "stop": 939.58
+  },
+  "E01-302": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 940.85,
+    "stop": 944.14
+  },
+  "E01-303": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 952.14,
+    "stop": 955.2
+  },
+  "E01-305": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 956.82,
+    "stop": 958.94
+  },
+  "E01-306": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 959.07,
+    "stop": 962.47
+  },
+  "E01-307": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 962.6,
+    "stop": 964.48
+  },
+  "E01-308": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 964.67,
+    "stop": 966.76
+  },
+  "E01-309": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 966.89,
+    "stop": 970.1
+  },
+  "E01-310": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 971.26,
+    "stop": 973.56
+  },
+  "E01-311": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 973.9,
+    "stop": 976.4
+  },
+  "E01-312": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 976.53,
+    "stop": 978.92
+  },
+  "E01-313": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 979.04,
+    "stop": 980.9
+  },
+  "E01-315": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 984.58,
+    "stop": 988.1
+  },
+  "E01-316": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 988.22,
+    "stop": 991.23
+  },
+  "E01-317": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 991.35,
+    "stop": 992.91
+  },
+  "E01-318": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 993.87,
+    "stop": 995.59
+  },
+  "E01-319": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 995.78,
+    "stop": 997.65
+  },
+  "E01-320": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 997.77,
+    "stop": 999.88
+  },
+  "E01-321": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1001.09,
+    "stop": 1002.56
+  },
+  "E01-322": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1002.68,
+    "stop": 1005.93
+  },
+  "E01-323": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1006.22,
+    "stop": 1007.89
+  },
+  "E01-324": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1011.37,
+    "stop": 1014.02
+  },
+  "E01-325": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1014.19,
+    "stop": 1016.77
+  },
+  "E01-326": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1016.89,
+    "stop": 1018.51
+  },
+  "E01-327": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1018.75,
+    "stop": 1020.77
+  },
+  "E01-329": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1025.24,
+    "stop": 1026.94
+  },
+  "E01-330": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1027.23,
+    "stop": 1029.82
+  },
+  "E01-331": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1031.97,
+    "stop": 1034.85
+  },
+  "E01-332": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1040.64,
+    "stop": 1042.65
+  },
+  "E01-333": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1043.48,
+    "stop": 1046.17
+  },
+  "E01-334": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1047.06,
+    "stop": 1048.33
+  },
+  "E01-335": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1048.81,
+    "stop": 1050.53
+  },
+  "E01-336": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1053.11,
+    "stop": 1054.11
+  },
+  "E01-337": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1059.4,
+    "stop": 1060.52
+  },
+  "E01-341": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1070.81,
+    "stop": 1071.98
+  },
+  "E01-342": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1072.56,
+    "stop": 1074.44
+  },
+  "E01-343": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1074.57,
+    "stop": 1075.97
+  },
+  "E01-344": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1076.1,
+    "stop": 1078.89
+  },
+  "E01-345": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1079.14,
+    "stop": 1082.02
+  },
+  "E01-346": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1082.14,
+    "stop": 1084.79
+  },
+  "E01-347": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1084.91,
+    "stop": 1086.7
+  },
+  "E01-348": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1088.04,
+    "stop": 1090.11
+  },
+  "E01-349": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1104.32,
+    "stop": 1107.25
+  },
+  "E01-350": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1108.04,
+    "stop": 1110.75
+  },
+  "E01-351": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1110.87,
+    "stop": 1113.76
+  },
+  "E01-352": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1117.89,
+    "stop": 1119.59
+  },
+  "E01-353": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1119.61,
+    "stop": 1120.61
+  },
+  "E01-354": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1123.33,
+    "stop": 1124.33
+  },
+  "E01-355": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1125.89,
+    "stop": 1127.03
+  },
+  "E01-356": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1127.28,
+    "stop": 1129.46
+  },
+  "E01-357": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1137.11,
+    "stop": 1138.11
+  },
+  "E01-358": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1138.31,
+    "stop": 1139.97
+  },
+  "E01-359": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1140.44,
+    "stop": 1141.45
+  },
+  "E01-360": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1143.49,
+    "stop": 1145.19
+  },
+  "E01-361": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1146.6,
+    "stop": 1148.02
+  },
+  "E01-362": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1150.4,
+    "stop": 1151.79
+  },
+  "E01-365": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1170.37,
+    "stop": 1172.2
+  },
+  "E01-366": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1174.97,
+    "stop": 1177.75
+  },
+  "E01-367": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1178.0,
+    "stop": 1181.66
+  },
+  "E01-368": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1182.59,
+    "stop": 1184.06
+  },
+  "E01-369": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1184.18,
+    "stop": 1187.54
+  },
+  "E01-370": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1187.66,
+    "stop": 1189.67
+  },
+  "E01-371": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1190.96,
+    "stop": 1192.74
+  },
+  "E01-372": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1194.9,
+    "stop": 1196.58
+  },
+  "E01-373": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1196.76,
+    "stop": 1198.54
+  },
+  "E01-374": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1198.66,
+    "stop": 1201.59
+  },
+  "E01-375": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1201.71,
+    "stop": 1202.86
+  },
+  "E01-376": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1203.12,
+    "stop": 1205.99
+  },
+  "E01-377": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1206.22,
+    "stop": 1208.54
+  },
+  "E01-378": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1210.34,
+    "stop": 1213.33
+  },
+  "E01-379": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1213.87,
+    "stop": 1217.44
+  },
+  "E01-380": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1217.78,
+    "stop": 1219.2
+  },
+  "E01-381": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1219.8,
+    "stop": 1220.93
+  },
+  "E01-382": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1221.05,
+    "stop": 1223.01
+  },
+  "E01-383": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1224.16,
+    "stop": 1225.79
+  },
+  "E01-384": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1226.5,
+    "stop": 1228.73
+  },
+  "E01-385": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1228.86,
+    "stop": 1231.15
+  },
+  "E01-386": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1231.96,
+    "stop": 1233.94
+  },
+  "E01-387": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1234.31,
+    "stop": 1235.32
+  },
+  "E01-388": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1235.65,
+    "stop": 1238.17
+  },
+  "E01-389": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1240.15,
+    "stop": 1241.2
+  },
+  "E01-390": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1243.54,
+    "stop": 1244.54
+  },
+  "E01-391": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1245.13,
+    "stop": 1246.74
+  },
+  "E01-392": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1246.92,
+    "stop": 1248.98
+  },
+  "E01-393": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1249.1,
+    "stop": 1251.87
+  },
+  "E01-394": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1252.58,
+    "stop": 1255.85
+  },
+  "E01-395": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1255.97,
+    "stop": 1257.23
+  },
+  "E01-396": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1257.35,
+    "stop": 1259.34
+  },
+  "E01-397": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1259.46,
+    "stop": 1262.13
+  },
+  "E01-398": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1263.27,
+    "stop": 1266.85
+  },
+  "E01-399": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1267.6,
+    "stop": 1270.38
+  },
+  "E01-400": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1271.69,
+    "stop": 1273.14
+  },
+  "E01-401": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1273.27,
+    "stop": 1275.4
+  },
+  "E01-403": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1283.27,
+    "stop": 1285.21
+  },
+  "E01-404": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1286.61,
+    "stop": 1288.88
+  },
+  "E01-405": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1291.59,
+    "stop": 1293.1
+  },
+  "E01-407": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1301.94,
+    "stop": 1302.95
+  },
+  "E01-410": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1307.56,
+    "stop": 1309.4
+  },
+  "E01-411": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1309.65,
+    "stop": 1313.44
+  },
+  "E01-412": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1313.95,
+    "stop": 1315.17
+  },
+  "E01-413": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1317.63,
+    "stop": 1319.8
+  },
+  "E01-414": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1319.92,
+    "stop": 1322.67
+  },
+  "E01-415": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1322.8,
+    "stop": 1324.0
+  },
+  "E01-416": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1325.09,
+    "stop": 1330.48
+  },
+  "E01-417": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1331.58,
+    "stop": 1336.93
+  },
+  "E01-418": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1337.43,
+    "stop": 1339.73
+  },
+  "E01-419": {
+    "file": "/data/home/scv7387/run/tv_series_plus/dataset/debug/raw/E01.wav",
+    "start": 1339.87,
+    "stop": 1343.43
+  }
+}
