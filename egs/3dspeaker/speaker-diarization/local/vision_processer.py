@@ -27,7 +27,7 @@ import vision_tools.face_recognition as face_recognition
 import vision_tools.face_quality_assessment as face_quality_assessment
 
 
-class VisionProcesser():
+class VisionProcesser_vad():
     def __init__(
         self, 
         video_file_path, 
@@ -57,11 +57,19 @@ class VisionProcesser():
         self.asvf_ratio = 16000 / 25  # audio samples per video frame
         print('video %s info: w: {}, h: {}, count: {}, fps: {}'.format(w, h, self.count, self.fps) % self.video_id)
 
+        # Check if the device is GPU
+        if device.type == 'cuda':
+            print(f"[INFO]: Using GPU: {torch.cuda.get_device_name(device)}")
+            device = 'cuda'
+        else:
+            print("[INFO]: Using CPU")
+            device = 'cpu'
+
         # initial vision models
         self.face_detector = MTCNN( # explain for the parameters: https://blog.csdn.net/m0_49963403/article/details/136160453
-          image_size=160, margin=0, min_face_size=20,
+          image_size=160, margin=0, min_face_size=conf['min_face_size'],
           thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True,
-          device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'),
+          device=device,
           keep_all=True
         )
         self.speaker_detector = active_speaker_detection.ASDTalknet(onnx_dir, device, device_id)
@@ -75,6 +83,8 @@ class VisionProcesser():
         self.out_video_path = out_video_path
         self.out_feat_path = out_feat_path
 
+        self.min_box_size = conf['min_box_size']  # minimum size of face box for face detection
+        self.min_box_prob = conf['min_box_prob']  # minimum probability of face box for face detection
         self.min_track = conf['min_track']  # face track中第一张、最后一张人脸在原始视频中的最少相隔帧数
         self.num_failed_det = conf['num_failed_det']  # face track中相邻两张人脸在原始视频中的最大相隔帧数
         self.crop_scale = conf['crop_scale']  # 在为 talknet准备数据时，在人脸检测框的基础上，适当放大，以提供更丰富的上下文
@@ -222,7 +232,7 @@ class VisionProcesser():
         for fidx, image in enumerate(frames): # process each frame
             image_input = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to rgb, ndarray (h, w, 3)
             bboxes, probs = self.face_detector.detect(image_input)  # boxes(np.array) of shape (n, 4), probs(np.array) of shape (n,)
-            bboxes, probs, _ = box_filter(bboxes, probs, min_size=30, min_prob=0.8)
+            bboxes, probs, _ = box_filter(bboxes, probs, min_size=self.min_box_size, min_prob=self.min_box_prob) # filter out low-quality boxes
             bboxes = torch.cat([bboxes, probs.reshape(-1, 1)], dim=-1)  # (n_faces, 5), (x1, y1, x2, y2, conf)
             dets.append([])
             for bbox in bboxes:

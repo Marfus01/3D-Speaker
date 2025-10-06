@@ -208,6 +208,11 @@ def main():
     embedding_model.load_state_dict(pretrained_state)
     embedding_model.eval()
     embedding_model.to(device)
+    # Check if the device is GPU
+    if device.type == 'cuda':
+        print(f"[INFO]: Using GPU: {torch.cuda.get_device_name(device)}")
+    else:
+        print("[INFO]: Using CPU")
 
     # compute embeddings of sub-segments, and save embeddings belong to the same wav into one pkl file
     os.makedirs(args.embs_out, exist_ok=True)    

@@ -16,7 +16,6 @@ tv_name="I love my family" # "the big bang theory", "I love my family"
 language="zh-cn" # 语言类型，支持 "en" 和 "zh-cn"
 
 from_subtitle=true  # 是否直接从字幕文件中提取说话人分割信息
-conf_file=conf/diar_video.yaml
 onnx_dir=pretrained_models  # 存储预训练模型的目录
 gpus="0"  # 指定可用的 GPU ID
 nj=1  # 并行任务数
@@ -24,6 +23,7 @@ FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
 
+conf_file="conf/$tv_name/diar_video.yaml"
 examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
 video_list=$examples/movie.list # 包含所有original video的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
@@ -83,17 +83,19 @@ fi
 # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
+  mkdir -p "$exp/conf"
+  cp "$conf_file" "$exp/conf/"  
   torchrun --nproc_per_node=$nj --master_port 29567 local/extract_visual_embeddings.py \
-          --conf $conf_file --videos "$raw_data_dir/video.list" \
-          --vad "$exp/json/vad.json" --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --gpu $gpus --use_gpu
+    --conf "$conf_file" --videos "$raw_data_dir/video.list" \
+    --vad "$exp/json/vad.json" --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --gpu $gpus --use_gpu
 fi
 
-if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-  echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-  torchrun --nproc_per_node=$nj --master_port 29567 local/cluster_and_postprocess.py \
-          --conf $conf_file --wavs "$raw_data_dir/wav.list" \
-          --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --rttm_dir $rttm_dir
-fi
+# if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+#   echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+#   torchrun --nproc_per_node=$nj --master_port 29567 local/cluster_and_postprocess.py \
+#           --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
+#           --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --rttm_dir $rttm_dir
+# fi
 
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
 #   echo "$(basename $0) Stage6: Get the final metrics..."
