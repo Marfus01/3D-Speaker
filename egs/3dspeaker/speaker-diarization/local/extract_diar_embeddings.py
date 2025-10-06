@@ -235,7 +235,6 @@ def main():
                     feats_batch = torch.vmap(feature_extractor)(wavs_batch) # convert each segment to mel feature, [1, num_frames, n_mels]
                     embeddings_batch = embedding_model(feats_batch).cpu()
                     embeddings.append(embeddings_batch)
-                    batch_st += args.batchsize
             embeddings = torch.cat(embeddings, dim=0).numpy()
 
             stat_obj = {
