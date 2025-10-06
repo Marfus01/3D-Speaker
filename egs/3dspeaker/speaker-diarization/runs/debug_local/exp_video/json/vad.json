@@ -1,0 +1,702 @@
+{
+  "E01-0-8": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 2.38,
+    "stop": 19.62
+  },
+  "E01-10-14": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 31.1,
+    "stop": 42.79
+  },
+  "E01-15": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 44.43,
+    "stop": 47.65
+  },
+  "E01-16": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 49.15,
+    "stop": 50.15
+  },
+  "E01-18": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 56.15,
+    "stop": 59.4
+  },
+  "E01-19": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 60.97,
+    "stop": 63.66
+  },
+  "E01-20": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 64.84,
+    "stop": 66.41
+  },
+  "E01-23": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 71.59,
+    "stop": 73.75
+  },
+  "E01-24": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 75.05,
+    "stop": 76.33
+  },
+  "E01-25-26": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 87.5,
+    "stop": 92.07
+  },
+  "E01-27-31": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 93.25,
+    "stop": 103.72
+  },
+  "E01-32-39": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 104.96000000000001,
+    "stop": 123.85
+  },
+  "E01-41-42": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 129.52,
+    "stop": 132.13
+  },
+  "E01-43-44": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 133.93,
+    "stop": 138.86
+  },
+  "E01-45": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 140.4,
+    "stop": 141.85
+  },
+  "E01-47-48": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 159.2,
+    "stop": 161.56
+  },
+  "E01-49-51": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 163.32,
+    "stop": 171.32999999999998
+  },
+  "E01-53-55": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 175.68,
+    "stop": 181.66
+  },
+  "E01-56-57": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 183.06,
+    "stop": 187.73
+  },
+  "E01-58-60": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 193.74,
+    "stop": 199.06
+  },
+  "E01-61-62": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 200.14,
+    "stop": 203.37
+  },
+  "E01-64-65": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 212.64,
+    "stop": 216.77
+  },
+  "E01-66-68": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 217.82999999999998,
+    "stop": 224.67000000000002
+  },
+  "E01-69-70": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 226.1,
+    "stop": 229.16
+  },
+  "E01-72-75": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 235.75,
+    "stop": 243.53
+  },
+  "E01-77-80": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 252.79,
+    "stop": 261.5
+  },
+  "E01-81-83": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 264.18,
+    "stop": 271.32
+  },
+  "E01-84-87": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 272.53,
+    "stop": 281.21
+  },
+  "E01-88-89": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 283.18,
+    "stop": 287.44
+  },
+  "E01-90-92": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 289.85,
+    "stop": 297.48
+  },
+  "E01-93-95": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 299.86,
+    "stop": 305.77
+  },
+  "E01-96": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 307.17,
+    "stop": 308.17
+  },
+  "E01-97-98": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 310.15,
+    "stop": 313.75
+  },
+  "E01-99-100": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 315.03,
+    "stop": 318.15
+  },
+  "E01-101-104": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 319.17,
+    "stop": 328.44
+  },
+  "E01-105-107": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 329.66,
+    "stop": 337.67
+  },
+  "E01-108-110": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 339.46,
+    "stop": 347.23
+  },
+  "E01-111-115": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 348.31,
+    "stop": 358.7
+  },
+  "E01-116-118": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 386.05,
+    "stop": 390.62
+  },
+  "E01-119": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 394.96,
+    "stop": 396.7
+  },
+  "E01-121-124": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 401.84000000000003,
+    "stop": 411.28
+  },
+  "E01-125": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 412.7,
+    "stop": 416.02
+  },
+  "E01-126": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 417.1,
+    "stop": 417.81
+  },
+  "E01-128": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 422.16,
+    "stop": 424.24
+  },
+  "E01-129-132": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 425.33,
+    "stop": 433.34
+  },
+  "E01-134-137": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 435.68,
+    "stop": 445.18
+  },
+  "E01-139-141": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 449.45,
+    "stop": 454.59000000000003
+  },
+  "E01-142": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 456.59000000000003,
+    "stop": 457.76
+  },
+  "E01-143": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 459.58,
+    "stop": 461.0
+  },
+  "E01-144": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 462.65,
+    "stop": 463.65999999999997
+  },
+  "E01-146-153": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 466.65999999999997,
+    "stop": 486.72
+  },
+  "E01-154": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 489.99,
+    "stop": 491.28
+  },
+  "E01-156": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 495.59,
+    "stop": 496.59
+  },
+  "E01-157": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 514.81,
+    "stop": 515.88
+  },
+  "E01-158-160": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 521.51,
+    "stop": 527.47
+  },
+  "E01-162-163": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 529.11,
+    "stop": 531.97
+  },
+  "E01-166-168": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 539.39,
+    "stop": 544.6
+  },
+  "E01-169-176": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 548.02,
+    "stop": 567.01
+  },
+  "E01-177-183": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 569.76,
+    "stop": 586.08
+  },
+  "E01-184-185": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 588.73,
+    "stop": 592.16
+  },
+  "E01-186": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 596.24,
+    "stop": 598.5
+  },
+  "E01-187-190": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 599.55,
+    "stop": 607.29
+  },
+  "E01-191-193": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 608.45,
+    "stop": 617.57
+  },
+  "E01-194-195": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 619.2,
+    "stop": 622.24
+  },
+  "E01-196-198": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 626.49,
+    "stop": 632.01
+  },
+  "E01-199-200": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 633.37,
+    "stop": 637.09
+  },
+  "E01-201": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 638.26,
+    "stop": 639.78
+  },
+  "E01-202-203": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 641.15,
+    "stop": 645.24
+  },
+  "E01-204": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 649.03,
+    "stop": 650.07
+  },
+  "E01-205-207": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 653.07,
+    "stop": 660.58
+  },
+  "E01-208": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 663.27,
+    "stop": 666.07
+  },
+  "E01-209-213": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 671.02,
+    "stop": 683.15
+  },
+  "E01-214-215": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 684.17,
+    "stop": 685.97
+  },
+  "E01-216-222": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 688.74,
+    "stop": 707.7
+  },
+  "E01-223": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 710.29,
+    "stop": 711.95
+  },
+  "E01-224-227": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 714.32,
+    "stop": 721.82
+  },
+  "E01-228": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 723.67,
+    "stop": 725.62
+  },
+  "E01-231-233": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 729.94,
+    "stop": 734.29
+  },
+  "E01-234": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 741.0,
+    "stop": 743.45
+  },
+  "E01-235-239": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 746.49,
+    "stop": 756.78
+  },
+  "E01-240-242": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 758.89,
+    "stop": 765.0
+  },
+  "E01-243": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 766.39,
+    "stop": 769.29
+  },
+  "E01-244-248": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 770.33,
+    "stop": 782.12
+  },
+  "E01-249-256": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 783.42,
+    "stop": 802.34
+  },
+  "E01-257": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 804.7,
+    "stop": 805.82
+  },
+  "E01-258-259": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 807.39,
+    "stop": 813.26
+  },
+  "E01-260": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 814.52,
+    "stop": 816.25
+  },
+  "E01-261": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 817.91,
+    "stop": 819.82
+  },
+  "E01-263": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 825.26,
+    "stop": 826.26
+  },
+  "E01-264-266": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 827.5,
+    "stop": 836.01
+  },
+  "E01-268-270": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 841.45,
+    "stop": 847.46
+  },
+  "E01-271-272": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 850.74,
+    "stop": 855.96
+  },
+  "E01-273-279": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 857.16,
+    "stop": 875.53
+  },
+  "E01-280": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 877.64,
+    "stop": 879.62
+  },
+  "E01-281-284": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 881.53,
+    "stop": 892.04
+  },
+  "E01-285-291": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 893.13,
+    "stop": 908.91
+  },
+  "E01-292": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 910.54,
+    "stop": 911.91
+  },
+  "E01-293": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 917.01,
+    "stop": 919.32
+  },
+  "E01-295": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 921.11,
+    "stop": 923.15
+  },
+  "E01-297-301": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 929.04,
+    "stop": 939.58
+  },
+  "E01-302": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 940.85,
+    "stop": 944.14
+  },
+  "E01-303": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 952.14,
+    "stop": 955.2
+  },
+  "E01-305-309": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 956.82,
+    "stop": 970.1
+  },
+  "E01-310-313": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 971.26,
+    "stop": 980.9
+  },
+  "E01-315-320": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 984.58,
+    "stop": 999.88
+  },
+  "E01-321-323": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1001.09,
+    "stop": 1007.89
+  },
+  "E01-324-327": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1011.37,
+    "stop": 1020.77
+  },
+  "E01-329-330": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1025.24,
+    "stop": 1029.82
+  },
+  "E01-331": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1031.97,
+    "stop": 1034.85
+  },
+  "E01-332-335": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1040.64,
+    "stop": 1050.53
+  },
+  "E01-336": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1053.11,
+    "stop": 1054.11
+  },
+  "E01-337": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1059.4,
+    "stop": 1060.52
+  },
+  "E01-341-347": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1070.81,
+    "stop": 1086.7
+  },
+  "E01-348": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1088.04,
+    "stop": 1090.11
+  },
+  "E01-349-351": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1104.32,
+    "stop": 1113.76
+  },
+  "E01-352-353": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1117.89,
+    "stop": 1120.61
+  },
+  "E01-354": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1123.33,
+    "stop": 1124.33
+  },
+  "E01-355-356": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1125.89,
+    "stop": 1129.46
+  },
+  "E01-357-359": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1137.11,
+    "stop": 1141.45
+  },
+  "E01-360": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1143.49,
+    "stop": 1145.19
+  },
+  "E01-361": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1146.6,
+    "stop": 1148.02
+  },
+  "E01-362": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1150.4,
+    "stop": 1151.79
+  },
+  "E01-365": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1170.37,
+    "stop": 1172.2
+  },
+  "E01-366-370": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1174.97,
+    "stop": 1189.67
+  },
+  "E01-371": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1190.96,
+    "stop": 1192.74
+  },
+  "E01-372-377": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1194.9,
+    "stop": 1208.54
+  },
+  "E01-378-382": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1210.34,
+    "stop": 1223.01
+  },
+  "E01-383-388": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1224.16,
+    "stop": 1238.17
+  },
+  "E01-389": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1240.15,
+    "stop": 1241.2
+  },
+  "E01-390-397": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1243.54,
+    "stop": 1262.13
+  },
+  "E01-398-399": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1263.27,
+    "stop": 1270.38
+  },
+  "E01-400-401": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1271.69,
+    "stop": 1275.4
+  },
+  "E01-403": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1283.27,
+    "stop": 1285.21
+  },
+  "E01-404": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1286.61,
+    "stop": 1288.88
+  },
+  "E01-405": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1291.59,
+    "stop": 1293.1
+  },
+  "E01-407": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1301.94,
+    "stop": 1302.95
+  },
+  "E01-410-412": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1307.56,
+    "stop": 1315.17
+  },
+  "E01-413-415": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1317.63,
+    "stop": 1324.0
+  },
+  "E01-416": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1325.09,
+    "stop": 1330.48
+  },
+  "E01-417-419": {
+    "file": "F:\\data\\tv_series_plus\\tv_data\\debug_local\\raw\\E01.wav",
+    "start": 1331.58,
+    "stop": 1343.43
+  }
+}
