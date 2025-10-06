@@ -80,18 +80,20 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --language $language --examples "$raw_data_dir" --exp "$exp"
 fi
 
-# # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
-# if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
-#   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
-#   torchrun --nproc_per_node=$nj local/extract_visual_embeddings.py --conf $conf_file --videos $raw_data_dir/video.list \
-#           --vad $exp/json/vad.json --onnx_dir $onnx_dir --embs_out $visual_embs_dir --gpu $gpus --use_gpu
-# fi
+# For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
+if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
+  echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
+  torchrun --nproc_per_node=$nj --master_port 29567 local/extract_visual_embeddings.py \
+          --conf $conf_file --videos "$raw_data_dir/video.list" \
+          --vad "$exp/json/vad.json" --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --gpu $gpus --use_gpu
+fi
 
-# if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-#   echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-#   torchrun --nproc_per_node=$nj local/cluster_and_postprocess.py --conf $conf_file --wavs $raw_data_dir/wav.list \
-#           --audio_embs_dir $exp/embs --visual_embs_dir $visual_embs_dir --rttm_dir $rttm_dir
-# fi
+if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+  echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+  torchrun --nproc_per_node=$nj --master_port 29567 local/cluster_and_postprocess.py \
+          --conf $conf_file --wavs "$raw_data_dir/wav.list" \
+          --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --rttm_dir $rttm_dir
+fi
 
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
 #   echo "$(basename $0) Stage6: Get the final metrics..."

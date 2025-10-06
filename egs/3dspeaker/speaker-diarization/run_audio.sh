@@ -91,8 +91,10 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   mkdir -p "$exp/conf"
   cp $conf_file "$exp/conf/"
   # Extract speaker embeddings
-  torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
-          --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
+  torchrun --nproc_per_node=$nj --master_port 29567 local/extract_diar_embeddings.py \
+          --model_id $speaker_model_id --conf $conf_file \
+          --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
+            
 fi
 ###### End extracting speaker embeddings ######
 
@@ -103,7 +105,8 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   else
     cluster_rttm_dir=$rttm_dir
   fi
-  torchrun --nproc_per_node=$nj local/cluster_and_postprocess.py --conf $conf_file --wavs $wav_list \
+  torchrun --nproc_per_node=$nj --master_port 29567 local/cluster_and_postprocess.py \
+          --conf $conf_file --wavs $wav_list \
           --audio_embs_dir $embs_dir --rttm_dir $cluster_rttm_dir
 fi
 
@@ -129,5 +132,5 @@ fi
 
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
   echo "$(basename $0) Stage8: Generate segmented transcription results with speaker ID...This step may be time-consuming."
-  torchrun --nproc_per_node=$nj local/out_transcription.py --exp_dir $exp --gpu $gpus
+  torchrun --nproc_per_node=$nj --master_port 29567 local/out_transcription.py --exp_dir $exp --gpu $gpus
 fi
