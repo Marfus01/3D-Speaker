@@ -14,10 +14,6 @@ stop_stage=6  # 共6步
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="I love my family" # "the big bang theory", "I love my family"
 language="zh-cn" # 语言类型，支持 "en" 和 "zh-cn"
-examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
-
-video_list=$examples/movie.list # 包含所有original video的路径
-raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
 from_subtitle=true  # 是否直接从字幕文件中提取说话人分割信息
 conf_file=conf/diar_video.yaml
@@ -26,7 +22,11 @@ gpus="0"  # 指定可用的 GPU ID
 nj=1  # 并行任务数
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
-. local/parse_options.sh || exit 1
+. local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
+
+examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
+video_list=$examples/movie.list # 包含所有original video的路径
+raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
 exp="runs/$tv_name/exp_video" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
