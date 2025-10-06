@@ -13,10 +13,10 @@ stop_stage=6  # 共6步
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="the big bang theory" # "the big bang theory", "I love my family"
-language="zh-cn" # 语言类型，支持 "en" 和 "zh-cn"
+language="en" # 语言类型，支持 "en" 和 "zh-cn"
 examples="$data_root/$tv_name" # 存储original video和说话人标注文件的目录
 
-video_list=$examples/video.list # 包含所有original video的路径
+video_list=$examples/movie.list # 包含所有original video的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
 from_subtitle=true  # 是否直接从字幕文件中提取说话人分割信息
