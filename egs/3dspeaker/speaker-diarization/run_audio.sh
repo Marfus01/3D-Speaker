@@ -74,21 +74,26 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   fi
 fi
 
-# # 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
-# if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
-#   echo "$(basename $0) Stage4: Extract speaker embeddings..."
-#   # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
-#   if [ "$language" = "en" ]; then
-#     speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
-#   elif [ "$language" = "zh-cn" ]; then
-#     speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
-#   else
-#     echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
-#     exit 1
-#   fi
-#   torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
-#           --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
-# fi
+# 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
+if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
+  echo "$(basename $0) Stage4: Extract speaker embeddings..."
+  # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
+  if [ "$language" = "en" ]; then
+    speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
+  elif [ "$language" = "zh-cn" ]; then
+    speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
+  else
+    echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
+    exit 1
+  fi
+
+  # Copy conf_file to $exp/conf
+  mkdir -p "$exp/conf"
+  cp $conf_file "$exp/conf/"
+  # Extract speaker embeddings
+  torchrun --nproc_per_node=$nj local/extract_diar_embeddings.py --model_id $speaker_model_id --conf $conf_file \
+          --subseg_json $json_dir/subseg.json --embs_out $embs_dir --gpu $gpus --use_gpu
+fi
 ###### End extracting speaker embeddings ######
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then

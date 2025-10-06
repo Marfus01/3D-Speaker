@@ -46,7 +46,7 @@ parser.add_argument('--pretrained_model', default=None, type=str, help='Path of 
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--subseg_json', default='', type=str, help='Sub-segments info')
 parser.add_argument('--embs_out', default='', type=str, help='Out embedding dir')
-parser.add_argument('--batchsize', default=64, type=int, help='Batchsize for extracting embeddings')
+parser.add_argument('--batchsize', default=1, type=int, help='Batchsize for extracting embeddings')
 parser.add_argument('--use_gpu', action='store_true', help='Use gpu or not')
 parser.add_argument('--gpu', nargs='+', help='GPU id to use.')
 
@@ -93,6 +93,16 @@ supports = {
         'revision': 'v1.0.2', 
         'model': CAMPPLUS_VOX, 
         'model_pt': 'campplus_voxceleb.bin', 
+    },
+    'iic/speech_campplus_sv_en_voxceleb_16k': {
+        'revision': 'v1.0.2', 
+        'model': CAMPPLUS_VOX,
+        'model_pt': 'campplus_voxceleb.bin',
+    },
+    'iic/speech_campplus_sv_zh-cn_3dspeaker_16k': {
+        'revision': 'v1.0.2', 
+        'model': CAMPPLUS_VOX,
+        'model_pt': 'campplus_cn_3dspeaker.bin',
     },
     'damo/speech_campplus_sv_zh-cn_16k-common': {
         'revision': 'v1.0.0', 
@@ -156,8 +166,8 @@ def main():
     with open(args.subseg_json, "r") as f:
         subseg_json = json.load(f)
     ## get unique wav filenames
-    all_keys = subseg_json.keys() # list of all sub-segment ids, like '7speakers_example_0.0_1.5'
-    A = [i.rsplit('_', 2)[0] for i in all_keys] # list of all wav filenames, like '7speakers_example'
+    all_keys = subseg_json.keys() # list of all sub-segment ids, like "E01-152"
+    A = [i.rsplit('-', 1)[0] for i in all_keys] # list of all wav filenames, like 'E01'
     all_rec_ids = list(set(A))
     all_rec_ids.sort()
     if len(all_rec_ids) == 0:
@@ -171,7 +181,7 @@ def main():
         subset = {}
         for key in subseg_json:
             k = str(key)
-            if k.rsplit('_',2)[0]==rec_id:
+            if k.rsplit('-', 1)[0]==rec_id:
                 subset[key] = subseg_json[key]
         metadata[rec_id]=subset
 
@@ -199,7 +209,7 @@ def main():
     embedding_model.eval()
     embedding_model.to(device)
 
-    # compute embeddings of sub-segments
+    # compute embeddings of sub-segments, and save embeddings belong to the same wav into one pkl file
     os.makedirs(args.embs_out, exist_ok=True)    
     local_rec_ids = all_rec_ids[rank::threads_num]  # 当前进程负责处理的wav list。例如['file1', 'file5', ...]    
     for rec_id in local_rec_ids:
@@ -214,19 +224,15 @@ def main():
             obj_fs = feature_extractor.sample_rate
             wav = load_audio(wav_path, obj_fs=obj_fs) # torch.tensor, (num_channels, num_samples)
 
-            ## split original audio into sub-segments, pad to the same length, and convert to a batch
-            wavs = [wav[0, int(meta[i]['start']*obj_fs):int(meta[i]['stop']*obj_fs)] for i in meta] # only use the first channel
-            max_len = max([x.shape[0] for x in wavs])
-            wavs = [circle_pad(x, max_len) for x in wavs]
-            wavs = torch.stack(wavs).unsqueeze(1) # (num_subsegs, 1, num_samples)
+            ## split original audio into sub-segments, wavs of len num_subsegs, each elements is (1, num_samples_i))
+            wavs = [wav[0, int(meta[i]['start']*obj_fs):int(meta[i]['stop']*obj_fs)].unsqueeze(0) for i in meta] # only use the first channel
 
             ## extract embeddings in batch
             embeddings = []
-            batch_st = 0
             with torch.no_grad():
-                while batch_st < wavs.shape[0]:
-                    wavs_batch = wavs[batch_st: batch_st+args.batchsize].to(device)
-                    feats_batch = torch.vmap(feature_extractor)(wavs_batch) # convert each segment to mel feature, [num_subsegs, num_frames, n_mels]
+                for wav in wavs:
+                    wavs_batch = wav.unsqueeze(0).to(device) # (1, 1, num_samples_i)
+                    feats_batch = torch.vmap(feature_extractor)(wavs_batch) # convert each segment to mel feature, [1, num_frames, n_mels]
                     embeddings_batch = embedding_model(feats_batch).cpu()
                     embeddings.append(embeddings_batch)
                     batch_st += args.batchsize
@@ -234,7 +240,8 @@ def main():
 
             stat_obj = {
                 'embeddings': embeddings, 
-                'times': [[meta[i]['start'], meta[i]['stop']] for i in meta]
+                'times': [[meta[i]['start'], meta[i]['stop']] for i in meta],
+                'subseg_ids': [i for i in meta]
                 }
             pickle.dump(stat_obj, open(stat_emb_file,'wb'))
         else:
