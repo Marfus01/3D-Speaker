@@ -86,8 +86,8 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"  
   torchrun --nproc_per_node=$nj --master_port 29567 local/extract_visual_embeddings.py \
-    --conf "$conf_file" --videos "$raw_data_dir/video.list" \
-    --vad "$exp/json/vad.json" --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --gpu $gpus --use_gpu
+    --conf "$conf_file" --videos "$raw_data_dir/video.list" --vad "$exp/json/vad.json" --subseg "$exp/json/subseg.json"\
+    --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --gpu $gpus --use_gpu
 fi
 
 # if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
