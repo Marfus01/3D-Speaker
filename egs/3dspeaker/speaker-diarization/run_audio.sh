@@ -68,9 +68,12 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
   else
     echo "$(basename $0) Stage3: Prepare audio&visual subsegments info from subtitle..."
-    python local/prepare_all_json_from_subtitle.py --wavs "$wav_list" \
+    if [ -f "$json_dir/vad.json" ] && [ -f "$json_dir/subseg.json" ]; then
+      echo "$(basename $0) Stage3: $json_dir/vad.json and $json_dir/subseg.json exist. Skip this stage."
+    else
+      python local/prepare_all_json_from_subtitle.py --wavs "$wav_list" \
       --out_file_vad "$json_dir/vad.json" --out_file_subseg "$json_dir/subseg.json"
-  
+    fi
   fi
 fi
 

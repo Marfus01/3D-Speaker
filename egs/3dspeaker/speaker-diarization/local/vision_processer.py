@@ -145,7 +145,7 @@ class VisionProcesser_vad():
         for k in self.elapsed_time:
             all_elapsed_time += sum(self.elapsed_time[k])
             self.elapsed_time[k] = sum(self.elapsed_time[k])
-        elapsed_time_msg = 'The total processing time for %s is %.2fs, including' % (self.video_id, all_elapsed_time)
+        elapsed_time_msg = 'The total vad processing time for %s is %.2fs, including' % (self.video_id, all_elapsed_time)
         for k in self.elapsed_time:
             elapsed_time_msg += ' %s %.2fs,'%(k, self.elapsed_time[k])
         print(elapsed_time_msg[:-1]+'.')
@@ -507,3 +507,196 @@ class VisionProcesser_vad():
                 cv2.rectangle(image, (int(face['bbox'][0]), int(face['bbox'][1])), (int(face['bbox'][2]), int(face['bbox'][3])),(0,clr,255-clr),10)
                 cv2.putText(image,'%s'%(txt), (int(face['bbox'][0]), int(face['bbox'][1])), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0,clr,255-clr),5)
             self.v_out.write(image)
+
+
+
+class VisionProcesser_subseg():
+    def __init__(
+        self, 
+        video_file_path, 
+        rec_subseg_data, 
+        out_feat_path, 
+        onnx_dir, 
+        conf, 
+        device='cpu', 
+        device_id=0, 
+        face_crop_save_dir=None
+        ):
+        self.video_id = os.path.basename(video_file_path).rsplit('.', 1)[0]
+        # read video data
+        self.cap = cv2.VideoCapture(video_file_path)
+        w = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        h = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        assert self.fps==25, '[ERROR]: The fps of input video must be 25.'
+        self.asvf_ratio = 16000 / 25  # audio samples per video frame
+        print('video %s info: w: {}, h: {}, count: {}, fps: {}'.format(w, h, self.count, self.fps) % self.video_id)
+
+        # Check if the device is GPU
+        if device.type == 'cuda':
+            print(f"[INFO]: Using GPU: {torch.cuda.get_device_name(device)}")
+            device = 'cuda'
+        else:
+            print("[INFO]: Using CPU")
+            device = 'cpu'
+
+        # initial vision models
+        self.face_detector = MTCNN(
+          image_size=160, margin=0, min_face_size=conf['min_face_size'],
+          thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True,
+          device=device,
+          keep_all=True
+        )
+        self.face_embs_extractor = face_recognition.FaceRecIR101(onnx_dir, device, device_id)
+
+        # store facial feats along with the necessary information.
+        self.midframe_facial_embs = {
+            'audio_seg_id': np.array([], dtype='<U50'),
+            'face_idx': np.array([], dtype=int),
+            'times': np.array([], dtype=np.float32),
+            'feat': np.empty((0, 512), dtype=np.float32)
+        }
+
+        self.rec_subseg_data = rec_subseg_data
+        self.out_feat_path = out_feat_path
+        self.face_crop_save_dir = face_crop_save_dir
+        if self.face_crop_save_dir == '':
+            self.face_crop_save_dir = None
+
+        self.min_box_size = conf['min_box_size']  # minimum size of face box for face detection
+        self.min_box_prob = conf['min_box_prob']  # minimum probability of face box for face detection
+
+        # create face crop save directory if needed
+        if self.face_crop_save_dir is not None:
+            self.face_crop_save_dir = os.path.join(self.face_crop_save_dir, self.video_id)
+            os.makedirs(self.face_crop_save_dir, exist_ok=True)
+
+        # record the time spent by each module
+        self.elapsed_time = {'faceTime': [], 'cropTime': [], 'featTime': []}
+
+    def run(self):
+        # process each subseg item
+        for subseg_id, subseg_info in self.rec_subseg_data.items():
+            start_time = subseg_info['start']
+            stop_time = subseg_info['stop']
+            
+            # calculate middle time and corresponding frame
+            mid_time = (start_time + stop_time) / 2.0
+            mid_frame_idx = int(mid_time * self.fps)
+            
+            # ensure frame index is within bounds
+            if mid_frame_idx >= self.count:
+                print(f"[WARNING]: Frame index {mid_frame_idx} exceeds video length {self.count} for {subseg_id}")
+                continue
+                
+            # go to middle frame
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame_idx)
+            ret, frame = self.cap.read()
+            if not ret:
+                print(f"[WARNING]: Failed to read frame {mid_frame_idx} for {subseg_id}")
+                continue
+            
+            # perform face detection on middle frame
+            face_start_time = time.time()
+            bboxes, _ = self.face_detection(frame)
+            face_end_time = time.time()
+            self.elapsed_time['faceTime'].append(face_end_time - face_start_time)
+
+            if len(bboxes) == 0:    # no faces detected in current frame
+                continue
+            
+            # crop and save faces if directory is specified
+            crop_start_time = time.time()
+            if self.face_crop_save_dir is not None:
+                face_crops = self.crop_frame(frame, bboxes)
+                for i, face_crop in enumerate(face_crops):
+                    crop_filename = f'{subseg_id}_{i}.jpg'
+                    crop_path = os.path.join(self.face_crop_save_dir, crop_filename)
+                    cv2.imwrite(crop_path, face_crop)
+            crop_end_time = time.time()
+            self.elapsed_time['cropTime'].append(crop_end_time - crop_start_time)
+            
+            # extract facial embeddings for all detected faces
+            feat_start_time = time.time()
+            for face_idx, bbox in enumerate(bboxes):
+                # crop face from frame
+                x1, y1, x2, y2 = bbox.astype(int)
+                face = frame[max(y1, 0):min(y2, frame.shape[0]), max(x1, 0):min(x2, frame.shape[1])]
+                
+                if face.size == 0:
+                    continue
+                    
+                # extract facial embedding
+                feature = self.face_embs_extractor(face)
+                
+                # update midframe_facial_embs
+                self.midframe_facial_embs['audio_seg_id'] = np.append(self.midframe_facial_embs['audio_seg_id'], subseg_id)
+                self.midframe_facial_embs['face_idx'] = np.append(self.midframe_facial_embs['face_idx'], face_idx)
+                self.midframe_facial_embs['times'] = np.append(self.midframe_facial_embs['times'], mid_time)
+                self.midframe_facial_embs['feat'] = np.append(self.midframe_facial_embs['feat'], feature, axis=0)
+            feat_end_time = time.time()
+            self.elapsed_time['featTime'].append(feat_end_time - feat_start_time)
+
+        self.cap.release()
+
+        # save results
+        pickle.dump(self.midframe_facial_embs, open(self.out_feat_path, 'wb'))
+        print(f'[INFO]: Saved {len(self.midframe_facial_embs["audio_seg_id"])} facial embeddings to {self.out_feat_path}')
+
+        # print elapsed time
+        all_elapsed_time = sum(sum(times) for times in self.elapsed_time.values())
+        elapsed_time_msg = f'The total mid-frame processing time for {self.video_id} is {all_elapsed_time:.2f}s, including'
+        for k, v in self.elapsed_time.items():
+            elapsed_time_msg += f' {k} {sum(v):.2f}s,'
+        print(elapsed_time_msg[:-1] + '.')
+
+    def face_detection(self, frame):
+        """
+        Perform face detection on a single frame.
+
+        Args:
+          frame (numpy.ndarray): A video frame represented as a NumPy array of shape (H, W, C) in BGR format.
+
+        Returns:
+          bboxes (numpy.ndarray): Filtered bounding boxes of shape (n_faces, 4) in format [x1, y1, x2, y2].
+          probs (numpy.ndarray): Corresponding confidence scores of shape (n_faces,).
+        """
+        def box_filter(boxes, probs, min_size, min_prob):
+            if boxes is None or probs is None:
+                return np.array([]), np.array([])
+            num = boxes.shape[0]
+            true_boxes = np.maximum(boxes, 0)
+            filtered_index = [i for i in range(num) if min(true_boxes[i][3]-true_boxes[i][1], true_boxes[i][2]-true_boxes[i][0]) >= min_size and probs[i] >= min_prob]
+            if len(filtered_index) == 0:
+                return np.array([]), np.array([])
+            else:
+                return true_boxes[filtered_index], probs[filtered_index]
+        
+        # convert to rgb for face detection
+        image_input = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        bboxes, probs = self.face_detector.detect(image_input)
+        # filter boxes
+        bboxes, probs = box_filter(bboxes, probs, min_size=self.min_box_size, min_prob=self.min_box_prob)
+        
+        return bboxes, probs
+
+    def crop_frame(self, frame, bboxes):
+        """
+        Crop faces from a frame based on bounding boxes.
+
+        Args:
+          frame (numpy.ndarray): A video frame of shape (H, W, C) in BGR format.
+          bboxes (numpy.ndarray): Bounding boxes of shape (n_faces, 4) in format [x1, y1, x2, y2].
+
+        Returns:
+          face_crops (list): List of cropped face images.
+        """
+        face_crops = []
+        for bbox in bboxes:
+            x1, y1, x2, y2 = bbox.astype(int)
+            # ensure coordinates are within frame bounds
+            face_crop = frame[max(0, y1):min(frame.shape[0], y2), max(0, x1):min(frame.shape[1], x2)]
+            face_crops.append(face_crop)
+        
+        return face_crops

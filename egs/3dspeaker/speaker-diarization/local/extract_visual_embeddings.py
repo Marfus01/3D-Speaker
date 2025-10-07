@@ -31,7 +31,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
     print(f"Project root added to sys.path: {project_root}")
     
-from vision_processer import VisionProcesser_vad
+from vision_processer import VisionProcesser_vad, VisionProcesser_subseg
 from speakerlab.utils.config import yaml_config_loader, Config
 
 parser = argparse.ArgumentParser(description='Extract visual speaker embeddings for diarization.')
@@ -41,6 +41,7 @@ parser.add_argument('--vad', default=None, help='Input vad info')
 parser.add_argument('--subseg', default=None, help='Input audio segments info')
 parser.add_argument('--onnx_dir', default='', type=str, help='Pretrained onnx directory')
 parser.add_argument('--embs_out', default='', type=str, help='Out embedding dir')
+parser.add_argument('--midframe_face_out', default='', type=str, help='Save path for cropped faces from mid-frame of each audio segment, used for debug or visualization purpose')
 parser.add_argument('--use_gpu', action='store_true', help='Use gpu or not')
 parser.add_argument('--gpu', nargs='+', help='GPU id to use.')
 
@@ -126,22 +127,31 @@ def main():
         rec_id = filename.rsplit('.', 1)[0]
         audio_path = os.path.join(os.path.dirname(vpath), '%s.wav'%rec_id)
 
-
         # For vad part
         ## convert vad info to a list of sorted time regions without overlap 
         rec_vad_data = vad_data[rec_id] # segments' info
         rec_vad_time_list = [[v['start'], v['stop']] for v in rec_vad_data.values()]
         rec_vad_time_list = merge_overlap_region(rec_vad_time_list)
-
-        # extract visual embeddings in current video and save them
-        embs_out_path = os.path.join(args.embs_out, '%s_vad.pkl'%rec_id)
-        if not os.path.isfile(embs_out_path):
-            vprocesser = VisionProcesser_vad(vpath, audio_path, rec_vad_time_list, embs_out_path, 
+        ## extract visual embeddings in current video and save them
+        embs_out_path_vad = os.path.join(args.embs_out, '%s_vad.pkl'%rec_id)
+        if not os.path.isfile(embs_out_path_vad):
+            vprocesser_vad = VisionProcesser_vad(vpath, audio_path, rec_vad_time_list, embs_out_path_vad, 
                                         args.onnx_dir, conf, device, gpu_id)
-            vprocesser.run()
+            vprocesser_vad.run()
         else:
             print("[WARNING]: Embeddings for vad has been saved previously. Skip it.")
         
+        # For subseg part
+        ## convert subseg info to a list of sorted time regions without overlap
+        rec_subseg_data = subseg_data[rec_id] # segments' info
+        embs_out_path_midframe = os.path.join(args.embs_out, '%s_midframe.pkl'%rec_id)
+        if not os.path.isfile(embs_out_path_midframe):
+            ## extract visual embeddings in current video and save them
+            vprocesser_subseg = VisionProcesser_subseg(vpath, rec_subseg_data, embs_out_path_midframe, 
+                                        args.onnx_dir, conf, device, gpu_id, args.midframe_face_out)
+            vprocesser_subseg.run()
+            
+
 
 if __name__ == '__main__':
     main()

@@ -44,7 +44,7 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 > b. 视觉特征提取部分，MTCNN、talknet、人脸质量评估、人脸识别模型的checkpoint不随语言类型变化，它们的训练集都涵盖了多语言/人种。
 5. stage3.2：使用CAM++，将 batchwise提取每小段语音的 embedding 改为，逐句处理台词语音，提取台词语音的 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。✅
 > 尽管可以参照speakerlab/bin/infer_sv_batch.py的方式，将完整的语音分割/pad到固定长度的 chunk, 做 embedding 提取，然后将源自相同语音的 chunk embedding 做平均，但考虑到台词普遍没有很长，且CAM++的模型可以处理不等长语音，因此直接逐个处理台词语音，提取 embedding。
-6. stage4：根据人种，设置合适的人脸检测超参数，包括在conf中设置的min_face_size和筛选候选框时的min_size，min_prob=0.75）。
+6. stage4：根据人种，设置合适的人脸检测超参数，包括在conf中设置的min_face_size和筛选候选框时的min_size，min_prob=0.75）。✅
 
 > 整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 
