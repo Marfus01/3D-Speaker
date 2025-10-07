@@ -78,7 +78,7 @@ cat "$video_list" | while read video_file; do filename=$(basename "$video_file")
 # use run_audio.sh to save audio speaker embeddings
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename "$0") Stage3: Extract audio speaker embeddings..."
-  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --language $language --examples "$raw_data_dir" --exp "$exp"
+  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --language $language --examples "$raw_data_dir" --exp "$exp" --master_port $master_port
 fi
 
 # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
