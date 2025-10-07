@@ -19,6 +19,7 @@ from_subtitle=true  # 是否直接从字幕文件中提取说话人分割信息
 onnx_dir=pretrained_models  # 存储预训练模型的目录
 gpus="0"  # 指定可用的 GPU ID
 nj=1  # 并行任务数
+master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
@@ -85,14 +86,14 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"  
-  torchrun --nproc_per_node=$nj --master_port 29567 local/extract_visual_embeddings.py \
+  torchrun --nproc_per_node=$nj --master_port $master_port local/extract_visual_embeddings.py \
     --conf "$conf_file" --videos "$raw_data_dir/video.list" --vad "$exp/json/vad.json" --subseg "$exp/json/subseg.json"\
     --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --midframe_face_out "$examples/midframe_faces" --gpu $gpus --use_gpu
 fi
 
 # if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
 #   echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-#   torchrun --nproc_per_node=$nj --master_port 29567 local/cluster_and_postprocess.py \
+#   torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
 #           --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
 #           --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --rttm_dir $rttm_dir
 # fi

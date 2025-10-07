@@ -100,7 +100,7 @@ supports = {
         'model_pt': 'campplus_voxceleb.bin',
     },
     'iic/speech_campplus_sv_zh-cn_3dspeaker_16k': {
-        'revision': 'v1.0.2', 
+        'revision': 'v1.0.0', 
         'model': CAMPPLUS_VOX,
         'model_pt': 'campplus_cn_3dspeaker.bin',
     },

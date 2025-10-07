@@ -65,7 +65,7 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 
 ### 中间结果保存
 1. 第一次提取语音 embedding时，保存 hidden——embeddings，这样后续的训练和 infer 都能以 batchwise 方式处理，速度更快。
-2. evaluate_fr需要一分为二，将frames containing only one active face, and the face quality must be good enough结果单独保存，再调用人脸特征提取模型。这样，后续也不需要重新读取视频文件，运行检测-跟踪的流程。
+2. evaluate_fr需要一分为二，将frames containing only one active face, and the face quality must be good enough结果单独保存，再调用人脸特征提取模型。这样，后续也不需要重新读取视频文件，运行检测-跟踪的流程。✅
 
 ## 阶段 3：使用HMM进行联合聚类
 将联合聚类的结果用hmm进一步修正。
