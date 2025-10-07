@@ -77,7 +77,9 @@ class VisionProcesser_vad():
         self.face_embs_extractor = face_recognition.FaceRecIR101(onnx_dir, device, device_id)
 
         # store facial feats along with the necessary information.
-        self.active_facial_embs = {'frameI':np.empty((0,), dtype=int), 'feat':np.empty((0, 512), dtype=np.float32)}
+        self.active_facial_embs = {'frameI':np.empty((0,), dtype=int), 
+                                   'feat':np.empty((0, 512), dtype=np.float32),
+                                   'bbox': np.empty((0, 4), dtype=np.int32)}
 
         self.audio_vad = audio_vad
         self.out_video_path = out_video_path
@@ -137,8 +139,11 @@ class VisionProcesser_vad():
             self.v_out.release()
 
         # save results: For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding
-        active_facial_embs = {'embeddings':self.active_facial_embs['feat'], 'times': self.active_facial_embs['frameI']*0.04}
+        active_facial_embs = {'embeddings':self.active_facial_embs['feat'], 
+                              'times': self.active_facial_embs['frameI']*0.04,
+                              'bboxes': self.active_facial_embs['bbox']}
         pickle.dump(active_facial_embs, open(self.out_feat_path, 'wb'))
+        print(f'[INFO]: Saved {len(active_facial_embs["times"])} avd facial embeddings to {self.out_feat_path}')
 
         # print elapsed time
         all_elapsed_time = 0
@@ -178,6 +183,7 @@ class VisionProcesser_vad():
         ## merge active_facial_embs of current shot to self.active_facial_embs
         self.active_facial_embs['frameI'] = np.append(self.active_facial_embs['frameI'], active_facial_embs['frameI'] + frame_st)
         self.active_facial_embs['feat'] = np.append(self.active_facial_embs['feat'], active_facial_embs['feat'], axis=0)
+        self.active_facial_embs['bbox'] = np.append(self.active_facial_embs['bbox'], active_facial_embs['bbox'], axis=0)
         featTime = time.time()
 
         if self.out_video_path is not None:
@@ -223,6 +229,7 @@ class VisionProcesser_vad():
             if len(filtered_index) == 0:
                 return torch.tensor([]), torch.tensor([]), torch.tensor([])
             else:
+                filtered_index = sorted(filtered_index, key=lambda i: probs[i], reverse=True)
                 true_boxes = torch.from_numpy(true_boxes[filtered_index])
                 true_box_probs = torch.from_numpy(probs[filtered_index])
                 filtered_index = torch.tensor(filtered_index)
@@ -444,6 +451,7 @@ class VisionProcesser_vad():
           active_facial_embs (dict): contains:
             - 'frameI' (numpy.ndarray): A 1D array of frame indices where only one active face was detected and its quality score was above 0.7. frame indices are in range(len(frames)).
             - 'feat' (numpy.ndarray): A 2D array of shape (num_faces, 512), where each row represents the facial embedding of an active face.
+            - 'bbox' (numpy.ndarray): A 2D array of shape (num_faces, 4), where each row represents the bounding box [x1, y1, x2, y2] of the corresponding active face in the original video frame.
 
         Notes:
           - The function filters out frames with multiple active faces or low-quality faces. Only frames with a single active face and a face quality score above 0.7 are used for embedding extraction.
@@ -462,12 +470,16 @@ class VisionProcesser_vad():
                 s = np.mean(s)
                 ### get cropped face in original video
                 bbox = track['track']['bbox'][fidx]
-                face = frames[frame][max(int(bbox[1]), 0):min(int(bbox[3]), frames[frame].shape[0]), max(int(bbox[0]), 0):min(int(bbox[2]), frames[frame].shape[1])]
+                bbox = np.array([max(int(bbox[0]), 0), max(int(bbox[1]), 0), 
+                                 min(int(bbox[2]), frames[frame].shape[1]), min(int(bbox[3]), frames[frame].shape[0])])
+                face = frames[frame][bbox[1]:bbox[3], bbox[0]:bbox[2]]
                 ### save
-                faces[frame].append({'track':tidx, 'score':float(s), 'facedata':face})
+                faces[frame].append({'track':tidx, 'score':float(s), 'facedata':face, 'bbox':bbox.reshape(1, 4)})
 
         # For each frame processed by face detection
-        active_facial_embs={'frameI':np.empty((0,), dtype=int), 'feat':np.empty((0, 512), dtype=np.float32)}
+        active_facial_embs={'frameI':np.empty((0,), dtype=int), 
+                            'feat':np.empty((0, 512), dtype=np.float32),
+                            'bbox': np.empty((0, 4), dtype=np.int32)}
         for fidx in range(len(faces)):
             if fidx % self.face_det_stride != 0:
                 continue
@@ -488,6 +500,7 @@ class VisionProcesser_vad():
                 feature = self.face_embs_extractor(active_face)
                 active_facial_embs['frameI'] = np.append(active_facial_embs['frameI'], fidx)
                 active_facial_embs['feat'] = np.append(active_facial_embs['feat'], feature, axis=0)
+                active_facial_embs['bbox'] = np.append(active_facial_embs['bbox'], face['bbox'], axis=0)
         return active_facial_embs
 
     def visualization(self, frames, tracks, scores):
@@ -553,24 +566,24 @@ class VisionProcesser_subseg():
         # store facial feats along with the necessary information.
         self.midframe_facial_embs = {
             'audio_seg_id': np.array([], dtype='<U50'),
-            'face_idx': np.array([], dtype=int),
+            'face_idx': np.array([], dtype=np.int32),
             'times': np.array([], dtype=np.float32),
+            'bbox': np.empty((0, 4), dtype=np.int32),
             'feat': np.empty((0, 512), dtype=np.float32)
         }
 
         self.rec_subseg_data = rec_subseg_data
         self.out_feat_path = out_feat_path
-        self.face_crop_save_dir = face_crop_save_dir
-        if self.face_crop_save_dir == '':
-            self.face_crop_save_dir = None
+
+        if face_crop_save_dir == '':
+            face_crop_save_dir = None
+        # create face crop save directory if needed
+        if face_crop_save_dir is not None:
+            self.face_crop_save_dir = os.path.join(face_crop_save_dir, self.video_id)
+            os.makedirs(self.face_crop_save_dir, exist_ok=True)
 
         self.min_box_size = conf['min_box_size']  # minimum size of face box for face detection
         self.min_box_prob = conf['min_box_prob']  # minimum probability of face box for face detection
-
-        # create face crop save directory if needed
-        if self.face_crop_save_dir is not None:
-            self.face_crop_save_dir = os.path.join(self.face_crop_save_dir, self.video_id)
-            os.makedirs(self.face_crop_save_dir, exist_ok=True)
 
         # record the time spent by each module
         self.elapsed_time = {'faceTime': [], 'cropTime': [], 'featTime': []}
@@ -621,8 +634,9 @@ class VisionProcesser_subseg():
             feat_start_time = time.time()
             for face_idx, bbox in enumerate(bboxes):
                 # crop face from frame
-                x1, y1, x2, y2 = bbox.astype(int)
-                face = frame[max(y1, 0):min(y2, frame.shape[0]), max(x1, 0):min(x2, frame.shape[1])]
+                bbox = np.array([max(int(bbox[0]), 0), max(int(bbox[1]), 0), 
+                                 min(int(bbox[2]), frame.shape[1]), min(int(bbox[3]), frame.shape[0])])
+                face = frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
                 
                 if face.size == 0:
                     continue
@@ -634,6 +648,7 @@ class VisionProcesser_subseg():
                 self.midframe_facial_embs['audio_seg_id'] = np.append(self.midframe_facial_embs['audio_seg_id'], subseg_id)
                 self.midframe_facial_embs['face_idx'] = np.append(self.midframe_facial_embs['face_idx'], face_idx)
                 self.midframe_facial_embs['times'] = np.append(self.midframe_facial_embs['times'], mid_time)
+                self.midframe_facial_embs['bbox'] = np.append(self.midframe_facial_embs['bbox'], bbox.reshape(1, 4), axis=0)
                 self.midframe_facial_embs['feat'] = np.append(self.midframe_facial_embs['feat'], feature, axis=0)
             feat_end_time = time.time()
             self.elapsed_time['featTime'].append(feat_end_time - feat_start_time)
@@ -642,7 +657,7 @@ class VisionProcesser_subseg():
 
         # save results
         pickle.dump(self.midframe_facial_embs, open(self.out_feat_path, 'wb'))
-        print(f'[INFO]: Saved {len(self.midframe_facial_embs["audio_seg_id"])} facial embeddings to {self.out_feat_path}')
+        print(f'[INFO]: Saved {len(self.midframe_facial_embs["audio_seg_id"])} facial embeddings from middle frmaes to {self.out_feat_path}')
 
         # print elapsed time
         all_elapsed_time = sum(sum(times) for times in self.elapsed_time.values())
@@ -671,6 +686,7 @@ class VisionProcesser_subseg():
             if len(filtered_index) == 0:
                 return np.array([]), np.array([])
             else:
+                filtered_index = sorted(filtered_index, key=lambda i: probs[i], reverse=True)                
                 return true_boxes[filtered_index], probs[filtered_index]
         
         # convert to rgb for face detection

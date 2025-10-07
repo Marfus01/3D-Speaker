@@ -150,7 +150,8 @@ def main():
             vprocesser_subseg = VisionProcesser_subseg(vpath, rec_subseg_data, embs_out_path_midframe, 
                                         args.onnx_dir, conf, device, gpu_id, args.midframe_face_out)
             vprocesser_subseg.run()
-            
+        else:
+            print("[WARNING]: Embeddings for mid-frame face has been saved previously. Skip it.")
 
 
 if __name__ == '__main__':

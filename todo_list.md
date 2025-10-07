@@ -50,11 +50,10 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 
 ### 聚类
 1. 现在的语音聚类中，所有 minor cluster 都被重新分配到 major cluster 中。如果以others作为单独一类，需要重新考虑其划分。
-2. 需要考虑，人脸聚类时只对中间帧提取人脸做，还是对多帧做。后者准确度更高，但计算量更大。
-3. 可能可以对每一集的数据先做聚类，然后再合并不同集的聚类结果
-4. 联合聚类时，会对语音、视觉各自出现时间进行 merge。在处理电视剧时，这一问题不存在，可以删掉这部分代码，但要注意两者的 align。
+2. 联合聚类时，会对语音、视觉各自出现时间进行 merge。在处理电视剧时，这一问题不存在，可以删掉这部分代码，但要注意两者的 align。
 
 ### 评估
+1. 只需要考虑语音部分。
 
 ## 阶段 2：自监督学习
 加入根据聚类结果微调模型的代码，记录每一次迭代之后产生的聚类结果，并评估。
@@ -69,7 +68,17 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 2. evaluate_fr需要一分为二，将frames containing only one active face, and the face quality must be good enough结果单独保存，再调用人脸特征提取模型。这样，后续也不需要重新读取视频文件，运行检测-跟踪的流程。
 
 ## 阶段 3：使用HMM进行联合聚类
-将联合聚类替换为hmm
+将联合聚类的结果用hmm进一步修正。
+### 人脸模态聚类
+1. 人脸部分，active speaker face数量较少，但质量较高；来自中间帧的人脸存在区域不完整、误检、模糊等问题。两者数量基本相当，可以考虑
+a. 先分别做聚类，然后将后者与前者对齐；
+b. 只对前者做聚类，然后最近邻分配后者的label。
+c. 直接将两者合并做聚类。
+
+2. 可能可以对每一集的数据先做聚类，然后再合并不同集的聚类结果
+### 评估
+1. 人脸部分：中间帧人脸原有 Index 和现在的 Index 不一样（原来是直接获取中间帧，现在是固定fps后再获取），需要使用匈牙利算法根据人脸文件的像素数，重新匹配，获取数据集。
+
 1. 在用3d-speaker时，对face track质量要求应当较高；而在hmm中，可以降低质量要求。
 2. 目前仅从真实做了人脸检测，仅包含一个active speaker，且face质量较高的视频做face embedding提取。在 hmm中，需要对中间帧所有检测到的人脸做embedding提取。有两种处理方式：
     a. 筛选包含中间帧的face track，只看该帧是否仅包含一个active speaker，且face质量较高，然后作为补充信息，加入hmm（优先）；
