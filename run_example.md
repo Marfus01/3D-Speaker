@@ -78,7 +78,7 @@ Project root added to sys.path: D:\wangchen\Research\tv_series_plus\3D-Speaker
 ```
 
 
-将 run_audio.sh中的stage 5 改为以下内容，
+将 run_vidio.sh中的stage 5 改为以下内容，
 ```bash
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."

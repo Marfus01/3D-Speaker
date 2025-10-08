@@ -10,6 +10,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 
 stage=1 # 标识每个处理步骤的index
 stop_stage=6  # 共6步
+cluster_type="audio_only" # 聚类方式，支持 "audio_only" 和 "audio_vision"
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="I love my family" # "the big bang theory", "I love my family"
@@ -31,7 +32,12 @@ raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和
 
 exp="runs/$tv_name/exp_video" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
-rttm_dir=$exp/rttm  # 存储模型给出的说话人分离结果
+result_dir=$exp/result  # 存储模型给出的说话人分离结果
+
+if [[ "$cluster_type" != "audio_only" && "$cluster_type" != "audio_vision" ]]; then
+  echo "Error: cluster_type must be either 'audio_only' or 'audio_vision'."
+  exit 1
+fi
 
 if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_stage>=1 时执行
   if [ ! -f "$video_list" ]; then
@@ -60,7 +66,7 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
     filename=$(basename "$video_file")
     out_video_file=$raw_data_dir/${filename%.*}.mp4
     out_wav_file=$raw_data_dir/${filename%.*}.wav
-    if [ ! -e "$out_video_file" ]; then
+    if [ ! -e "$out_video_file" ] && [ "$cluster_type" == "audio_vision" ]; then
       echo "$(basename "$0") Stage2: Extract video from $filename"
       $FFMPEG_PATH -nostdin -y -i "$video_file" -qscale:v 2 -threads 16 -async 1 -r 25 "$out_video_file" -loglevel panic
     fi
@@ -82,7 +88,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
 fi
 
 # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
-if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
+if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$cluster_type" == "audio_vision" ]; then
   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"  
@@ -91,12 +97,19 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --midframe_face_out "$examples/midframe_faces" --gpu $gpus --use_gpu
 fi
 
-# if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-#   echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-#   torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
-#           --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
-#           --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --rttm_dir $rttm_dir
-# fi
+if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+  if [ "$cluster_type" == "audio_only" ]; then
+    echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
+    torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+            --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+            --audio_embs_dir "$exp/embs" --result_dir "$result_dir"
+  else
+    echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+    torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+            --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+            --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir"
+  fi
+fi
 
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
 #   echo "$(basename $0) Stage6: Get the final metrics..."

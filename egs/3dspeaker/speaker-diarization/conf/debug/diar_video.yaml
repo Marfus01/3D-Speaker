@@ -32,8 +32,8 @@ audio_cluster:
   obj: speakerlab.process.cluster.CommonClustering 
   args:
     cluster_type: spectral
-    min_num_spks: 1
-    max_num_spks: 15
+    min_num_spks: 13
+    max_num_spks: 52
     min_cluster_size: 1
     oracle_num: null
     pval: 0.032

@@ -20,12 +20,14 @@ if project_root not in sys.path:
     
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
+import json
 
 parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm files')
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--wavs', default=None, help='Wav list file')
+parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clustering type, support "audio_only" and "audio_vision"')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding dir')
-parser.add_argument('--rttm_dir', default=None, type=str, help='Rttm dir')
+parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 
 def make_rttms(seg_list, out_rttm, rec_id):
@@ -83,13 +85,64 @@ def make_rttms(seg_list, out_rttm, rec_id):
             seg_id, seg_st, seg_ed, cluster_id = seg
             f.write(line_str.format(seg_id, seg_st, seg_ed-seg_st, cluster_id))
 
-def audio_only_func(local_wav_list, audio_embs_dir, rttm_dir, config):
+
+def summary_cluster_results(labels, modal_type='audio'):
+    """
+    Summary statistics of cluster sizes
+    """
+    uniq = np.unique(labels)
+    # Count occurrences of each unique label
+    cluster_sizes = {label: np.sum(labels == label) for label in uniq}
+    # Sort labels by their occurrence counts in descending order
+    sorted_label_counts = sorted(cluster_sizes.items(), key=lambda x: x[1], reverse=True)
+
+    # Print the top 20 labels with their counts
+    print("[INFO] Top 20 label counts:")
+    for i, (label, count) in enumerate(sorted_label_counts[:20]):
+        print(f"{modal_type} cluster {label}: of size {count};")
+
+    # Aggregate counts for the remaining labels
+    remaining_counts = {}
+    for label, count in sorted_label_counts[20:]:
+        if count not in remaining_counts:
+            remaining_counts[count] = 0
+        remaining_counts[count] += 1
+
+    # Print the aggregated counts for remaining labels
+    print("[INFO] Aggregated counts for remaining labels:")
+    for count, num_labels in sorted(remaining_counts.items()):
+        print(f"{num_labels} {modal_type} clusters of size {count}.")    
+
+
+def save_cluster_results_audio(labels, audio_seg_ids, out_json):
+    """
+    Save clustering results to a JSON file.
+
+    Args:
+        labels (ndarray): Cluster labels for each embedding, of shape [N].
+        audio_seg_ids (ndarray): Segment IDs corresponding to each embedding, of shape [N].
+        out_json (str): Path to the output JSON file.
+
+    Output:
+        Saves a JSON file where each segment ID is a key and its corresponding cluster label is the value.
+    """
+    # Create a dictionary mapping segment IDs to cluster labels
+    cluster_results = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, labels)}
+
+    # Save the dictionary to a JSON file
+    with open(out_json, 'w') as f:
+        json.dump(cluster_results, f, indent=2)
+
+
+def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
     """
     仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
     """
+    embeddings = np.array([], dtype=np.float32)
+    audio_seg_ids = np.array([], dtype='<U50')   
     cluster = build('cluster', config)
     # 对每一个音频文件
-    for wav_file in local_wav_list:
+    for file_idx, wav_file in enumerate(local_wav_list):
         # 加载前序步骤从当前wav中提取的所有speaker embeddings
         wav_name = os.path.basename(wav_file)
         rec_id = wav_name.rsplit('.', 1)[0]
@@ -99,22 +152,20 @@ def audio_only_func(local_wav_list, audio_embs_dir, rttm_dir, config):
             continue
         with open(embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
-            embeddings = stat_obj['embeddings']
-            times = stat_obj['times']
-        # cluster
-        labels = cluster(embeddings)
-        # output rttm
-        ## 根据簇出现的先后，对speaker ID重新编号，确保ID连续且从0开始
-        new_labels = np.zeros(len(labels), dtype=int)
-        uniq = np.unique(labels)
-        for i in range(len(uniq)):
-            new_labels[labels==uniq[i]] = i 
-        ## 将时间戳和对应的speaker ID打包成列表，传入make_rttms函数生成rttm文件
-        seg_list = [(i,j) for i, j in zip(times, new_labels)]
-        out_rttm = os.path.join(rttm_dir, rec_id+'.rttm')
-        make_rttms(seg_list, out_rttm, rec_id)
+            if file_idx == 0:                
+                embeddings = stat_obj['embeddings']
+                audio_seg_ids = stat_obj['subseg_ids']
+            else:
+                embeddings = np.vstack((embeddings, stat_obj['embeddings']))
+                audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
 
-def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, rttm_dir, config):
+    # cluster
+    labels = cluster(embeddings)
+    summary_cluster_results(labels, modal_type='audio')
+    out_json = os.path.join(result_dir, 'cluster_results_audio.json')
+    save_cluster_results_audio(labels, audio_seg_ids, out_json)
+
+def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
     cluster = build('cluster', config)
     # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
     for wav_file in local_wav_list:
@@ -142,31 +193,29 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, rttm_dir,
         for i in range(len(uniq)):
             new_labels[labels==uniq[i]] = i 
         seg_list = [(i,j) for i, j in zip(audio_times, new_labels)]
-        out_rttm = os.path.join(rttm_dir, rec_id+'.rttm')
+        out_rttm = os.path.join(result_dir, rec_id+'.rttm')
         make_rttms(seg_list, out_rttm, rec_id)
 
 def main():
-    rank = int(os.environ['LOCAL_RANK'])
-    threads_num = int(os.environ['WORLD_SIZE'])
     args = parser.parse_args()
     # 获取所有待处理的wav文件列表
     with open(args.wavs,'r') as f:
         wav_list = [i.strip() for i in f.readlines()]
     wav_list.sort()
-    if len(wav_list) <= rank:
-        print("[WARNING]: The number of threads exceeds the number of files")
-        sys.exit()
 
-    os.makedirs(args.rttm_dir, exist_ok=True)
+    os.makedirs(args.result_dir, exist_ok=True)
     print("[INFO] Start clustering...")
-    # 当前进程处理的wav文件列表
-    local_wav_list = wav_list[rank::threads_num]
     # 加载yaml文件
     config = build_config(args.conf)
-    if args.visual_embs_dir is None or args.visual_embs_dir == '':
-        audio_only_func(local_wav_list, args.audio_embs_dir, args.rttm_dir, config)
+    assert args.cluster_type in ['audio_only', 'audio_vision'], f'--cluster_type should be either "audio_only" or "audio_vision", but got {args.cluster_type}'
+    if args.cluster_type == 'audio_only':
+        if hasattr(config, 'audio_cluster') and hasattr(config, 'vision_cluster'):
+            config.cluster = config.audio_cluster
+            del config.audio_cluster, config.vision_cluster
+        audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config)
     else:
-        audio_vision_func(local_wav_list, args.audio_embs_dir, args.visual_embs_dir, args.rttm_dir, config)
+        assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
+        audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
 
 
 if __name__ == "__main__":

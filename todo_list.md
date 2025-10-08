@@ -48,12 +48,23 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 
 > 整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 
-### 聚类
-1. 现在的语音聚类中，所有 minor cluster 都被重新分配到 major cluster 中。如果以others作为单独一类，需要重新考虑其划分。
-2. 联合聚类时，会对语音、视觉各自出现时间进行 merge。在处理电视剧时，这一问题不存在，可以删掉这部分代码，但要注意两者的 align。
+### 语音聚类
+1. min_num_spks设置为文本处理所得拥有＞1 个别名的说话人数量，max_num_spks=5*min_num_spks。✅
+2. 现在的语音聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
+3. 现在的语音聚类中，会合并聚类中心cos-sim>mer_cos的簇。mer_cos暂时设置为0.8，需要check合并后各个cluster 的大小。✅
+4. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
+5. 聚类是 audio only 还是 audio-visual由 sh脚本控制，相应修改cluster_and_postprocess.py。✅
+6. 尝试让 run_audio直接加载 video config。
 
-### 评估
-1. 只需要考虑语音部分。
+### 视觉聚类
+1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。
+2. 现在的视觉聚类中，层次聚类的停止阈值设置为fix_cos_thr=0.25，需要check这是否能带来好的聚类结果。
+
+### 联合聚类
+1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。
+
+### 评估（只需要考虑语音部分）
+1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。
 
 ## 阶段 2：自监督学习
 加入根据聚类结果微调模型的代码，记录每一次迭代之后产生的聚类结果，并评估。
@@ -74,10 +85,12 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 a. 先分别做聚类，然后将后者与前者对齐；
 b. 只对前者做聚类，然后最近邻分配后者的label。
 c. 直接将两者合并做聚类。
-
-2. 可能可以对每一集的数据先做聚类，然后再合并不同集的聚类结果
+2. 由于active speaker face和中间帧人脸质量存在差异，如果分别聚类，后者层次聚类的停止阈值fix_cos_thr可能需要重新调整。
+3. 可能可以对每一集的数据先做聚类，然后再合并不同集的聚类结果
 ### 评估
-1. 人脸部分：中间帧人脸原有 Index 和现在的 Index 不一样（原来是直接获取中间帧，现在是固定fps后再获取），需要使用匈牙利算法根据人脸文件的像素数，重新匹配，获取数据集。
+1. 人脸部分：中间帧人脸原有 Index 和现在的 Index 不一样（原来是直接获取中间帧，现在是固定fps后再获取）。需要先在之前的项目文件夹下，比对带有绿框标注的中间帧和裁剪得到的人脸，将各个人脸的 bbox 与人名对应，随后在同一帧内，根据 匈牙利算法使得总iou最大-->iou>0.5，获取大部分当前项目提取人脸的姓名标注，最后再手工补齐
+
+需要使用匈牙利算法根据人脸文件的像素数，重新匹配，获取数据集。
 
 1. 在用3d-speaker时，对face track质量要求应当较高；而在hmm中，可以降低质量要求。
 2. 目前仅从真实做了人脸检测，仅包含一个active speaker，且face质量较高的视频做face embedding提取。在 hmm中，需要对中间帧所有检测到的人脸做embedding提取。有两种处理方式：

@@ -219,11 +219,12 @@ class CommonClustering:
       min_cluster_size (int): Minimum size of a cluster to be considered a major cluster. Default is 4.
     """
 
-    def __init__(self, cluster_type, cluster_line=40, mer_cos=None, min_cluster_size=4, **kwargs):
+    def __init__(self, cluster_type, cluster_line=40, mer_cos=None, min_cluster_size=4, minor_cluster_cos_thr=0.8, **kwargs):
         self.cluster_type = cluster_type
         self.cluster_line = cluster_line
         self.min_cluster_size = min_cluster_size
         self.mer_cos = mer_cos
+        self.minor_cluster_cos_thr = minor_cluster_cos_thr
         if self.cluster_type == 'spectral':
             self.cluster = SpectralCluster(**kwargs)
         elif self.cluster_type == 'umap_hdbscan':
@@ -251,14 +252,14 @@ class CommonClustering:
             labels = self.cluster(X, **kwargs)
 
         # re-assign all samples in extremely minor cluster to the nearest major cluster
-        labels = self.filter_minor_cluster(labels, X, self.min_cluster_size)
+        labels = self.filter_minor_cluster(labels, X, self.min_cluster_size, self.minor_cluster_cos_thr)
         # merge similar clusters by cosine similarity of their centroids
         if self.mer_cos is not None:
             labels = self.merge_by_cos(labels, X, self.mer_cos)
 
         return labels
 
-    def filter_minor_cluster(self, labels, x, min_cluster_size):
+    def filter_minor_cluster(self, labels, x, min_cluster_size, minor_cluster_cos_thr):
         """
         Filters out minor clusters in the given labels and reassigns their points 
         to the nearest major cluster based on cosine similarity.
@@ -267,6 +268,7 @@ class CommonClustering:
           labels (numpy.ndarray): cluster labels for each data point.
           x (numpy.ndarray): The embedding matrix where each row corresponds to a data point.
           min_cluster_size (int): The minimum size for a cluster to be considered a major cluster.
+          minor_cluster_cos_thr (float): The cosine similarity threshold for reassigning points from minor clusters to major clusters.
 
         Returns:
           labels (numpy.ndarray): The updated array of cluster labels after re-assigning minor clusters.
@@ -288,12 +290,12 @@ class CommonClustering:
         # get index of minor clusters
         cset = np.unique(labels)
         csize = np.array([(labels == i).sum() for i in cset])
-        minor_idx = np.where(csize <= self.min_cluster_size)[0]
+        minor_idx = np.where(csize <= min_cluster_size)[0]
         if len(minor_idx) == 0:
             return labels
 
         minor_cset = cset[minor_idx]
-        major_idx = np.where(csize > self.min_cluster_size)[0]
+        major_idx = np.where(csize > min_cluster_size)[0]
         if len(major_idx) == 0:
             return np.zeros_like(labels)
         
@@ -306,7 +308,8 @@ class CommonClustering:
         for i in range(len(labels)):
             if labels[i] in minor_cset:
                 cos_sim = cosine_similarity(x[i][np.newaxis], major_center)
-                labels[i] = major_cset[cos_sim.argmax()]
+                if cos_sim.max() > minor_cluster_cos_thr:
+                    labels[i] = major_cset[cos_sim.argmax()]
 
         return labels
 
@@ -326,7 +329,7 @@ class CommonClustering:
         Process:
           1. Ensure the cosine similarity threshold is within the valid range.
           2. Repeat the following steps until no more clusters can be merged:
-             a. Identify unique cluster labels.
+             a. Identify unique cluster labels with more than one member.
              b. Compute the cluster centers for each unique label.
              c. Calculate the cosine similarity matrix between cluster centers.
              d. Find the pair of clusters with the highest cosine similarity.
@@ -338,18 +341,20 @@ class CommonClustering:
         assert cos_thr > 0 and cos_thr <= 1
         while True:
             cset = np.unique(labels)
-            if len(cset) == 1:
+            csize = np.array([(labels == i).sum() for i in cset])
+            major_cset = cset[csize > 1]
+            if len(major_cset) == 1:
                 break
             # compute cosine similarity between cluster centers
             centers = np.stack([x[labels == i].mean(0) \
-                for i in cset])
+                for i in major_cset])
             affinity = cosine_similarity(centers, centers)
             affinity = np.triu(affinity, 1) # set diagonal and lower triangle to 0
             # find the most similar cluster pair
             idx = np.unravel_index(np.argmax(affinity), affinity.shape)
             if affinity[idx] < cos_thr:
                 break
-            c1, c2 = cset[np.array(idx)]
+            c1, c2 = major_cset[np.array(idx)]
             labels[labels==c2]=c1
         return labels
 
