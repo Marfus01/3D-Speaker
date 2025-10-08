@@ -35,6 +35,7 @@ audio_cluster:
     min_num_spks: 13
     max_num_spks: 52
     min_cluster_size: 1
+    minor_cluster_cos_thr: 0.8
     oracle_num: null
     pval: 0.032
     mer_cos: 0.8
@@ -45,6 +46,7 @@ vision_cluster:
     cluster_type: AHC
     cluster_line: 2
     min_cluster_size: 1
+    minor_cluster_cos_thr: 0.8
     fix_cos_thr: 0.25
 
 cluster:
