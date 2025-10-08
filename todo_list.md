@@ -54,7 +54,7 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 3. 现在的语音聚类中，会合并聚类中心cos-sim>mer_cos的簇。mer_cos暂时设置为0.8，需要check合并后各个cluster 的大小。✅
 4. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
 5. 聚类是 audio only 还是 audio-visual由 sh脚本控制，相应修改cluster_and_postprocess.py。✅
-6. 尝试让 run_audio直接加载 video config。
+6. 尝试让 run_audio直接加载 video config。✅
 
 ### 视觉聚类
 1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。

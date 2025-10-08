@@ -94,10 +94,10 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
 
   # Copy conf_file to $exp/conf
   mkdir -p "$exp/conf"
-  cp $conf_file "$exp/conf/"
+  cp "$conf_file" "$exp/conf/"
   # Extract speaker embeddings
   torchrun --nproc_per_node=$nj --master_port $master_port local/extract_diar_embeddings.py \
-          --model_id $speaker_model_id --conf $conf_file \
+          --model_id $speaker_model_id --conf "$conf_file" \
           --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
             
 fi
