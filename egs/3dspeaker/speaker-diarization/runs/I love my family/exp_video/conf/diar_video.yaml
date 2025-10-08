@@ -18,12 +18,12 @@ embedding_model:
     embedding_size: <embedding_size>
   
 # for visual embeddings extraction
-min_box_size: 30 # 15 for I love my family, 30 for the big bang theory and debug
-min_box_prob: 0.8 # 0.75 for I love my family, 0.8 for the big bang theory and debug
+min_box_size: 15 # 15 for I love my family, 30 for the big bang theory and debug
+min_box_prob: 0.75 # 0.75 for I love my family, 0.8 for the big bang theory and debug
 min_track: 10
 num_failed_det: 10
 crop_scale: 0.4
-min_face_size: 30 # 20 for I love my family, 30 for the big bang theory and debug
+min_face_size: 20 # 20 for I love my family, 30 for the big bang theory and debug
 face_det_stride: 5
 shot_stride: 50
 
@@ -35,7 +35,6 @@ audio_cluster:
     min_num_spks: 1
     max_num_spks: 15
     min_cluster_size: 1
-    minor_cluster_cos_thr: 0.8
     oracle_num: null
     pval: 0.032
     mer_cos: 0.8
@@ -46,7 +45,6 @@ vision_cluster:
     cluster_type: AHC
     cluster_line: 2
     min_cluster_size: 1
-    minor_cluster_cos_thr: 0.8
     fix_cos_thr: 0.25
 
 cluster:
