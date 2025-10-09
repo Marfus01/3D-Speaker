@@ -110,9 +110,10 @@ def summary_cluster_results(labels, modal_type='audio'):
         remaining_counts[count] += 1
 
     # Print the aggregated counts for remaining labels
-    print("[INFO] Aggregated counts for remaining labels:")
-    for count, num_labels in sorted(remaining_counts.items()):
-        print(f"{num_labels} {modal_type} clusters of size {count}.")    
+    if len(remaining_counts) > 0:
+        print("[INFO] Aggregated counts for remaining labels:")
+        for count, num_labels in sorted(remaining_counts.items()):
+            print(f"{num_labels} {modal_type} clusters of size {count}.")    
 
 
 def save_cluster_results_audio(labels, audio_seg_ids, out_json):
@@ -160,15 +161,16 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
                 audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
 
     # cluster
-    mer_cos_list = [0.8+0.025*i for i in range(9)]
-    for mer_cos in mer_cos_list:
-        print(f"[INFO] Updated 'mer_cos' in cluster args to {mer_cos}")
+    # pval_list = [config.cluster['args']['pval']*pow(0.5, i) for i in range(3)]
+    pval_list = [0.012, 0.006, 0.004, 0.002]
+    for pval in pval_list:
+        print(f"[INFO] Updated 'pval' in cluster args to {pval}")
         config_copy = copy.deepcopy(config)
-        config_copy.cluster['args']['mer_cos'] = mer_cos
+        config_copy.cluster['args']['pval'] = pval
         cluster = build('cluster', config_copy)
         labels = cluster(embeddings)
         summary_cluster_results(labels, modal_type='audio')
-        out_json = os.path.join(result_dir, f'cluster_results_audio(mer_cos={mer_cos}).json')
+        out_json = os.path.join(result_dir, f'cluster_results_audio(pval={pval}, mer_cos=0.8).json')
         save_cluster_results_audio(labels, audio_seg_ids, out_json)
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):

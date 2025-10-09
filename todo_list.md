@@ -53,12 +53,13 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 2. 尝试让 run_audio直接加载 video config。✅
 3. min_num_spks设置为文本处理所得拥有＞1 个别名的说话人数量，max_num_spks=5*min_num_spks。✅
 4. 现在的语音聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
-5. 现在的语音聚类中，需要调整的核心超参数是mer_cos。如果两个簇的聚类中心cos-sim>mer_cos，则会被合并。当前设定为0.8，在我爱我家上表现不佳。✅
-> a. 后续可以设置为在验证集上自动搜参，确定阈值。
-6. 尝试不同的mer_cos取值。在每一个取值下，在out中打印所用的阈值，同时将使用的mer_cos阈值添加到输出 json 文件的文件名中。（经过尝试，仍设置为0.8）✅
+5. 调节超参数：尝试不同的mer_cos取值，发现对聚类效果影响不大。如果两个簇的聚类中心cos-sim>mer_cos，则会被合并。在每一个取值下，在out中打印所用的阈值，同时将使用的mer_cos阈值添加到输出 json 文件的文件名中。（经过尝试，仍设置为0.8）✅
 > 生活大爆炸：不同的mer_cos取值对聚类结果影响不大。尤其是，聚类数目和各聚类簇的大小分布都比较稳定，只是最大的几个簇的成员会有非常小的变化。
-> 我爱我家：不同的mer_cos取值下，major cluster仍然相对稳定，但是大小变化略大。
-7. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
+> 我爱我家：不同的mer_cos取值下，major cluster仍然相对稳定，但是大小略有变化。
+6. 调节超参数：尝试不同pval。pval越小，相似度矩阵越稀疏，从而聚类结果中簇数目越多，top簇的大小越小。✅
+> 生活大爆炸：采用原有的0.032，即能得到具有明显数量优势的top5簇。降至0.016/0.008后，第二大的簇大小从 2000+ 降至 1800+， 剩余top5簇变化不大。其余簇除新增了 2 个大小≈100 的簇外，变化不大。
+> 我爱我家：采用原有的0.032，只能能得到 4 个包含元素>1的簇。降到0.008后，效果相对较好。
+7. 未来可以通过在验证集上自动搜参确定pval。
 
 ### 视觉聚类
 1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
@@ -68,7 +69,13 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。
 
 ### 评估（只需要考虑语音部分）
-1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。
+1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅
+2. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
+3. 聚类簇与标注说话人的对齐：同时考虑簇大小和包含的人名数量。
+
+
+
+accuracy对聚类阈值相对敏感，eer是更能反映模型本身能力的指标。
 
 ## 阶段 2：自监督学习
 加入根据聚类结果微调模型的代码，记录每一次迭代之后产生的聚类结果，并评估。
