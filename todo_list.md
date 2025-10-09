@@ -49,16 +49,20 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 > 整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 
 ### 语音聚类
-1. min_num_spks设置为文本处理所得拥有＞1 个别名的说话人数量，max_num_spks=5*min_num_spks。✅
-2. 现在的语音聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
-3. 现在的语音聚类中，会合并聚类中心cos-sim>mer_cos的簇。mer_cos暂时设置为0.8，需要check合并后各个cluster 的大小。✅
-4. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
-5. 聚类是 audio only 还是 audio-visual由 sh脚本控制，相应修改cluster_and_postprocess.py。✅
-6. 尝试让 run_audio直接加载 video config。✅
+1. 聚类是 audio only 还是 audio-visual由 sh脚本控制，相应修改cluster_and_postprocess.py。✅
+2. 尝试让 run_audio直接加载 video config。✅
+3. min_num_spks设置为文本处理所得拥有＞1 个别名的说话人数量，max_num_spks=5*min_num_spks。✅
+4. 现在的语音聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
+5. 现在的语音聚类中，需要调整的核心超参数是mer_cos。如果两个簇的聚类中心cos-sim>mer_cos，则会被合并。当前设定为0.8，在我爱我家上表现不佳。✅
+> a. 后续可以设置为在验证集上自动搜参，确定阈值。
+6. 尝试不同的mer_cos取值。在每一个取值下，在out中打印所用的阈值，同时将使用的mer_cos阈值添加到输出 json 文件的文件名中。（经过尝试，仍设置为0.8）✅
+> 生活大爆炸：不同的mer_cos取值对聚类结果影响不大。尤其是，聚类数目和各聚类簇的大小分布都比较稳定，只是最大的几个簇的成员会有非常小的变化。
+> 我爱我家：不同的mer_cos取值下，major cluster仍然相对稳定，但是大小变化略大。
+7. 根据聚类簇覆盖各集的情况和大小，获取 others 簇。
 
 ### 视觉聚类
-1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。
-2. 现在的视觉聚类中，层次聚类的停止阈值设置为fix_cos_thr=0.25，需要check这是否能带来好的聚类结果。
+1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
+2. 现在的视觉聚类中，需要调整的核心超参数是fix_cos_thr，对应层次聚类的停止阈值。需要check当前取值 0.25 是否能带来好的聚类结果。
 
 ### 联合聚类
 1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。

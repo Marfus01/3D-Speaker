@@ -11,6 +11,7 @@ import argparse
 import pickle
 import pathlib
 import numpy as np
+import copy
 
 current_file_path = os.path.abspath(__file__)
 # 从'local/'回到'speaker-diarization'目录
@@ -140,7 +141,6 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
     """
     embeddings = np.array([], dtype=np.float32)
     audio_seg_ids = np.array([], dtype='<U50')   
-    cluster = build('cluster', config)
     # 对每一个音频文件
     for file_idx, wav_file in enumerate(local_wav_list):
         # 加载前序步骤从当前wav中提取的所有speaker embeddings
@@ -160,10 +160,16 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
                 audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
 
     # cluster
-    labels = cluster(embeddings)
-    summary_cluster_results(labels, modal_type='audio')
-    out_json = os.path.join(result_dir, 'cluster_results_audio.json')
-    save_cluster_results_audio(labels, audio_seg_ids, out_json)
+    mer_cos_list = [0.8+0.025*i for i in range(9)]
+    for mer_cos in mer_cos_list:
+        print(f"[INFO] Updated 'mer_cos' in cluster args to {mer_cos}")
+        config_copy = copy.deepcopy(config)
+        config_copy.cluster['args']['mer_cos'] = mer_cos
+        cluster = build('cluster', config_copy)
+        labels = cluster(embeddings)
+        summary_cluster_results(labels, modal_type='audio')
+        out_json = os.path.join(result_dir, f'cluster_results_audio(mer_cos={mer_cos}).json')
+        save_cluster_results_audio(labels, audio_seg_ids, out_json)
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
     cluster = build('cluster', config)
