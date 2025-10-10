@@ -174,7 +174,6 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
         save_cluster_results_audio(labels, audio_seg_ids, out_json)
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
-    cluster = build('cluster', config)
     # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
     for wav_file in local_wav_list:
         wav_name = os.path.basename(wav_file)
@@ -194,6 +193,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         ## 1. audio-only clustering: 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同
         ## 2. visual-only clustering: 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
         ## 3. 设置visual簇从max_audio_spk_id开始编号，筛选至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心），随后对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
+        cluster = build('cluster', config)        
         labels = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config)
         # output rttm
         new_labels = np.zeros(len(labels), dtype=int)
