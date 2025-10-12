@@ -71,9 +71,7 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 
 ### 评估（只需要考虑语音部分）
 1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅
-2. 用匈牙利算法匹配聚类簇与标注说话人，获得理想情况下最佳的accuracy。
-3. 计算eer。
-> accuracy对聚类阈值相对敏感，eer是更能反映模型本身能力的指标。
+2. 用匈牙利算法匹配聚类簇与标注说话人，获得理想情况下最佳的accuracy。✅
 
 ## 阶段 2：
 
@@ -111,9 +109,13 @@ b. 视觉聚类中，根据聚类簇覆盖各集的情况和大小，获取 othe
 ### 中间结果保存
 1. 第一次提取语音 embedding时，保存 hidden——embeddings，这样后续的训练和 infer 都能以 batchwise 方式处理，速度更快。
 2. evaluate_fr需要一分为二，将frames containing only one active face, and the face quality must be good enough结果单独保存，再调用人脸特征提取模型。这样，后续也不需要重新读取视频文件，运行检测-跟踪的流程。✅
-### 人脸模型微调后效果评估
+### 评估
+#### 语音部分
+1. 计算eer。
+> accuracy对聚类阈值相对敏感，eer是更能反映模型本身能力的指标。
+#### 人脸部分
 只需要对比初始模型聚类效果和微调后模型聚类效果即可。（大修时在伪标签获取方式中，加入cai2022的方法）
-#### 数据集构建
+##### 数据集构建
 中间帧人脸原有 Index 和现在的 Index 不一样（原来是直接获取中间帧，现在是固定fps后再获取）。需要
 1. 先在之前的项目文件夹下，比对带有绿框标注的中间帧和裁剪得到的人脸，将各个人脸的 bbox 与人名对应，
 2. 将当前项目从每个中间帧人脸检测的结果，使用匈牙利算法，根据帧内总iou最大-->iou>0.5，获取大部分当前项目提取人脸的姓名标注；

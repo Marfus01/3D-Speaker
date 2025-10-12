@@ -106,6 +106,7 @@ def main(args):
         df = df[df['whether annotate speaker'] == 'Yes']
         keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 与聚类结果中的 segment ID 完全对应
         speakers = df['speaker'].tolist()
+        speakers = ['Others' if speaker == '小凡' else speaker for speaker in speakers] # Replace all '小凡' in speakers with 'Others'
         durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
 
         # 3. 获取所有有标注数据的聚类标签
@@ -118,15 +119,21 @@ def main(args):
           speakers = [speakers[i] for i in valid_idx]
           cluster_labels = [cluster_labels[i] for i in valid_idx]
           durations = [durations[i] for i in valid_idx]
-        
-        # 4. 根据标注文件，构建说话人名->speaker id的字典
+
+        # 4. 调整 cluster_labels，使其从 0 开始连续编号
+        print('Unique original cluster ids:', set(cluster_labels))
+        ## Create a mapping from unique cluster labels to consecutive integers
+        unique_cluster_labels = sorted(set(cluster_labels))
+        cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
+        ## Map cluster_labels to consecutive integers
+        cluster_labels = [cluster_label_mapping[label] for label in cluster_labels]
+
+        # 5. 根据标注文件，构建说话人名->speaker id的字典
         unique_speakers = sorted(set(speakers + ['Others']))
         name2idx = {name: idx for idx, name in enumerate(unique_speakers)}
-        if '小凡' in name2idx:
-            name2idx['小凡'] = name2idx['Others']
         print("Speaker to index mapping:", name2idx)
 
-        # 5. 将 prediction 和 label 都转为 one-hot，随后利用匈牙利算法进行标签对齐
+        # 6. 将 prediction 和 label 都转为 one-hot，随后利用匈牙利算法进行标签对齐
         speaker_onehot = np.array([name2onehot(name, name2idx) for name in speakers])
         n_clusters = max(cluster_labels) + 1
         cluster_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
@@ -134,7 +141,7 @@ def main(args):
         cluster_pred = np.eye(len(name2idx))[np.array([mapping[label] for label in cluster_labels])]
         print("Cluster_id to speaker_id mapping:", mapping)
 
-        # 6. 按时长分组，计算分组/整体的 accuracy
+        # 7. 按时长分组，计算分组/整体的 accuracy
         bins = [0, 1, 2, 3, 4, float('inf')]
         group_indices = np.digitize(durations, bins) - 1  # 取值范围 [0, 4]，len(group_indices) == len(durations)
         results = {}
@@ -145,7 +152,7 @@ def main(args):
                 acc = cal_accuracy_onehot(speaker_onehot[idx], cluster_pred[idx])
                 results[f'group_{i}_accuracy'] = acc
 
-        # 7. 保存结果
+        # 8. 保存结果
         filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
         with open(os.path.join(args.result_dir, filename), 'w') as f:
             for k, v in results.items():

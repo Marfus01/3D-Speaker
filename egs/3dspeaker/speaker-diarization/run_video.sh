@@ -111,6 +111,17 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   fi
 fi
 
+if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
+  echo "$(basename $0) Stage6: Get the final metrics..."
+  speaker_anno_file=$examples/annotation/text_annotated.xlsx
+  if [ -f "$speaker_anno_file" ]; then
+    echo "Computing accuracy..."
+    python local/compute_acc_spk.py --result_dir "$result_dir" --ref_xlsx "$speaker_anno_file"
+  else
+    echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
+  fi
+fi
+
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
 #   echo "$(basename $0) Stage6: Get the final metrics..."
 #   ref_rttm_list=$examples/refrttm.list
