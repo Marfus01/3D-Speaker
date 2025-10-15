@@ -22,11 +22,13 @@ if project_root not in sys.path:
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
 import json
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm files')
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--wavs', default=None, help='Wav list file')
 parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clustering type, support "audio_only" and "audio_vision"')
+parser.add_argument('--visual_info_type', default='vad', type=str, help='Visual information type, support "vad", "key_frame", "vad+key_frame"')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding dir')
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
@@ -98,7 +100,8 @@ def summary_cluster_results(labels, modal_type='audio'):
     sorted_label_counts = sorted(cluster_sizes.items(), key=lambda x: x[1], reverse=True)
 
     # Print the top 20 labels with their counts
-    print("[INFO] Top 20 label counts:")
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} Top 20 label counts:")
     for i, (label, count) in enumerate(sorted_label_counts[:20]):
         print(f"{modal_type} cluster {label}: of size {count};")
 
@@ -115,6 +118,26 @@ def summary_cluster_results(labels, modal_type='audio'):
         for count, num_labels in sorted(remaining_counts.items()):
             print(f"{num_labels} {modal_type} clusters of size {count}.")    
 
+def reset_cluster_ids(labels):
+    """
+    Reset cluster IDs to be consecutive integers starting from 0.
+
+    Args:
+        labels (ndarray): Original cluster labels, of shape [N].
+
+    Returns:
+        ndarray: New cluster labels with consecutive integers starting from 0, of shape [N].
+    """
+    uniq = np.unique(labels)
+    # Count occurrences of each unique label
+    uniq_count = {label: np.sum(labels == label) for label in uniq}
+    # Sort labels by count (descending), then by label value (descending)
+    sorted_uniq = sorted(uniq_count.keys(), key=lambda x: (-uniq_count[x], -x))
+
+    new_labels = np.zeros(len(labels), dtype=int)
+    for new_id, old_id in enumerate(sorted_uniq):
+        new_labels[labels==old_id] = new_id
+    return new_labels
 
 def save_cluster_results_audio(labels, audio_seg_ids, out_json):
     """
@@ -135,6 +158,55 @@ def save_cluster_results_audio(labels, audio_seg_ids, out_json):
     with open(out_json, 'w') as f:
         json.dump(cluster_results, f, indent=2)
 
+def save_cluster_results_vision_vad(audio_times, visual_times, audio_seg_ids, vlabels, out_json):
+    """
+    Save active speaker clustering results (vision_vad) to a JSON file.
+
+    Args:
+        audio_times (ndarray): [N, 2] array, each row is [start, end] for audio segments.
+        visual_times (ndarray): [M,] array, each value is the time for a visual segment.
+        vlabels (ndarray): [M,] array, visual cluster labels.
+        audio_seg_ids (ndarray): [N,] array, segment IDs for audio segments.
+        out_json (str): Path to output JSON file.
+    """
+    # Step 1: Build dict with keys from audio_seg_ids, values as empty lists
+    seg_dict = {seg_id: [] for seg_id in audio_seg_ids}
+
+    # Step 2: For each visual segment, find which audio segment interval it falls into
+    for v_idx, v_time in enumerate(visual_times):
+        # Find audio segment whose interval contains v_time
+        match_mask = (v_time >= audio_times[:, 0]) & (v_time < audio_times[:, 1])
+        if np.sum(match_mask) == 1:
+            a_idx = np.where(match_mask)[0][0]
+            seg_id = audio_seg_ids[a_idx]
+            seg_dict[seg_id].append(vlabels[v_idx])
+
+    # Step 3: Remove entries with empty value lists and create two new dicts
+    seg_dict_vad = {seg_id: vlabel_list for seg_id, vlabel_list in seg_dict.items() if len(vlabel_list) > 0}
+    ## Create seg_dict_uniq with value lists of length 1
+    seg_dict_uniq = {seg_id: int(vlabel_list[0]) for seg_id, vlabel_list in seg_dict_vad.items() if len(set(vlabel_list)) == 1}
+    ## Create seg_dict_major with the most frequent element in value lists
+    seg_dict_major = {}
+    for seg_id, vlabel_list in seg_dict_vad.items():
+        label_counts = {label: vlabel_list.count(label) for label in set(vlabel_list)}
+        major_label = max(label_counts, key=label_counts.get)
+        seg_dict_major[seg_id] = int(major_label)
+
+    ## Print comparison information
+    seg_dict_len = len(seg_dict)
+    seg_dict_vad_len = len(seg_dict_vad)
+    seg_dict_uniq_len = len(seg_dict_uniq)
+    seg_dict_major_len = len(seg_dict_major)
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} Among {seg_dict_len} audio segments, {seg_dict_vad_len} segments have active visual speaker cluster labels.")
+    print(f"[INFO] {current_time} Among {seg_dict_len} audio segments, {seg_dict_major_len} segments have a majority active visual speaker cluster label.")    
+    print(f"[INFO] {current_time} Among {seg_dict_len} audio segments, {seg_dict_uniq_len} segments have unique active visual speaker cluster labels.")
+
+    # Step 7: Save seg_dict_uniq and seg_dict_major to JSON
+    with open(out_json.replace('.json', '_uniq.json'), 'w') as f:
+        json.dump(seg_dict_uniq, f, indent=2)
+    with open(out_json.replace('.json', '_major.json'), 'w') as f:
+        json.dump(seg_dict_major, f, indent=2)
 
 def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
     """
@@ -161,48 +233,86 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
                 audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
 
     # cluster
-    # pval_list = [config.cluster['args']['pval']*pow(0.5, i) for i in range(3)]
-    pval_list = [0.012, 0.006, 0.004, 0.002]
-    for pval in pval_list:
-        print(f"[INFO] Updated 'pval' in cluster args to {pval}")
-        config_copy = copy.deepcopy(config)
-        config_copy.cluster['args']['pval'] = pval
-        cluster = build('cluster', config_copy)
-        labels = cluster(embeddings)
-        summary_cluster_results(labels, modal_type='audio')
-        out_json = os.path.join(result_dir, f'cluster_results_audio(pval={pval}, mer_cos=0.8).json')
-        save_cluster_results_audio(labels, audio_seg_ids, out_json)
+    cluster = build('cluster', config)
+    labels = cluster(embeddings)
+    labels = reset_cluster_ids(labels)
+    summary_cluster_results(labels, modal_type='audio')
+    out_json = os.path.join(result_dir, f'cluster_results_audio.json')
+    save_cluster_results_audio(labels, audio_seg_ids, out_json)
 
-def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
+
+def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
+    # NOTE: length of audio_embeddings and visual_embeddings may be different
+    audio_embeddings = np.array([], dtype=np.float32)
+    visual_embeddings = np.array([], dtype=np.float32)
+    audio_times = np.array([], dtype=np.float32)
+    visual_times = np.array([], dtype=np.float32)
+    audio_seg_ids = np.array([], dtype='<U50')
+    # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
+
     # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
-    for wav_file in local_wav_list:
+    for file_idx, wav_file in enumerate(local_wav_list):
         wav_name = os.path.basename(wav_file)
         rec_id = wav_name.rsplit('.', 1)[0]
         audio_embs_file = os.path.join(audio_embs_dir, rec_id + '.pkl')
-        visual_embs_file = os.path.join(visual_embs_dir, rec_id + '.pkl')
+        visual_embs_file = os.path.join(visual_embs_dir, rec_id + '_vad.pkl')
+        if not os.path.exists(audio_embs_file) or not os.path.exists(visual_embs_file):
+            print("[WARNING]: %s or %s does not exist, it is possible that vad model did not detect valid speech or face in file %s, please check it."%(audio_embs_file, visual_embs_file, wav_file))
+            continue
+        
+        time_begin_crt = 0 if file_idx == 0 else np.max(audio_times) + 120
+        ## load embeddings
         with open(audio_embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
-            audio_embeddings = stat_obj['embeddings']
-            audio_times = stat_obj['times']
+            if file_idx == 0:
+                audio_embeddings = stat_obj['embeddings']
+                audio_times = stat_obj['times']
+                audio_seg_ids = stat_obj['subseg_ids']
+            else:
+                audio_embeddings = np.vstack((audio_embeddings, stat_obj['embeddings']))
+                audio_times = np.vstack((audio_times, stat_obj['times']+time_begin_crt))
+                audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
+
         with open(visual_embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
-            visual_embeddings = stat_obj['embeddings']
-            visual_times = stat_obj['times']
+            # visual_infos.append((rec_id, time_begin_crt, len(stat_obj['embeddings'])))
+            if file_idx == 0:
+                visual_embeddings = stat_obj['embeddings']
+                visual_times = stat_obj['times']
+            else:
+                visual_embeddings = np.vstack((visual_embeddings, stat_obj['embeddings']))
+                visual_times = np.hstack((visual_times, stat_obj['times']+time_begin_crt))
 
-        # cluster
-        ## 1. audio-only clustering: 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同
-        ## 2. visual-only clustering: 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
-        ## 3. 设置visual簇从max_audio_spk_id开始编号，筛选至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心），随后对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
-        cluster = build('cluster', config)        
-        labels = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config)
-        # output rttm
-        new_labels = np.zeros(len(labels), dtype=int)
-        uniq = np.unique(labels)
-        for i in range(len(uniq)):
-            new_labels[labels==uniq[i]] = i 
-        seg_list = [(i,j) for i, j in zip(audio_times, new_labels)]
-        out_rttm = os.path.join(result_dir, rec_id+'.rttm')
-        make_rttms(seg_list, out_rttm, rec_id)
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings)} active face embeddings.")
+    cluster = build('cluster', config)
+    # visual-only clustering
+    ## 聚类流程
+    ## 1. 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)
+    ## 2. 将极小簇就近合并到较大簇
+    ## 3. 根据聚类中心余弦相似度合并相似簇
+    vlabels = cluster.vision_cluster(visual_embeddings)
+    del visual_embeddings
+    visual_embeddings = None # 释放内存
+    summary_cluster_results(vlabels, modal_type='visual_vad')
+    save_cluster_results_vision_vad(audio_times, visual_times, audio_seg_ids, vlabels, os.path.join(result_dir, f'cluster_results_vision_vad.json'))
+    
+    # audio-only clustering
+    ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
+    alabels = cluster.audio_cluster(audio_embeddings)
+    summary_cluster_results(alabels, modal_type='audio')
+    save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
+
+    # modify audio clustering results with visual information
+    ## 具体流程
+    ## 1. 计算每个audio segment与每个visual segment的overlap
+    ## 2. 设置visual簇从max_audio_spk_id开始编号，筛选出至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心）
+    ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID      
+    labels = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config, alabels, vlabels)
+    del audio_embeddings
+    labels = reset_cluster_ids(labels)
+    summary_cluster_results(labels, modal_type='audio_vision_vad')
+    save_cluster_results_audio(labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
 
 def main():
     args = parser.parse_args()
@@ -223,7 +333,13 @@ def main():
         audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config)
     else:
         assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
-        audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
+        assert args.visual_info_type in ['vad', 'key_frame', 'vad+key_frame'], f'--visual_info_type should be either "vad", "key_frame" or "vad+key_frame", but got {args.visual_info_type}'
+        if args.visual_info_type == 'vad':
+            audio_vision_func_vad(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
+        elif args.visual_info_type == 'key_frame':
+            raise NotImplementedError("Not implemented yet.")
+        else:
+            raise NotImplementedError("Not implemented yet.")
 
 
 if __name__ == "__main__":

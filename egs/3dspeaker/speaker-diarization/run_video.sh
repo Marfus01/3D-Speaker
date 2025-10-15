@@ -10,7 +10,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 
 stage=1 # 标识每个处理步骤的index
 stop_stage=6  # 共6步
-cluster_type="audio_only" # 聚类方式，支持 "audio_only" 和 "audio_vision"
+cluster_type="audio_vision" # 聚类方式，支持 "audio_only" 和 "audio_vision"
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="I love my family" # "the big bang theory", "I love my family"

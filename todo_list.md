@@ -49,6 +49,7 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 > 整体与speaker3d相同，逐个处理视频，读取原始视频中根据时间确定起止帧确定的指定段，运行人脸检测-->以2s为单位处理 shot-->face tracking-->active speaker detection-->提取人脸 embedding。保存 embeddings时，与现有方式相同，每集（对应一个视频）存成一个文件，文件名包含集数。
 
 ### 语音聚类
+生活大爆炸耗时约 3min，我爱我家耗时约 10min。
 1. 聚类是 audio only 还是 audio-visual由 sh脚本控制，相应修改cluster_and_postprocess.py。✅
 2. 尝试让 run_audio直接加载 video config。✅
 3. min_num_spks设置为文本处理所得拥有＞1 个别名的说话人数量，max_num_spks=5*min_num_spks。✅
@@ -58,16 +59,23 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 > 我爱我家：不同的mer_cos取值下，major cluster仍然相对稳定，但是大小略有变化。
 6. 调节超参数：尝试不同pval。pval越小，相似度矩阵越稀疏，从而聚类结果中簇数目越多，top簇的大小越小。✅
 > 生活大爆炸：采用原有的0.032，即能得到具有明显数量优势的top5簇。降至0.016/0.008后，第二大的簇大小从 2000+ 降至 1800+， 剩余top5簇变化不大。其余簇除新增了 2 个大小≈100 的簇外，变化不大。
-> 我爱我家：采用原有的0.032，只能能得到 4 个包含元素>1的簇。降到0.008后，效果相对较好。
+> 我爱我家：采用原有的0.032，只能得到 4 个包含元素>1的簇。降到0.008后，效果相对较好。
 7. 未来可以通过在验证集上自动搜参确定pval。
 
 ### 视觉聚类
+两个数据集上的聚类均能在 1min内完成。
 1. 现在的视觉聚类中，包含样本数小于等于 min_cluster_size=1 的所有 minor cluster，都被根据最近邻原则，重新分配到 major cluster 中。由于后续希望以others作为单独一类，需要先检查余弦相似度是否较高，然后再分配。✅
-2. 现在的视觉聚类中，需要调整的核心超参数是fix_cos_thr，对应层次聚类的停止阈值。需要check当前取值 0.25 是否能带来好的聚类结果。
-3. 额外获取视觉聚类结果，保存为 json文件，方便后续评估。
+2. 现在的视觉聚类中，需要调整的核心超参数是fix_cos_thr，对应层次聚类的停止阈值。fix_cos_thr越大，聚类簇数目越多。经过尝试，暂时仍设置为原来的默认值0.25。✅
+> 生活大爆炸：即使阈值调到0.5，仍然只有 2 个簇大小占据明显优势，且大小排名靠前的簇规模相较 0.25 时变化不大。
+> 我爱我家：次大簇规模相较 0.25 时明显变大，但整体情况变化不大。
+3. 额外获取视觉聚类结果，保存为 json文件，方便后续评估。✅
+> 实验结果显示，约 20% 的 audio segment 有 active visual speaker cluster labels，其中 label 唯一的质量明显高于非唯一的。
+> 生活大爆炸：Among 6829 audio segments, 1314 segments have active visual speaker cluster labels, 1303 segments have unique active visual speaker cluster labels. 对于有>1个active visual speaker cluster labels的音频片段，也均能通过多数投票获得其视觉聚类标签。唯一的视觉聚类标签对应的说话人识别准确率为 93.81%。作为对比，纯语音聚类的准确率为 89.95%。
+> 我爱我家：Among 19225 audio segments, 4192 segments have active visual speaker cluster labels, 4147 segments have unique active visual speaker cluster labels. 对于有>1个active visual speaker cluster labels的音频片段，也均能通过多数投票获得其视觉聚类标签。唯一的视觉聚类标签对应的说话人识别准确率为 94.80%。作为对比，纯语音聚类的准确率为 74.00%。
 
 ### 联合聚类
-1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。
+1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。✅
+> 通过对每集数据的起始时间施加偏移量实现，这可以确保每集数据的时间不重叠。
 
 ### 评估（只需要考虑语音部分）
 1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅

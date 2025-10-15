@@ -368,10 +368,12 @@ class JointClustering:
         self.audio_cluster = audio_cluster
         self.vision_cluster = vision_cluster
 
-    def __call__(self, audioX, visionX, audioT, visionT, conf):
+    def __call__(self, audioX, visionX, audioT, visionT, conf, alabels=None, vlabels=None):
         # audio-only and video-only clustering
-        alabels = self.audio_cluster(audioX)
-        vlabels = self.vision_cluster(visionX)
+        if alabels is None:
+            alabels = self.audio_cluster(audioX)
+        if vlabels is None:
+            vlabels = self.vision_cluster(visionX)
 
         # adjust audio labels to continuous integers starting from 0
         alabels = self.arrange_labels(alabels)
