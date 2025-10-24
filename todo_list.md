@@ -81,10 +81,11 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅
 2. 用匈牙利算法匹配聚类簇与标注说话人，获得理想情况下最佳的accuracy。✅
 
-## 阶段 2：
+## 阶段 2：加入仅处理说话人序列的HMM
+阶段1联合聚类获得说话人聚类簇标签之后，使用一个n_states = n_clusters的HMM，对说话人标签进行平滑。测试发现，如果完全采纳HMM的结果，accuracy会下降。因此，考虑计算隐状态解码结果的后验概率，仅采纳后验概率最高的前prop_keep比例的解码状态，用来修正观测序列。为了将隐状态 id 与 观测状态 id 对齐，使用了朴素的方式，即认为每个隐状态对应的观测状态是该隐状态出现时，观测状态出现频率最高的那个。✅
+1. 在生活大爆炸上测试，prop_keep=0.01时，第一组的accuracy有所提升，其余均下降。
 
-
-## 阶段 3：使用带约束的聚类
+## 阶段 3：测试带约束的聚类
 
 
 
