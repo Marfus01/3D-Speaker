@@ -12,6 +12,7 @@ import pickle
 import pathlib
 import numpy as np
 import copy
+from hmmlearn import hmm
 
 current_file_path = os.path.abspath(__file__)
 # 从'local/'回到'speaker-diarization'目录
@@ -87,6 +88,86 @@ def make_rttms(seg_list, out_rttm, rec_id):
         for seg in new_seg_list:
             seg_id, seg_st, seg_ed, cluster_id = seg
             f.write(line_str.format(seg_id, seg_st, seg_ed-seg_st, cluster_id))
+
+# used to ignore the warning of hmmlearn
+class SuppressMultinomialHMMWarning:
+    def __enter__(self):
+        self._original_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stderr.close()
+        sys.stderr = self._original_stderr
+
+def alabels_hmm_smooth(alabels, lengths, prop_keep=0.1, duration_dat= None):
+    n_states_obs = len(np.unique(alabels))
+    n_states_hid = n_states_obs    
+    speaker_obs = alabels.reshape(-1, 1)
+
+    # define initial probs in hmm
+    audio_startprob_init = np.ones(n_states_hid) / n_states_hid  # uniform distribution, of shape (n_stn_states_hidates,)
+    audio_transitionprob_init = np.ones((n_states_hid, n_states_hid)) * (1 - 0.4) / n_states_hid
+    audio_emissionprob_init = np.ones((n_states_hid, n_states_obs)) * 0.4 / n_states_obs
+    # round these probs to 5 decimal places
+    audio_startprob_init = np.round(audio_startprob_init, 5)
+    audio_transitionprob_init = np.round(audio_transitionprob_init, 5)
+    audio_emissionprob_init = np.round(audio_emissionprob_init, 5)
+    # make sure the sum of each row is 1
+    audio_startprob_init[0] = 1 - np.sum(audio_startprob_init[1:])
+    for i in range(n_states_hid):
+        audio_transitionprob_init[i, i] = 1 - np.sum(audio_transitionprob_init[i]) + audio_transitionprob_init[i, i]
+        audio_emissionprob_init[i, i] = 1 - np.sum(audio_emissionprob_init[i]) + audio_emissionprob_init[i, i]    
+    with SuppressMultinomialHMMWarning():
+        audio_hmm_model = hmm.CategoricalHMM(n_components=n_states_hid, 
+                                    n_iter=1000, tol=0.00001,
+                                    init_params='')  # don't use default initial parameters
+
+    audio_hmm_model.n_features = n_states_obs
+    audio_hmm_model.startprob_ = audio_startprob_init
+    audio_hmm_model.transmat_ = audio_transitionprob_init
+    audio_hmm_model.emissionprob_ = audio_emissionprob_init
+
+    audio_hmm_model.fit(speaker_obs, lengths)
+    pred_speaker_hmm = audio_hmm_model.predict(speaker_obs, lengths)  # predicted hidden labels
+    pred_speaker_hmm_prob = audio_hmm_model.predict_proba(speaker_obs, lengths)   # posterior probability of each state, np.array of shape (n_samples, n_states_hid)
+    # Extract the probabilities corresponding to the predicted hidden states
+    pred_speaker_hmm_probs = np.array([pred_speaker_hmm_prob[i, state] for i, state in enumerate(pred_speaker_hmm)])
+    # Map the predicted hidden states back to the observed sequence values
+    state_to_obs_map = np.argmax(audio_hmm_model.emissionprob_, axis=1)  # Map hidden states to observed values
+    pred_speaker_hmm_mapped = np.array([state_to_obs_map[state] for state in pred_speaker_hmm])
+    # Find the indices of the top prop_keep proportion of probabilities
+    num_keep = int(len(pred_speaker_hmm_probs) * prop_keep)
+    top_indices = np.argsort(pred_speaker_hmm_probs)[-num_keep:]
+
+    if duration_dat is not None:
+        # Ensure that the indices to be replaced correspond to segments longer than duration_dat
+        top_indices = [i for i in top_indices if duration_dat[i] <= 1]
+
+    # Replace the values in the observed sequence at these indices
+    alabels[top_indices] = pred_speaker_hmm_mapped[top_indices]
+    return alabels
+
+def save_hmm_smooth_alabels(result_dir):
+    json_file = os.path.join(result_dir, 'cluster_results_audio_vision_vad.json')
+    with open(json_file, 'r', encoding='utf-8') as f:
+        cluster_dic = json.load(f)
+    seg_ids = list(cluster_dic.keys())
+    alabels = np.array([cluster_dic[seg_id] for seg_id in seg_ids])
+    # Calculate the number of segments per episode
+    episode_lengths = {}
+    for seg_id in seg_ids:
+        episode = seg_id.split('-')[0]
+        episode_lengths[episode] = episode_lengths.get(episode, 0) + 1
+    lengths = list(episode_lengths.values())
+
+    prop_keep_list = [0.002, 0.005, 0.01]
+    for prop_keep in prop_keep_list:
+        # Apply HMM smoothing to the alabels
+        smoothed_alabels = alabels_hmm_smooth(copy.deepcopy(alabels), lengths, prop_keep=prop_keep)
+        # Save the smoothed alabels to a new JSON file
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(seg_ids, smoothed_alabels)}
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
 
 
 def summary_cluster_results(labels, modal_type='audio'):
@@ -248,6 +329,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     audio_times = np.array([], dtype=np.float32)
     visual_times = np.array([], dtype=np.float32)
     audio_seg_ids = np.array([], dtype='<U50')
+    alengths = []  # list of int, number of audio segments for each audio file
     # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
 
     # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
@@ -264,6 +346,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
         ## load embeddings
         with open(audio_embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
+            alengths.append(len(stat_obj['subseg_ids']))
             if file_idx == 0:
                 audio_embeddings = stat_obj['embeddings']
                 audio_times = stat_obj['times']
@@ -314,6 +397,13 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     summary_cluster_results(labels, modal_type='audio_vision_vad')
     save_cluster_results_audio(labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
 
+    duration_dat = audio_times[:,1] - audio_times[:,0]
+    # Apply HMM smoothing to the labels
+    smoothed_labels = alabels_hmm_smooth(copy.deepcopy(labels), alengths, prop_keep=0.01, duration_dat=duration_dat)
+    smoothed_labels = reset_cluster_ids(smoothed_labels)
+    summary_cluster_results(smoothed_labels, modal_type='audio_vision_vad_hmm')
+    save_cluster_results_audio(smoothed_labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm.json'))
+
 def main():
     args = parser.parse_args()
     # 获取所有待处理的wav文件列表
@@ -323,6 +413,7 @@ def main():
 
     os.makedirs(args.result_dir, exist_ok=True)
     print("[INFO] Start clustering...")
+    save_hmm_smooth_alabels(args.result_dir)     
     # 加载yaml文件
     config = build_config(args.conf)
     assert args.cluster_type in ['audio_only', 'audio_vision'], f'--cluster_type should be either "audio_only" or "audio_vision", but got {args.cluster_type}'

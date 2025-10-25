@@ -11,6 +11,9 @@ import fastcluster
 from scipy.cluster.hierarchy import fcluster
 from scipy.spatial.distance import squareform
 
+rand_seed = 42
+np.random.seed(rand_seed)
+
 try:
     import umap, hdbscan
 except ImportError:
@@ -131,7 +134,7 @@ class SpectralCluster:
         """
          Perform k-means clustering on the Spectral Embeddings.       
         """
-        _, labels, _ = k_means(emb, k)
+        _, labels, _ = k_means(emb, k, random_state=rand_seed)
         return labels
 
     def getEigenGaps(self, eig_vals):
@@ -165,6 +168,7 @@ class UmapHdbscan:
             min_dist=0.0,
             n_components=min(self.n_components, X.shape[0]-2),
             metric=self.metric,
+            random_state=rand_seed,
         ).fit_transform(X)
         labels = hdbscan.HDBSCAN(min_samples=self.min_samples, min_cluster_size=self.min_cluster_size).fit_predict(umap_X)
         return labels
