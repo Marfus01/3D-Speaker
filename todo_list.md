@@ -76,14 +76,17 @@ the big bang theory: Number of audio segments: 6829, number of visual segments: 
 ### 联合聚类
 1. 在对语音、视觉各自出现时间进行 merge，以及 align的过程中，要注意它们是否来自同一集。✅
 > 通过对每集数据的起始时间施加偏移量实现，这可以确保每集数据的时间不重叠。
+2. 固定语音、人脸聚类的seed，确保每次运行结果一致。✅
 
 ### 评估（只需要考虑语音部分）
 1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅
 2. 用匈牙利算法匹配聚类簇与标注说话人，获得理想情况下最佳的accuracy。✅
+> 多分类 accuracy 计算公式：https://www.kaggle.com/code/nkitgupta/evaluation-metrics-for-multi-class-classification
 
 ## 阶段 2：加入仅处理说话人序列的HMM
 阶段1联合聚类获得说话人聚类簇标签之后，使用一个n_states = n_clusters的HMM，对说话人标签进行平滑。测试发现，如果完全采纳HMM的结果，accuracy会下降。因此，考虑计算隐状态解码结果的后验概率，仅采纳后验概率最高的前prop_keep比例的解码状态，用来修正观测序列。为了将隐状态 id 与 观测状态 id 对齐，使用了朴素的方式，即认为每个隐状态对应的观测状态是该隐状态出现时，观测状态出现频率最高的那个。✅
-1. 在生活大爆炸上测试，prop_keep=0.01时，第一组的accuracy有所提升，其余均下降。
+1. 在生活大爆炸上测试，prop_keep=0.01时，第一组的accuracy有所提升，其余均下降。耗时约7min。进一步提升prop_keep，accuracy下降更多。
+2. 在我爱我家上测试，prop_keep=0.01时，第一组的accuracy有所提升，其余均下降。耗时约54min。进一步提升prop_keep，accuracy下降更多。
 
 ## 阶段 3：测试带约束的聚类
 
