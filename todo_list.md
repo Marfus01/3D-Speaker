@@ -102,36 +102,70 @@ d. 对经过调整的 alabels 重新编号，确保标签为连续整数，记�
 > 聚类结果中各个聚类簇的大小等信息参见'/data/home/scv7387/run/tv_series_plus/out/搭建pipeline/3dspeaker联合聚类/原始/细节'中的out文件。
 ##### 生活大爆炸
 视觉簇筛选结果：
-[INFO] 2025-10-26 11:20:17 visual_vad_initial clustering results: total 17 clusters, total 4766 samples.
-[INFO] 2025-10-26 11:20:17 visual_vad_step1 clustering results: total 14 clusters, total 3894 samples. 这一步每个簇的size都有所减少，上一步中size最小的3个簇被丢弃。
-[INFO] 2025-10-26 11:20:23 visual_vad_step2 clustering results: total 9 clusters, total 3849 samples. 这一步中，上一步中size最小的5个簇被丢弃，其余簇size不变
+[INFO] 2025-10-26 12:04:23 visual_vad_initial clustering results: total 17 clusters, total 4766 samples.
+[INFO] 2025-10-26 12:04:23 visual_vad_step1 clustering results: total 14 clusters, total 3894 samples. 这一步每个簇的size都有所减少，上一步中size最小的3个簇被丢弃。
+[INFO] 2025-10-26 12:04:29 visual_vad_step2 clustering results: total 9 clusters, total 3849 samples. 这一步中，上一步中size最小的5个簇被丢弃，其余簇size不变
 筛选后视觉聚类结果的质量：
 Among 6829 audio segments, after filter, 863 segments have active visual speaker cluster labels, all of them have a majority active visual speaker cluster label, and 857 segments have unique active visual speaker cluster labels.
 > 作为对比，筛选之前，Among 6829 audio segments, 1314 segments have active visual speaker cluster labels, all of them have a majority active visual speaker cluster label, and 1303 segments have unique active visual speaker cluster labels. 就accuracy而言，筛选之后略有下降（在0.5%以内）。
 语音簇调整结果：
-[INFO] 2025-10-26 11:20:23 audio_before_joint clustering results: total 27 clusters, total 6829 samples.
+[INFO] 2025-10-26 12:04:29 audio_before_joint clustering results: total 27 clusters, total 6829 samples.
 [INFO] Total 6213 audio segments in 7 audio clusters are re-assigned according to visual clusters during joint clustering.
-[INFO] 2025-10-26 11:20:24 audio_after_joint clustering results: total 29 clusters, total 6829 samples.
+[INFO] 2025-10-26 12:04:29 audio_after_joint clustering results: total 29 clusters, total 6829 samples.
 进一步分析，audio_before_joint中size>1的簇中，只有大小为382、113、74的三个簇未被调整。
+
+标注数据集上被匹配到非others说话人的vad校正后语音簇（大小>1）：
+audio_after_joint clustering ids(counts): 27(2218), 28(1756), 29(1099), 30(685), 8(382), 38(180), 37(115), 10(113), 31(111), 9(74), 34(33), 16(31), 33(16)
+audio_vision_vad(arranged) clustering ids(counts): ☑️0(2218), ☑️1(1756), ☑️2(1099), ☑️3(685), ☑️4(382), 5(180), 6(115), 7(113), 8(111), 9(74), 10(33), 11(31), 12(16)
+正好为最大的5个，但是其中有一个来自语音聚类
+
+标注数据集上被匹配到非others说话人的纯语音聚类簇（大小>1）：
+audio_only clustering ids(counts): ☑️0(2281), ☑️1(2029), ☑️2(1066), ☑️3(659), ☑️4(382), 5(129), 6(113), 7(74), 8(33), 9(31), 10(16)
+仍为最大的5个。
 
 ##### 我爱我家
 视觉簇筛选结果：
-[INFO] 2025-10-26 11:27:39 visual_vad_initial clustering results: total 51 clusters, total 17684 samples.
-[INFO] 2025-10-26 11:27:39 visual_vad_step1 clustering results: total 45 clusters, total 15478 samples. 这一步每个簇的size都有所减少，上一步中size最小的6个簇被丢弃（观察剩余簇大小得到）。
-[INFO] 2025-10-26 11:28:32 visual_vad_step2 clustering results: total 32 clusters, total 15263 samples. 这一步中，上一步中size最小的7个簇和大小为58、42、25、9的簇、以及大小为27、33的各一个簇被丢弃，其余簇size不变
+[INFO] 2025-10-26 12:11:53 visual_vad_initial clustering results: total 51 clusters, total 17684 samples.
+[INFO] 2025-10-26 12:11:53 visual_vad_step1 clustering results: total 45 clusters, total 15478 samples. 这一步每个簇的size都有所减少，上一步中size最小的6个簇被丢弃（观察剩余簇大小得到）。
+[INFO] 2025-10-26 12:12:48 visual_vad_step2 clustering results: total 32 clusters, total 15263 samples. 这一步中，上一步中size最小的7个簇和大小为58、42、25、9的簇、以及大小为27、33的各一个簇被丢弃，其余簇size不变
 筛选后视觉聚类结果的质量：
 Among 19225 audio segments, after filter, 3054 segments have active visual speaker cluster labels, all of them have a majority active visual speaker cluster label, and 3039 segments have unique active visual speaker cluster labels.
 > 作为对比，筛选之前，Among 19225 audio segments, 4192 segments have active visual speaker cluster labels, 4147 segments have unique active visual speaker cluster labels. 就accuracy而言，筛选之后略有提升（约1%）。
 语音簇调整结果：
-[INFO] 2025-10-26 11:28:32 audio_before_joint clustering results: total 28 clusters, total 19225 samples.
+[INFO] 2025-10-26 12:12:48 audio_before_joint clustering results: total 28 clusters, total 19225 samples.
 [INFO] Total 19207 audio segments in 10 audio clusters are re-assigned according to visual clusters during joint clustering.
-[INFO] 2025-10-26 11:28:36 audio_after_joint clustering results: total 50 clusters, total 19225 samples.
+[INFO] 2025-10-26 12:12:54 audio_after_joint clustering results: total 50 clusters, total 19225 samples.
 进一步分析，audio_before_joint中所有 size>1 的簇都被重新分配了。
+
+标注数据集上被匹配到非others说话人的vad校正后语音簇（top20）：
+audio_after_joint clustering ids(counts): 33(3953), 28(3817), 32(3076), 30(991), 47(829), 34(700), 31(645), 29(613), 37(583), 57(521), 39(472), 68(428), 41(377), 62(294), 64(230), 63(227), 72(222), 54(169), 65(162), 46(152)
+audio_vision_vad(arranged) clustering ids(counts): ☑️0(3953), ☑️1(3817), ☑️2(3076), ☑️3(991), 4(829), ☑️5(700), ☑️6(645), 7(613), ☑️8(583), 9(521), 10(472), 11(428), 12(377), 13(294), 14(230), 15(227), 16(222), 17(169), 18(162), 19(152)
+并非最大的7个
+
+标注数据集上被匹配到非others说话人的纯语音聚类簇（大小>1）：
+audio_only clustering ids(counts): ☑️0(4578), ☑️1(3317), ☑️2(3093), 3(2920), ☑️4(2691), ☑️5(868), ☑️6(859), 7(387), 8(331), ☑️9(163)
+并非最大的7个
+
 
 ### 评估（只需要考虑语音部分）
 1. 将根据聚类结果获取的output rttm改为key是 segment_id, value是聚类簇 Index 的字典，方便后续 evaluation。✅
 2. 用匈牙利算法匹配聚类簇与标注说话人，获得理想情况下最佳的accuracy。✅
 > 多分类 accuracy 计算公式：https://www.kaggle.com/code/nkitgupta/evaluation-metrics-for-multi-class-classification
+#### 说话人acc计算具体情况
+##### 方法1（目前采用）
+当前聚类（不管是纯语音聚类还是vad 人脸）所得簇数量k普遍多于标注说话人数量n。在计算 accuracy 时，目前采取的方式是：
+1. 在标注数据上，统计说话人为i, 聚类簇为j的音频片段数量，得到计数矩阵cm，大小为 n x k。
+2. 在cm的行之后，补充 k - n 行 min(cm)-1，使得cm变为 k x k。
+3. 使用匈牙利算法，在cm上寻找最大匹配，从中筛选出 rows < n 的匹配对，将剩余的 cols都分配给others。
+这等价于，从聚类结果中挑选与说话人标注匹配情况最好的 n 个簇，使用匈牙利算法将它们与标注说话人进行匹配，剩余的簇都划为 others。
+##### 方法2
+方法1的简化版本时，从聚类结果中选择最大的 n - 1 个簇与标注说话人进行匹配，剩余的簇都划为 others：
+1. 与方法1相同，获取计数矩阵 cm，大小为 n x k。
+2. 如果n不等于k，以n< k为例，挑选cm中列和最大的 n 列，组成新的矩阵 cm'，大小为 n x n。
+3. 在cm'上使用匈牙利算法，寻找最大匹配（row index需要对应到cm之中）。将cm剩余的 k - n 列都划为 others。
+从逻辑上讲，这也是合理的，因为较小的簇很有可能属于次要说话人，只是在标注过程中未加以区分。但风险是，标注中靠后的说话人与未标注靠前的说话人大小差异可能不大，这种方式有将对应others的簇与对应标注说话人的簇混淆的风险，从而导致 accuracy 被低估。
+##### 方法3
+另外一种很自然的方法是，将每一个聚类簇各自独立地匹配到counts最高的标注说话人上，但这种方式会导致多个聚类簇匹配到同一个标注说话人，从而导致 accuracy 被高估。
 
 ## 阶段 2：加入仅处理说话人序列的HMM
 ### 使用最基本的Category HMM✅
@@ -146,21 +180,21 @@ Among 19225 audio segments, after filter, 3054 segments have active visual speak
 ## 使用带有协变量的Category HMM
 ### 实现方式
 #### 簇标签对齐
-将vison簇标签的id与矫正后说话人标签的id对齐，使用一套规则，重新编号。确保两者id一一对应。
-
-1. 检查当前acc计算采用的方式（是否等于topk➕匈牙利匹配）
-2. 几乎所有的audio segments的新id都是根据视觉簇id调整的。
-3. 如果是，初步想法是，在filter vlabels的过程中，对id保持追踪。step2丢弃的小簇彻底不要了，但剩余小簇在step1被丢掉的部分要恢复。这些信息一起被作为X。由于这部分X的id和audio segments是对齐的，因此可以直接用hmm_X进行矫正。
-> 必须确定两种簇之间的映射关系，hmm_X才能成功运行
-> 不能直接在现有联合聚类基础上加，因为原有方法相当于筛选出了一些置信度高的语音-视觉簇配对，然后直接用它们完成了矫正。但对剩余的audio segments，它们可能有对应的face，但是并没有被用到
-> 但是，
-> b. 联合聚类里建立映射的方式、包括之前电视剧文章中的方式可以参考。之前对齐人脸、说话人聚类所用的方法可能仍然奏效。
-> c. 可以充分利用同一个audio segment内，绝大多数情况下只有一个active visual speaker cluster label的事实，将这一label直接赋予整个时间段，然后统计重叠时长，建立映射关系。
+必须确定人脸簇、语音簇之间的映射关系，hmm_X才能成功运行。
+然而，现有联合聚类相当于筛选出了一些置信度高的语音-视觉簇配对，然后直接用它们完成了矫正。但对剩余的audio segments，它们可能有对应的face，但是并没有被用到。
+目前借鉴联合聚类，采用以下方式，将vison簇标签的id与矫正后说话人标签的id对齐：
+1. 假如主要说话人数量为n-1，则挑选前2(n-1)个语音簇，作为潜在的主要说话人簇，得到集合A。
+2. 对集合A中的每一个簇，如果它与某个视觉簇对应（在reassigned过程中建立），则回溯该视觉簇在filter之前包含的所有faces，据此建立协变量。
+3. 对于剩余的语音簇，划为others。
+> a. 就对vad信息的应用而言，上述方法丢弃了filter vlabels的过程中，step2去除的小簇。因为这些小簇难以高质量地与语音簇id建立映射关系，且数量较少，对整体影响不大。
+> b. 如果A中的某个语音簇没有对应的视觉簇，则该语音簇的协变量为空。
+> c. 将较小簇统一划为others，也有助于减少HMM的状态数，降低计算复杂度。
+> 其他方式(为了方便与联合聚类对比，保证协变量质量较高，仍然采用上述方式)：
+> a. 可以参考之前电视剧参考文献、以及draft中对齐人脸、说话人聚类的方式。
+> b. 可以充分利用同一个audio segment内，绝大多数情况下只有一个active visual speaker cluster label的事实，将这一label直接赋予整个时间段，然后统计重叠时长，建立映射关系。
 #### 其他
-2. vison簇标签与speaker簇标签中均有一些很小的簇，考虑将它们都划定为others，设置统一编号。
-> 主要是为了减少HMM的状态数，降低计算复杂度。
-> 在产出vad.json时也需要做，以保证与hmm输入一致。
-3. 将写好的hmm_X迁移到当前项目中，完成从簇标签到hmm输入格式的转换。
+1. 将写好的hmm_X迁移到当前项目中，完成从簇标签到hmm输入格式的转换。
+2. 测评acc时，将cluster中手动归出的others簇直接对应到'others'说话人上，仅对剩余簇使用匈牙利算法匹配。
 
 ## 阶段 3：测试带约束的聚类
 
