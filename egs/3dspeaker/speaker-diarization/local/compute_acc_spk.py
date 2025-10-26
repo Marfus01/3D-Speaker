@@ -53,7 +53,7 @@ def class_matching(onehot_ref, onehot_pred, others_spk_id=None):
         row_ind, col_ind = linear_sum_assignment(-count_matrix)
     elif n_ref > n_pred:
         # 列补齐
-        pad_val = np.max(count_matrix) + 1
+        pad_val = np.min(count_matrix) - 1
         padded_matrix = np.pad(count_matrix, ((0,0),(0,n_ref-n_pred)), constant_values=pad_val)
         row_ind, col_ind = linear_sum_assignment(-padded_matrix)
         valid = col_ind < n_pred
@@ -62,7 +62,7 @@ def class_matching(onehot_ref, onehot_pred, others_spk_id=None):
     else:
         assert others_spk_id is not None and others_spk_id in ref_classes, "When n_ref < n_pred, others_spk_id must be provided and exist in reference classes."
         # 行补齐
-        pad_val = np.max(count_matrix) + 1
+        pad_val = np.min(count_matrix) - 1
         padded_matrix = np.pad(count_matrix, ((0,n_pred-n_ref),(0,0)), constant_values=pad_val)
         row_ind, col_ind = linear_sum_assignment(-padded_matrix)
         valid = row_ind < n_ref
@@ -123,12 +123,13 @@ def main(args):
           durations = [durations[i] for i in valid_idx]
 
         # 4. 调整 cluster_labels，使其从 0 开始连续编号
-        print('Unique original cluster ids:', set(cluster_labels))
+        print('Original cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
         ## Create a mapping from unique cluster labels to consecutive integers
         unique_cluster_labels = sorted(set(cluster_labels))
         cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
         ## Map cluster_labels to consecutive integers
         cluster_labels = [cluster_label_mapping[label] for label in cluster_labels]
+        print('Renamed cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
 
         # 5. 根据标注文件，构建说话人名->speaker id的字典
         unique_speakers = sorted(set(speakers + ['Others']))
