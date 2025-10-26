@@ -114,7 +114,9 @@ def main(args):
         valid_idx = [i for i, c in enumerate(cluster_labels) if c != -1]
         if len(valid_idx) < len(keys):
           missing_keys = [keys[i] for i in range(len(keys)) if i not in valid_idx]
-          print("The following keys are missing in the cluster dictionary:", missing_keys)
+          missing_keys_num = len(missing_keys)
+          total_keys_num = len(keys)
+          print(f"Warning: {missing_keys_num} out of {total_keys_num} keys in the reference xlsx are missing in {json_file}.")
           keys = [keys[i] for i in valid_idx]
           speakers = [speakers[i] for i in valid_idx]
           cluster_labels = [cluster_labels[i] for i in valid_idx]

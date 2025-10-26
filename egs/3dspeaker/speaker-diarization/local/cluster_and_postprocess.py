@@ -180,9 +180,15 @@ def summary_cluster_results(labels, modal_type='audio'):
     # Sort labels by their occurrence counts in descending order
     sorted_label_counts = sorted(cluster_sizes.items(), key=lambda x: x[1], reverse=True)
 
-    # Print the top 20 labels with their counts
+    # print total number of clusters and total number of samples
+    clusters_num = len(uniq)
+    total_samples = len(labels)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} Top 20 label counts:")
+    print(f"[INFO] {current_time} {modal_type} clustering results: total {clusters_num} clusters, total {total_samples} samples.")
+
+    # Print the top 20 labels with their counts
+    print(f"[INFO] Detailed {modal_type} cluster sizes:")
+    print(f"[INFO] Top 20 label counts:")
     for i, (label, count) in enumerate(sorted_label_counts[:20]):
         print(f"{modal_type} cluster {label}: of size {count};")
 
@@ -375,6 +381,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     ## 2. 将极小簇就近合并到较大簇
     ## 3. 根据聚类中心余弦相似度合并相似簇
     vlabels = cluster.vision_cluster(visual_embeddings)
+    vlabels = reset_cluster_ids(vlabels)
     del visual_embeddings
     visual_embeddings = None # 释放内存
     summary_cluster_results(vlabels, modal_type='visual_vad')
@@ -383,6 +390,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     # audio-only clustering
     ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
     alabels = cluster.audio_cluster(audio_embeddings)
+    alabels = reset_cluster_ids(alabels)
     summary_cluster_results(alabels, modal_type='audio')
     save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
 
@@ -391,18 +399,23 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     ## 1. 计算每个audio segment与每个visual segment的overlap
     ## 2. 设置visual簇从max_audio_spk_id开始编号，筛选出至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心）
     ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID      
-    labels = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config, alabels, vlabels)
+    labels, visual_info_filtered = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config, alabels, vlabels)
     del audio_embeddings
     labels = reset_cluster_ids(labels)
     summary_cluster_results(labels, modal_type='audio_vision_vad')
     save_cluster_results_audio(labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
 
-    duration_dat = audio_times[:,1] - audio_times[:,0]
-    # Apply HMM smoothing to the labels
-    smoothed_labels = alabels_hmm_smooth(copy.deepcopy(labels), alengths, prop_keep=0.01, duration_dat=duration_dat)
-    smoothed_labels = reset_cluster_ids(smoothed_labels)
-    summary_cluster_results(smoothed_labels, modal_type='audio_vision_vad_hmm')
-    save_cluster_results_audio(smoothed_labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm.json'))
+    visual_times_filtered = visual_info_filtered[:,0]
+    vlabels_filtered = visual_info_filtered[:,1]
+    summary_cluster_results(vlabels_filtered, modal_type='vlabels_filtered')
+    save_cluster_results_vision_vad(audio_times, visual_times_filtered, audio_seg_ids, vlabels_filtered, os.path.join(result_dir, f'cluster_results_vision_vad_filtered.json'))
+
+    # duration_dat = audio_times[:,1] - audio_times[:,0]
+    # # Apply HMM smoothing to the labels
+    # smoothed_labels = alabels_hmm_smooth(copy.deepcopy(labels), alengths, prop_keep=0.01, duration_dat=duration_dat)
+    # smoothed_labels = reset_cluster_ids(smoothed_labels)
+    # summary_cluster_results(smoothed_labels, modal_type='audio_vision_vad_hmm')
+    # save_cluster_results_audio(smoothed_labels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm.json'))
 
 def main():
     args = parser.parse_args()
@@ -413,7 +426,7 @@ def main():
 
     os.makedirs(args.result_dir, exist_ok=True)
     print("[INFO] Start clustering...")
-    save_hmm_smooth_alabels(args.result_dir)     
+    # save_hmm_smooth_alabels(args.result_dir)     
     # 加载yaml文件
     config = build_config(args.conf)
     assert args.cluster_type in ['audio_only', 'audio_vision'], f'--cluster_type should be either "audio_only" or "audio_vision", but got {args.cluster_type}'
