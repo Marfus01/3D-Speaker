@@ -536,16 +536,16 @@ class NestedHMM():
             
         # 优化
         result = minimize(objective_speaker_initial, x0, method='L-BFGS-B')
-        
-        if result.success:
+        obj_init = objective_speaker_initial(x0)
+        obj_final = objective_speaker_initial(result.x)
+
+        if result.success or obj_final < obj_init:
             self.beta_ = np.concatenate(([0.0], result.x[:-1]))
             self.gamma1_ = result.x[-1]
-            # obj_init = objective_speaker_initial(x0)
-            # obj_final = objective_speaker_initial(result.x)
-            # print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
-            # print(f"Final objective value for speaker initial params: {obj_final:.4f}")     
         else:
             print("Warning: Speaker initial parameters optimization did not converge.")
+            print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
+            print(f"Final objective value for speaker initial params: {obj_final:.4f}")
 
     def _update_speaker_transition_params(self, stats):
         """使用数值优化更新说话人转移参数（只优化非对角线元素和gamma2）"""
@@ -570,18 +570,18 @@ class NestedHMM():
 
         # 优化
         result = minimize(objective_speaker_transition, x0, method='L-BFGS-B')
+        obj_init = objective_speaker_transition(x0)
+        obj_final = objective_speaker_transition(result.x)
 
-        if result.success:
+        if result.success or obj_final < obj_init:
             # 重建A_S_，对角线为0
             self.A_S_ = np.zeros((self.n_actors, self.n_actors))
             self.A_S_[mask_offdiag] = result.x[:-1]
             self.gamma2_ = result.x[-1]
-            # obj_init = objective_speaker_transition(x0)
-            # obj_final = objective_speaker_transition(result.x)
-            # print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
-            # print(f"Final objective value for speaker transition params: {obj_final:.4f}")            
         else:
             print("Warning: Speaker transition parameters optimization did not converge.")
+            print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
+            print(f"Final objective value for speaker transition params: {obj_final:.4f}")
 
     def score(self, S_hat_onehot, F_hat, lengths=None):
         """计算观测序列的对数似然"""

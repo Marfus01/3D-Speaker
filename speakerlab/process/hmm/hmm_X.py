@@ -34,7 +34,7 @@ class HMM_X():
         随机种子
     """
     
-    def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False,
+    def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False, equal_influence=False,
                  params="cehij", init_params="cehij", random_state=None):
         self.n_actors = n_actors    # 演员数量
         self.n_iter = n_iter    # 最大迭代次数
@@ -42,6 +42,7 @@ class HMM_X():
         self.verbose = verbose  # 是否打印详细信息
         self.params = params    # 控制哪些参数被更新
         self.init_params = init_params  # 控制哪些参数被初始化
+        self.equal_influence = equal_influence  # 是否强制协变量对初始和转移概率的影响相等
         self.random_state = random_state
 
         # 添加缓存变量，避免反复计算
@@ -125,7 +126,10 @@ class HMM_X():
 
         if 'j' in self.init_params:
             # η2: 协变量X取值为1对说话人转移的影响
-            self.eta2_ = random_state.uniform(1, 3)
+            if self.equal_influence:
+                self.eta2_ = self.eta1_
+            else:
+                self.eta2_ = random_state.uniform(1, 3)
 
         self._update_log_transition_matrices()
 
@@ -379,13 +383,18 @@ class HMM_X():
 
     def _do_mstep(self, stats, lengths):
         """M步：更新参数"""
-        # 更新说话人初始概率参数 (beta, eta1)
-        if 'c' in self.params or 'i' in self.params:
-            self._update_speaker_initial_params(stats)
-        
-        # 更新说话人转移概率参数 (A_S, gamma2, eta2)
-        if 'e' in self.params or 'j' in self.params:
-            self._update_speaker_transition_params(stats)
+        if self.equal_influence:
+            if 'c' in self.params or 'i' in self.params or 'e' in self.params or 'j' in self.params:
+                # 同时更新说话人初始和转移参数
+                self._update_speaker_initial_and_transition_params(stats)
+        else:
+            # 更新说话人初始概率参数 (beta, eta1)
+            if 'c' in self.params or 'i' in self.params:
+                self._update_speaker_initial_params(stats)
+            
+            # 更新说话人转移概率参数 (A_S, gamma2, eta2)
+            if 'e' in self.params or 'j' in self.params:
+                self._update_speaker_transition_params(stats)
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
@@ -423,16 +432,16 @@ class HMM_X():
             
         # 优化
         result = minimize(objective_speaker_initial, x0, method='L-BFGS-B')
+        obj_init = objective_speaker_initial(x0)
+        obj_final = objective_speaker_initial(result.x)
         
-        if result.success:
+        if result.success or obj_final < obj_init:
             self.beta_ = np.concatenate(([0.0], result.x[:-1]))
             self.eta1_ = result.x[-1]
-            # obj_init = objective_speaker_initial(x0)
-            # obj_final = objective_speaker_initial(result.x)
-            # print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
-            # print(f"Final objective value for speaker initial params: {obj_final:.4f}")            
         else:
             print("Warning: Speaker initial parameters optimization did not converge.")
+            print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
+            print(f"Final objective value for speaker initial params: {obj_final:.4f}")
 
     def _update_speaker_transition_params(self, stats):
         """使用数值优化更新说话人转移参数(只优化非对角线元素和eta2)"""
@@ -458,18 +467,84 @@ class HMM_X():
         
         # 优化
         result = minimize(objective_speaker_transition, x0, method='L-BFGS-B')
+        obj_init = objective_speaker_transition(x0)
+        obj_final = objective_speaker_transition(result.x)
         
-        if result.success:
+        if result.success or obj_final < obj_init:
             # 重建A_S_，对角线为0
             self.A_S_ = np.zeros((self.n_actors, self.n_actors))
             self.A_S_[mask_offdiag] = result.x[:-1]
             self.eta2_ = result.x[-1]
-            # obj_init = objective_speaker_transition(x0)
-            # obj_final = objective_speaker_transition(result.x)
-            # print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
-            # print(f"Final objective value for speaker transition params: {obj_final:.4f}")
         else:
             print("Warning: Speaker transition parameters optimization did not converge.")
+            print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
+            print(f"Final objective value for speaker transition params: {obj_final:.4f}")
+
+    def _update_speaker_initial_and_transition_params(self, stats):
+        """
+        同时优化说话人初始参数(beta, eta1)和转移参数(A_S_offdiag, eta2)，
+        以两个目标函数之和为损失。要求 eta1 = eta2。
+        """
+        mask_offdiag = ~np.eye(self.n_actors, dtype=bool)
+        n_beta = self.n_actors - 1
+        n_A_S = self.n_actors * (self.n_actors - 1)
+
+        # 直接复用原有的目标函数
+        def objective_speaker_initial(params):
+            beta, eta1 = np.concatenate(([0.0], params[:-1])), params[-1]
+            weights = np.transpose(stats['speaker_initial_counts'], axes=(1, 0))   # [x_onehot_init, s_init]
+            masks = (weights > 0)
+            logits = beta[None, :] + eta1*self.X_arr[:, :]
+            log_probs = logits - logsumexp(logits, axis=1, keepdims=True)   # log-softmax
+            loss = - np.sum(weights[masks] * log_probs[masks])
+            return loss
+
+        def objective_speaker_transition(params):
+            A_S_mat = np.zeros((self.n_actors, self.n_actors))  # 对角线强制为0
+            A_S_mat[mask_offdiag] = params[:-1]
+            eta2 = params[-1]
+            weights = np.transpose(stats['speaker_transition_counts'], axes=(2, 0, 1)) # [x_onehot_curr, s_prev, s_curr]
+            mask = (weights > 0)
+            logits = A_S_mat[None, :, :] + eta2 * self.X_arr[:, None, :]
+            log_probs = logits - logsumexp(logits, axis=2, keepdims=True)
+            loss = - np.sum(weights[mask] * log_probs[mask])
+            return loss
+
+        # 定义联合目标函数
+        def joint_objective(params):
+            # 拆分参数
+            beta_params = params[:n_beta]
+            eta_param = params[n_beta]
+            A_S_params = params[n_beta+1:n_beta+1+n_A_S]
+            # 组装各自的参数
+            initial_params = np.concatenate([beta_params, [eta_param]])
+            transition_params = np.concatenate([A_S_params, [eta_param]])
+            # 目标函数之和
+            return objective_speaker_initial(initial_params) + objective_speaker_transition(transition_params)
+        
+        # 拼接所有参数
+        assert self.eta1_ == self.eta2_, "When using joint optimization, eta1 and eta2 must be equal."
+        x0 = np.concatenate([
+            self.beta_[1:],                # beta (去掉第一个)
+            np.array([self.eta1_]),        # eta
+            self.A_S_[mask_offdiag],       # A_S 非对角线
+        ])
+
+        # 优化
+        result = minimize(joint_objective, x0, method='L-BFGS-B')
+        obj_init = joint_objective(x0)
+        obj_final = joint_objective(result.x)
+
+        if result.success or obj_final < obj_init:
+            self.beta_ = np.concatenate(([0.0], result.x[:n_beta]))
+            self.eta1_ = result.x[n_beta]
+            self.A_S_ = np.zeros((self.n_actors, self.n_actors))
+            self.A_S_[mask_offdiag] = result.x[n_beta+1:n_beta+1+n_A_S]
+            self.eta2_ = result.x[n_beta]
+        else:
+            print("Warning: Joint optimization did not converge.")
+            print(f"Initial joint objective value: {obj_init:.4f}")
+            print(f"Final joint objective value: {obj_final:.4f}")
 
     def score(self, S_hat_onehot, X_onehot, lengths=None):
         """计算观测序列的对数似然"""
