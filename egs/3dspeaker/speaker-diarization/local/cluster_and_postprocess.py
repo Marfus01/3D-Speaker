@@ -92,55 +92,101 @@ def make_rttms(seg_list, out_rttm, rec_id):
             seg_id, seg_st, seg_ed, cluster_id = seg
             f.write(line_str.format(seg_id, seg_st, seg_ed-seg_st, cluster_id))
 
+class SuppressMultinomialHMMWarning:
+    def __enter__(self):
+        self._original_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stderr.close()
+        sys.stderr = self._original_stderr
+
 def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_dir, flag_has_neg1=False,
                         prop_keep_list=[0.1], duration_dat= None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     
-    print("\n=== 训练模型 ===")
-    start_time = time.time()
-    print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
-    model.fit(S_hat_onehot, X_onehot, lengths)
-    end_time = time.time()
-    print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
-    print("训练耗时:", end_time - start_time, "秒")
+    n_states_obs = n_actors
+    n_states_hid = n_states_obs    
+    speaker_obs = alabels.reshape(-1, 1)
 
-    print("\n=== 模型参数 ===")
-    print("说话人初始概率 β 的logits：\n", model.beta_)
-    print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
-    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
-    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+    # define initial probs in hmm
+    audio_startprob_init = np.ones(n_states_hid) / n_states_hid  # uniform distribution, of shape (n_stn_states_hidates,)
+    audio_transitionprob_init = np.ones((n_states_hid, n_states_hid)) * (1 - 0.4) / n_states_hid
+    audio_emissionprob_init = np.ones((n_states_hid, n_states_obs)) * 0.4 / n_states_obs
+    # round these probs to 5 decimal places
+    audio_startprob_init = np.round(audio_startprob_init, 5)
+    audio_transitionprob_init = np.round(audio_transitionprob_init, 5)
+    audio_emissionprob_init = np.round(audio_emissionprob_init, 5)
+    # make sure the sum of each row is 1
+    audio_startprob_init[0] = 1 - np.sum(audio_startprob_init[1:])
+    for i in range(n_states_hid):
+        audio_transitionprob_init[i, i] = 1 - np.sum(audio_transitionprob_init[i]) + audio_transitionprob_init[i, i]
+        audio_emissionprob_init[i, i] = 1 - np.sum(audio_emissionprob_init[i]) + audio_emissionprob_init[i, i]    
+    with SuppressMultinomialHMMWarning():
+        audio_hmm_model = hmm.CategoricalHMM(n_components=n_states_hid, 
+                                    n_iter=1000, tol=0.00001,
+                                    init_params='')  # don't use default initial parameters
 
-    # 使用训练好的模型解码隐藏状态及其后验概率
-    pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
-    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
-    speaker_states_viterbi_prob = np.array([pred_probs[i, state] for i, state in enumerate(speaker_states_viterbi)])
+    audio_hmm_model.n_features = n_states_obs
+    audio_hmm_model.startprob_ = audio_startprob_init
+    audio_hmm_model.transmat_ = audio_transitionprob_init
+    audio_hmm_model.emissionprob_ = audio_emissionprob_init
+
+    audio_hmm_model.fit(speaker_obs, lengths)
+    pred_speaker_hmm = audio_hmm_model.predict(speaker_obs, lengths)
     if flag_has_neg1:  # 将-1标签还原回来
-        speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
-        alabels[alabels == n_actors - 1] = -1
+        pred_speaker_hmm[pred_speaker_hmm == n_actors - 1] = -1 
 
-    # Find the indices of the top prop_keep proportion of probabilities
-    num_samples = len(speaker_states_viterbi_prob)
-    for prop_keep in prop_keep_list:
-        alabels_smoothed = copy.deepcopy(alabels)
-        num_keep = int(num_samples * prop_keep)
-        if num_keep > 0:
-            # indices of the hidden states with the highest probabilities
-            top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:] 
-            # select only those indices where duration_dat <= 1 second, if duration_dat is provided
-            if duration_dat is not None:
-                top_indices = [i for i in top_indices if duration_dat[i] <= 1]
-            # Replace the values in the observed sequence at these indices
-            replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
-            print(f"Prop keep: {float(prop_keep*100)}%, replace count: {replace_cnt}")
-            alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
+    # Save the smoothed alabels to a new JSON file
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, pred_speaker_hmm)}
+    with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_naive.json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
+
+    # print("\n=== 训练模型 ===")
+    # start_time = time.time()
+    # print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
+    # model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
+    # model.fit(S_hat_onehot, X_onehot, lengths)
+    # end_time = time.time()
+    # print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    # print("训练耗时:", end_time - start_time, "秒")
+
+    # print("\n=== 模型参数 ===")
+    # print("说话人初始概率 β 的logits：\n", model.beta_)
+    # print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
+    # print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    # print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
+    # print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+
+    # # 使用训练好的模型解码隐藏状态及其后验概率
+    # pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
+    # speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
+    # speaker_states_viterbi_prob = np.array([pred_probs[i, state] for i, state in enumerate(speaker_states_viterbi)])
+    # if flag_has_neg1:  # 将-1标签还原回来
+    #     speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
+    #     alabels[alabels == n_actors - 1] = -1
+
+    # # Find the indices of the top prop_keep proportion of probabilities
+    # num_samples = len(speaker_states_viterbi_prob)
+    # for prop_keep in prop_keep_list:
+    #     alabels_smoothed = copy.deepcopy(alabels)
+    #     num_keep = int(num_samples * prop_keep)
+    #     if num_keep > 0:
+    #         # indices of the hidden states with the highest probabilities
+    #         top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:] 
+    #         # select only those indices where duration_dat <= 1 second, if duration_dat is provided
+    #         if duration_dat is not None:
+    #             top_indices = [i for i in top_indices if duration_dat[i] <= 1]
+    #         # Replace the values in the observed sequence at these indices
+    #         replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
+    #         print(f"Prop keep: {float(prop_keep*100)}%, replace count: {replace_cnt}")
+    #         alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
         
-        # Save the smoothed alabels to a new JSON file
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
+    #     # Save the smoothed alabels to a new JSON file
+    #     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    #     with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
+    #         json.dump(smoothed_cluster_dic, f, indent=2)
 
 
 def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
