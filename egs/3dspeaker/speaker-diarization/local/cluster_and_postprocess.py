@@ -92,101 +92,137 @@ def make_rttms(seg_list, out_rttm, rec_id):
             seg_id, seg_st, seg_ed, cluster_id = seg
             f.write(line_str.format(seg_id, seg_st, seg_ed-seg_st, cluster_id))
 
-class SuppressMultinomialHMMWarning:
-    def __enter__(self):
-        self._original_stderr = sys.stderr
-        sys.stderr = open(os.devnull, 'w')
+def count_consecutive_segment_lengths(arr, seg_lengths=None):
+    """
+    Given a 1D numpy array of integers, returns an array of the same shape where each element
+    is replaced by the length of the consecutive segment it belongs to.
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stderr.close()
-        sys.stderr = self._original_stderr
+    Example:
+        [0,0,2,3,3,3,4] --> [2,2,1,3,3,3,1]
+    """
+    if seg_lengths is None:
+        seg_lengths = np.array([len(arr)])
+    arr = np.asarray(arr)
+    lengths = np.array([], dtype=int)
+
+    seg_start = 0
+    for seg_len in seg_lengths:
+        seg_end = seg_start + seg_len
+        seg_arr = arr[seg_start:seg_end]
+        # 找到分段的起始位置
+        boundaries = np.flatnonzero(np.diff(seg_arr)) + 1
+        # 在首尾补上0和len(arr)
+        boundaries = np.concatenate(([0], boundaries, [len(seg_arr)]))
+        # 计算每段长度
+        seg_lengths_inner = np.diff(boundaries)   # like [2,1,3,1]
+        lengths = np.concatenate((lengths, seg_lengths_inner))
+        seg_start = seg_end
+
+    return lengths
+
+def count_consecutive_ones(arr, seg_lengths=None):
+    arr = np.asarray(arr)
+    if seg_lengths is None:
+        seg_lengths = np.array([len(arr)])
+    arr = np.asarray(arr)
+    lengths = np.array([], dtype=int)
+
+    seg_start = 0
+    for seg_len in seg_lengths:
+        seg_end = seg_start + seg_len
+        seg_arr = arr[seg_start:seg_end]
+        
+        # 找到从0到1的起始位置和从1到0的结束位置
+        padded = np.concatenate(([0], seg_arr, [0]))
+        diff = np.diff(padded)
+        starts = np.where(diff == 1)[0]
+        ends = np.where(diff == -1)[0]
+        lengths = np.concatenate((lengths, ends - starts))
+
+        seg_start = seg_end
+
+    return lengths   
 
 def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_dir, flag_has_neg1=False,
                         prop_keep_list=[0.1], duration_dat= None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
+    repeated_lengths_obs = count_consecutive_segment_lengths(alabels, lengths)
+    uniq_lengths_obs, lengths_counts_obs = np.unique(repeated_lengths_obs, return_counts=True)
+    print("原始观测序列说话人连续出现次数统计:", dict(zip(uniq_lengths_obs, lengths_counts_obs)))
     
-    n_states_obs = n_actors
-    n_states_hid = n_states_obs    
-    speaker_obs = alabels.reshape(-1, 1)
+    print("\n=== 训练模型 ===")
+    start_time = time.time()
+    print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
+    model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
+    model.fit(S_hat_onehot, X_onehot, lengths)
+    end_time = time.time()
+    print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print("训练耗时:", end_time - start_time, "秒")
 
-    # define initial probs in hmm
-    audio_startprob_init = np.ones(n_states_hid) / n_states_hid  # uniform distribution, of shape (n_stn_states_hidates,)
-    audio_transitionprob_init = np.ones((n_states_hid, n_states_hid)) * (1 - 0.4) / n_states_hid
-    audio_emissionprob_init = np.ones((n_states_hid, n_states_obs)) * 0.4 / n_states_obs
-    # round these probs to 5 decimal places
-    audio_startprob_init = np.round(audio_startprob_init, 5)
-    audio_transitionprob_init = np.round(audio_transitionprob_init, 5)
-    audio_emissionprob_init = np.round(audio_emissionprob_init, 5)
-    # make sure the sum of each row is 1
-    audio_startprob_init[0] = 1 - np.sum(audio_startprob_init[1:])
-    for i in range(n_states_hid):
-        audio_transitionprob_init[i, i] = 1 - np.sum(audio_transitionprob_init[i]) + audio_transitionprob_init[i, i]
-        audio_emissionprob_init[i, i] = 1 - np.sum(audio_emissionprob_init[i]) + audio_emissionprob_init[i, i]    
-    with SuppressMultinomialHMMWarning():
-        audio_hmm_model = hmm.CategoricalHMM(n_components=n_states_hid, 
-                                    n_iter=1000, tol=0.00001,
-                                    init_params='')  # don't use default initial parameters
+    print("\n=== 模型参数 ===")
+    print("说话人初始概率 β 的logits：\n", model.beta_)
+    print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
+    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
+    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
 
-    audio_hmm_model.n_features = n_states_obs
-    audio_hmm_model.startprob_ = audio_startprob_init
-    audio_hmm_model.transmat_ = audio_transitionprob_init
-    audio_hmm_model.emissionprob_ = audio_emissionprob_init
-
-    audio_hmm_model.fit(speaker_obs, lengths)
-    pred_speaker_hmm = audio_hmm_model.predict(speaker_obs, lengths)
+    # 使用训练好的模型解码隐藏状态及其后验概率
+    pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
+    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
+    speaker_states_viterbi_prob = np.array([pred_probs[i, state] for i, state in enumerate(speaker_states_viterbi)])
     if flag_has_neg1:  # 将-1标签还原回来
-        pred_speaker_hmm[pred_speaker_hmm == n_actors - 1] = -1 
+        speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
+        alabels[alabels == n_actors - 1] = -1
 
-    # Save the smoothed alabels to a new JSON file
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, pred_speaker_hmm)}
-    with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_naive.json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
+    print("解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
+    repeated_lengths_pred = count_consecutive_segment_lengths(speaker_states_viterbi, lengths)
+    uniq_lengths_pred, lengths_counts_pred = np.unique(repeated_lengths_pred, return_counts=True)
+    print("原始观测序列说话人连续出现次数统计:", dict(zip(uniq_lengths_pred, lengths_counts_pred)))
+    cond1_flags = np.repeat(repeated_lengths_pred, repeated_lengths_pred) <= max(uniq_lengths_obs)
 
-    # print("\n=== 训练模型 ===")
-    # start_time = time.time()
-    # print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    # model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
-    # model.fit(S_hat_onehot, X_onehot, lengths)
-    # end_time = time.time()
-    # print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
-    # print("训练耗时:", end_time - start_time, "秒")
+    change_flags = alabels != speaker_states_viterbi
+    uniq_lengths_change, lengths_counts_change = np.unique(count_consecutive_ones(change_flags, lengths), return_counts=True)
+    print("解码序列相较观测连续改变次数统计:", dict(zip(uniq_lengths_change, lengths_counts_change)))
+    change_lengths = count_consecutive_segment_lengths(change_flags, lengths)
+    change_flags = np.repeat(change_lengths, change_lengths) * change_flags # 将与原始观测相同位置处的取值设为0
+    cond2_flags = change_flags <= 1
 
-    # print("\n=== 模型参数 ===")
-    # print("说话人初始概率 β 的logits：\n", model.beta_)
-    # print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    # print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
-    # print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
-    # print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+    selected_indices = np.where(cond2_flags & cond2_flags)[0]
 
-    # # 使用训练好的模型解码隐藏状态及其后验概率
-    # pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
-    # speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
-    # speaker_states_viterbi_prob = np.array([pred_probs[i, state] for i, state in enumerate(speaker_states_viterbi)])
-    # if flag_has_neg1:  # 将-1标签还原回来
-    #     speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
-    #     alabels[alabels == n_actors - 1] = -1
+    for prop_keep in 0.1*np.array(range(1,11)):
+        num_keep = int(len(selected_indices) * prop_keep)
+        selected_indices_keeped = selected_indices[np.argsort(speaker_states_viterbi_prob[selected_indices])[-num_keep:]]
 
-    # # Find the indices of the top prop_keep proportion of probabilities
-    # num_samples = len(speaker_states_viterbi_prob)
-    # for prop_keep in prop_keep_list:
-    #     alabels_smoothed = copy.deepcopy(alabels)
-    #     num_keep = int(num_samples * prop_keep)
-    #     if num_keep > 0:
-    #         # indices of the hidden states with the highest probabilities
-    #         top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:] 
-    #         # select only those indices where duration_dat <= 1 second, if duration_dat is provided
-    #         if duration_dat is not None:
-    #             top_indices = [i for i in top_indices if duration_dat[i] <= 1]
-    #         # Replace the values in the observed sequence at these indices
-    #         replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
-    #         print(f"Prop keep: {float(prop_keep*100)}%, replace count: {replace_cnt}")
-    #         alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
+        alabels_smoothed = copy.deepcopy(alabels)
+        alabels_smoothed[selected_indices_keeped] = speaker_states_viterbi[selected_indices_keeped]
+        print(f"解码结果相较观测改变数量(cond1,2约束下, 选取top-{num_keep}): ", np.sum(alabels != alabels_smoothed))
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2(top-{num_keep}).json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
+
+
+    # Find the indices of the top prop_keep proportion of probabilities
+    num_samples = len(speaker_states_viterbi_prob)
+    for prop_keep in prop_keep_list:
+        alabels_smoothed = copy.deepcopy(alabels)
+        num_keep = int(num_samples * prop_keep)
+        if num_keep > 0:
+            # indices of the hidden states with the highest probabilities
+            top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:]
+            top_indices = top_indices[cond1_flags[top_indices] & cond2_flags[top_indices]]
+            # select only those indices where duration_dat <= 1 second, if duration_dat is provided
+            if duration_dat is not None:
+                top_indices = [i for i in top_indices if duration_dat[i] <= 1]
+            # Replace the values in the observed sequence at these indices
+            replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
+            print(f"Prop keep: {float(prop_keep*100)}%, under cond1&2, replace count: {replace_cnt}")
+            alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
         
-    #     # Save the smoothed alabels to a new JSON file
-    #     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    #     with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmm_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
-    #         json.dump(smoothed_cluster_dic, f, indent=2)
+        # Save the smoothed alabels to a new JSON file
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
 
 
 def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
@@ -587,7 +623,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     S_hat_onehot, X_onehot = convert201_together(audio_times, visual_times_aligned, audio_seg_ids, labels_processed, vlabels_processed)
     print(f"First 500 audio_seg_ids: {audio_seg_ids[:500]}")
     alabels_hmmX_smooth(S_hat_onehot, X_onehot, alengths, audio_seg_ids, result_dir, flag_has_neg1=(-1 in labels_processed),
-                        prop_keep_list=[0, 0.01, 0.02, 0.05, 0.1, 0.2, 1], duration_dat=None)
+                        prop_keep_list=[0.05, 0.1, 0.15, 0.2, 0.25, 0.51], duration_dat=None)
 
 def main():
     args = parser.parse_args()
