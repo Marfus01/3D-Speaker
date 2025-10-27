@@ -110,8 +110,8 @@ def main(args):
         durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
 
         # 3. 获取所有有标注数据的聚类标签
-        cluster_labels = [cluster_dic.get(k, -1) for k in keys]
-        valid_idx = [i for i, c in enumerate(cluster_labels) if c != -1]
+        cluster_labels = [cluster_dic.get(k, -2) for k in keys]
+        valid_idx = [i for i, c in enumerate(cluster_labels) if c != -2]
         if len(valid_idx) < len(keys):
           missing_keys = [keys[i] for i in range(len(keys)) if i not in valid_idx]
           missing_keys_num = len(missing_keys)
@@ -125,8 +125,14 @@ def main(args):
         # 4. 调整 cluster_labels，使其从 0 开始连续编号
         print('Original cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
         ## Create a mapping from unique cluster labels to consecutive integers
-        unique_cluster_labels = sorted(set(cluster_labels))
-        cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
+        unique_cluster_labels = sorted(set(cluster_labels)) # 将 unique cluster labels 从小到大排序
+        flag_has_neg1 = -1 in unique_cluster_labels
+        if flag_has_neg1: # 将 -1 映射到最后一个整数
+            unique_cluster_labels.remove(-1)
+            cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
+            cluster_label_mapping[-1] = max(unique_cluster_labels) + 1
+        else:
+            cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
         ## Map cluster_labels to consecutive integers
         cluster_labels = [cluster_label_mapping[label] for label in cluster_labels]
         print('Renamed cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
@@ -139,8 +145,18 @@ def main(args):
         # 6. 将 prediction 和 label 都转为 one-hot，随后利用匈牙利算法进行标签对齐
         speaker_onehot = np.array([name2onehot(name, name2idx) for name in speakers])
         n_clusters = max(cluster_labels) + 1
-        cluster_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
-        mapping = class_matching(speaker_onehot, cluster_onehot, others_spk_id=name2idx['Others'])
+        if flag_has_neg1:
+            n_clusters -= 1  # 不考虑 -1 对应的簇
+            neg1_new_label = cluster_label_mapping[-1]
+            cluster_labels_filtered = [label for label in cluster_labels if label != neg1_new_label]
+            speaker_onehot_filtered = np.array([speaker_onehot[i] for i in range(len(cluster_labels)) if cluster_labels[i] != neg1_new_label])
+            cluster_onehot_filtered = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels_filtered)))
+            mapping = class_matching(speaker_onehot_filtered, cluster_onehot_filtered, others_spk_id=name2idx['Others'])
+            mapping[neg1_new_label] = name2idx['Others']  # 将 -1 对应的簇映射到 'Others'
+        else:
+            cluster_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
+            mapping = class_matching(speaker_onehot, cluster_onehot, others_spk_id=name2idx['Others'])
+
         cluster_pred = np.eye(len(name2idx))[np.array([mapping[label] for label in cluster_labels])]
         print("Cluster_id to speaker_id mapping:", mapping)
 

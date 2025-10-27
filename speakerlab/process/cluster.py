@@ -420,13 +420,10 @@ class JointClustering:
         # adjust audio labels to continuous integers starting from 0
         alabels = self.arrange_labels(alabels)
         # convert vision cluster labels to visual segments, each element is [st, ed, visual_spk_id], valid visual speaker durations and their averaged audio embeddings
-        vlist, vspk_embs, vspk_dur, visual_info_filtered = self.get_vlist_embs(audioX, alabels, vlabels, audioT, visionT, conf)
-        summary_cluster_results(alabels, modal_type='audio_before_joint')
+        vlist, vspk_embs, vspk_dur, vlabels_arrange_dic = self.get_vlist_embs(audioX, alabels, vlabels, audioT, visionT, conf)
 
         # modify alabels according to vlabels
         aspk_num = alabels.max()+1  # number of audio clusters
-        label_changed_cnt = 0
-        cluster_reasigned_cnt = 0
         for i in range(aspk_num):
             ## get audio segment indices and embeddings for current audio speaker ID
             aspki_index = np.where(alabels==i)[0]
@@ -436,11 +433,6 @@ class JointClustering:
             aspkiT_part = np.array(audioT)[alabels==i]  # [n, 2]
             ## Get non-overlapping audio time intervals of length m(m<=n) first, then identify visual speaker IDs that highly overlap with current audio speaker ID.
             overlap_vspk = self.overlap_spks(self.cast_overlap(aspkiT_part), vlist, vspk_dur) # list of len k'
-
-            if len(overlap_vspk) >= 1:
-                label_changed_cnt += len(aspki_index)
-                cluster_reasigned_cnt += 1
-
             
             ## allocate audio segments to the most similar visual speaker, and modify alabels to corresponding visual speaker IDs(beginning from aspk_num)
             if len(overlap_vspk) > 1:
@@ -454,11 +446,10 @@ class JointClustering:
                 for loc in aspki_index:
                     alabels[loc] = overlap_vspk[0]
 
-        print(f"[INFO] Total {label_changed_cnt} audio segments in {cluster_reasigned_cnt} audio clusters are re-assigned according to visual clusters during joint clustering.")
-        summary_cluster_results(alabels, modal_type='audio_after_joint')
-        # adjust audio labels to continuous integers starting from 0
-        alabels = self.arrange_labels(alabels)
-        return alabels, visual_info_filtered
+        # NOTE: To keep consistency with visual speaker IDs, we do not adjust alabels here.
+        # # adjust audio labels to continuous integers starting from 0
+        # alabels = self.arrange_labels(alabels)
+        return alabels, vlabels_arrange_dic
 
     def overlap_spks(self, times, vlist, vspk_dur=None):
         """
@@ -532,14 +523,11 @@ class JointClustering:
             - vlist_new (list): Elements are visual segments with adjusted labels, like [st, ed, visual_spk_id]. st, ed are start and end times of a continuous segment with the same visual spk_id(continuous integers starting from max audio label + 1).
             - vspk_embs (dict): Map visual speaker IDs to their averaged audio embeddings(from those audio segments with overlapping duration > 1s).
             - vspk_dur (dict): Mapping visual speaker IDs to their total visual active speaking duration.
+            - vlabels_arrange_dic (dict): Mapping original visual speaker IDs in vlabels to adjusted visual speaker IDs in vlist_new.Only visual speaker IDs that have corresponding audio embeddings are included.
         """
-        summary_cluster_results(vlabels, modal_type='visual_vad_initial')
-
         assert len(vlabels) == len(visionT)
         # 根据视频帧的时间戳以及该帧active speaker face(visual speaker)的聚类标签，生成一个vlist，记录高质量的同一visual speaker连续出现时间段. 此时的vlabels还是原始的聚类标签
         vlist = []
-        vlabels_filtered1 = []
-        visual_times_filtered = []
         for i, ti in enumerate(visionT):
             ## len(vlist)==0: 初始化
             ## vlabels[i] != vlist[-1][2]: 当前帧的聚类标签与上一个连续段的标签不同，说明是一个新的连续段
@@ -549,24 +537,14 @@ class JointClustering:
                 if len(vlist) > 0 and vlist[-1][1] - vlist[-1][0] < 1e-4:
                     # remove too short intervals. 
                     vlist.pop()
-                    vlabels_filtered1.pop()
-                    visual_times_filtered.pop()
                 vlist.append([ti, ti, vlabels[i]])
-                vlabels_filtered1.append(vlabels[i])
-                visual_times_filtered.append(ti)
             else:
                 vlist[-1][1] = ti
-                vlabels_filtered1.append(vlabels[i])
-                visual_times_filtered.append(ti)
 
         # adjust vision labels in vlist to continuous integers starting from max audio label + 1
         # 视觉聚类簇筛选1：除了调整标签为连续整数外，由于不是所有有聚类标签的sample都存在于vlist中，因此，这一步还起到了筛选作用。
-        vlabels_arrange = self.arrange_labels([i[2] for i in vlist], a_st=alabels.max()+1)
+        vlabels_arrange, vlabels_arrange_dic = self.arrange_labels([i[2] for i in vlist], a_st=alabels.max()+1, require_dict=True)
         vlist = [[i[0], i[1], j] for i, j in zip(vlist, vlabels_arrange)]
-        summary_cluster_results(vlabels_filtered1, modal_type='visual_vad_step1')
-        vlabels_filtered1 = self.arrange_labels(vlabels_filtered1, a_st=alabels.max()+1)
-        summary_cluster_results(vlabels_filtered1, modal_type='visual_vad_step1(arranged)')
-        visual_info_filtered = list(zip(visual_times_filtered, vlabels_filtered1))
 
         # get audio spk embs aligning with 'vlist'
         vspk_embs = {}
@@ -595,11 +573,9 @@ class JointClustering:
                 vspk_dur[i[2]]=0
             vspk_dur[i[2]] += i[1]-i[0]
 
-        vlabels_filtered2 = [label for label in vlabels_filtered1 if label in vspk_embs]
-        summary_cluster_results(vlabels_filtered2, modal_type='visual_vad_step2')
-        visual_info_filtered =  np.array([(t, l) for (t, l) in visual_info_filtered if l in vspk_embs])
+        vlabels_arrange_dic = {k: v for k, v in vlabels_arrange_dic.items() if v in vspk_embs}
         
-        return vlist_new, vspk_embs, vspk_dur, visual_info_filtered
+        return vlist_new, vspk_embs, vspk_dur, vlabels_arrange_dic
 
     def cast_overlap(self, input_time):
         """
@@ -623,7 +599,7 @@ class JointClustering:
                 output_time[-1][1] = input_time[i][1]
         return output_time
 
-    def arrange_labels(self, labels, a_st=0):
+    def arrange_labels(self, labels, a_st=0, require_dict=False):
         """
         将聚类标签重新映射为从 a_st 开始的连续编号。
         """
@@ -636,4 +612,6 @@ class JointClustering:
                 labels_dict[i] = idx
                 idx += 1
             new_labels.append(labels_dict[i])
+        if require_dict:
+            return np.array(new_labels), labels_dict    # key: old_label, value: new_label
         return np.array(new_labels)

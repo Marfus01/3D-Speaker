@@ -54,3 +54,6 @@ cluster:
   args:
     audio_cluster: <audio_cluster>
     vision_cluster: <vision_cluster>
+
+# for HMM_X post-processing
+main_actors_num: 7
