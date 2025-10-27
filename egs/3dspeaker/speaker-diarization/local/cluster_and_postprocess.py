@@ -105,7 +105,14 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
-    
+
+    print("\n=== 模型参数 ===")
+    print("说话人初始概率 β 的logits：\n", model.beta_)
+    print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
+    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
+    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+
     # 使用训练好的模型解码隐藏状态及其后验概率
     pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
     speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
@@ -126,6 +133,8 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
             if duration_dat is not None:
                 top_indices = [i for i in top_indices if duration_dat[i] <= 1]
             # Replace the values in the observed sequence at these indices
+            replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
+            print(f"Prop keep: {float(prop_keep*100)}%, replace count: {replace_cnt}")
             alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
         
         # Save the smoothed alabels to a new JSON file
@@ -532,7 +541,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     S_hat_onehot, X_onehot = convert201_together(audio_times, visual_times_aligned, audio_seg_ids, labels_processed, vlabels_processed)
     print(f"First 500 audio_seg_ids: {audio_seg_ids[:500]}")
     alabels_hmmX_smooth(S_hat_onehot, X_onehot, alengths, audio_seg_ids, result_dir, flag_has_neg1=(-1 in labels_processed),
-                        prop_keep_list=[0, 0.01, 0.05, 0.1, 1], duration_dat=None)
+                        prop_keep_list=[0, 0.01, 0.02, 0.05, 0.1, 0.2, 1], duration_dat=None)
 
 def main():
     args = parser.parse_args()
