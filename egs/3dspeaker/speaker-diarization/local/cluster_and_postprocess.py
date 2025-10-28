@@ -176,56 +176,32 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
         alabels[alabels == n_actors - 1] = -1
 
     print("解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    repeated_lengths_pred = count_consecutive_segment_lengths(speaker_states_viterbi, lengths)
-    uniq_lengths_pred, lengths_counts_pred = np.unique(repeated_lengths_pred, return_counts=True)
-    print("原始观测序列说话人连续出现次数统计:", dict(zip(uniq_lengths_pred, lengths_counts_pred)))
-    cond1_flags = np.repeat(repeated_lengths_pred, repeated_lengths_pred) <= max(uniq_lengths_obs)
-    selected_indices = np.where(cond1_flags)[0]
-    selected_indices = selected_indices[alabels[selected_indices] != speaker_states_viterbi[selected_indices]]
+    change_flags = alabels != speaker_states_viterbi
+    uniq_lengths_change, lengths_counts_change = np.unique(count_consecutive_ones(change_flags, lengths), return_counts=True)
+    print("解码序列相较观测连续改变次数统计:", dict(zip(uniq_lengths_change, lengths_counts_change)))
 
-    for prop_keep in 0.1*np.array(range(1,11)):
+    change_lengths = count_consecutive_segment_lengths(change_flags, lengths)
+    change_flags = np.repeat(change_lengths, change_lengths) * change_flags # 将与原始观测相同位置处的取值设为0
+    selected_indices = np.where(change_flags == 1)[0]
+
+    for prop_keep in 0.25*np.array(range(1,5)):
         pp_keep =int(prop_keep*100)
         num_keep = int(len(selected_indices) * prop_keep)
         selected_indices_keeped = selected_indices[np.argsort(speaker_states_viterbi_prob[selected_indices])[-num_keep:]]
+
+        alabels_smoothed = copy.deepcopy(alabels)
+        alabels_smoothed[selected_indices_keeped] = speaker_states_viterbi[selected_indices_keeped]
+        print(f"解码结果相较观测改变数量(cond2约束下, 选取top-{pp_keep}%): ", num_keep)
         if duration_dat is not None:
             bins = [0, 1, 2, 3, 4, float('inf')]
             duration_dat_groups = np.digitize(duration_dat[selected_indices_keeped], bins) - 1
             uniq_dur, dur_counts = np.unique(duration_dat_groups, return_counts=True)
-            print(f"duration statistics for changed segments(cond1约束下, 选取top-{pp_keep}%):", dict(zip(uniq_dur, dur_counts)))
-        alabels_smoothed = copy.deepcopy(alabels)
-        alabels_smoothed[selected_indices_keeped] = speaker_states_viterbi[selected_indices_keeped]
-        print(f"解码结果相较观测改变数量(cond1约束下, 选取top-{pp_keep}%): ", np.sum(alabels != alabels_smoothed))
+            print(f"duration statistics for changed segments(under cond2, keep: {pp_keep}%):", dict(zip(uniq_dur, dur_counts)))
+            # top_indices = [i for i in top_indices if duration_dat[i] <= 1]
+
         smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
             json.dump(smoothed_cluster_dic, f, indent=2)
-
-
-    # Find the indices of the top prop_keep proportion of probabilities
-    num_samples = len(speaker_states_viterbi_prob)
-    for prop_keep in prop_keep_list:
-        alabels_smoothed = copy.deepcopy(alabels)
-        num_keep = int(num_samples * prop_keep)
-        if num_keep > 0:
-            # indices of the hidden states with the highest probabilities
-            top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:]
-            top_indices = top_indices[cond1_flags[top_indices]]
-            # select only those indices where duration_dat <= 1 second, if duration_dat is provided
-            if duration_dat is not None:
-                bins = [0, 1, 2, 3, 4, float('inf')]
-                duration_dat_groups = np.digitize(duration_dat[top_indices], bins) - 1
-                uniq_dur, dur_counts = np.unique(duration_dat_groups, return_counts=True)
-                print(f"duration statistics for changed segments(under cond1, keep: {float(prop_keep*100)}%):", dict(zip(uniq_dur, dur_counts)))
-                # top_indices = [i for i in top_indices if duration_dat[i] <= 1]
-            # Replace the values in the observed sequence at these indices
-            replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
-            print(f"Prop keep: {float(prop_keep*100)}%, under cond1&2, replace count: {replace_cnt}")
-            alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
-        
-        # Save the smoothed alabels to a new JSON file
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1_prop{int(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
-
 
 def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
     """
@@ -626,7 +602,7 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     print(f"First 500 audio_seg_ids: {audio_seg_ids[:500]}")
     duration_dat = audio_times[:,1] - audio_times[:,0]
     alabels_hmmX_smooth(S_hat_onehot, X_onehot, alengths, audio_seg_ids, result_dir, flag_has_neg1=(-1 in labels_processed),
-                        prop_keep_list=[0.05, 0.1, 0.15, 0.2, 0.25, 0.51], duration_dat=duration_dat)
+                        prop_keep_list=[0.05, 0.1, 0.15, 0.2, 0.25, 0.5], duration_dat=duration_dat)
 
 def main():
     args = parser.parse_args()
