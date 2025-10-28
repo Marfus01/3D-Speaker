@@ -189,40 +189,42 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
     cond2_flags = change_flags <= 1
 
     selected_indices = np.where(cond2_flags & cond2_flags)[0]
+    selected_indices = selected_indices[alabels[selected_indices] != speaker_states_viterbi[selected_indices]]
 
     for prop_keep in 0.1*np.array(range(1,11)):
+        pp_keep =int(prop_keep*100)
         num_keep = int(len(selected_indices) * prop_keep)
         selected_indices_keeped = selected_indices[np.argsort(speaker_states_viterbi_prob[selected_indices])[-num_keep:]]
 
         alabels_smoothed = copy.deepcopy(alabels)
         alabels_smoothed[selected_indices_keeped] = speaker_states_viterbi[selected_indices_keeped]
-        print(f"解码结果相较观测改变数量(cond1,2约束下, 选取top-{num_keep}): ", np.sum(alabels != alabels_smoothed))
+        print(f"解码结果相较观测改变数量(cond1,2约束下, 选取top-{pp_keep}%): ", np.sum(alabels != alabels_smoothed))
         smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2(top-{num_keep}).json'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
             json.dump(smoothed_cluster_dic, f, indent=2)
 
 
-    # Find the indices of the top prop_keep proportion of probabilities
-    num_samples = len(speaker_states_viterbi_prob)
-    for prop_keep in prop_keep_list:
-        alabels_smoothed = copy.deepcopy(alabels)
-        num_keep = int(num_samples * prop_keep)
-        if num_keep > 0:
-            # indices of the hidden states with the highest probabilities
-            top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:]
-            top_indices = top_indices[cond1_flags[top_indices] & cond2_flags[top_indices]]
-            # select only those indices where duration_dat <= 1 second, if duration_dat is provided
-            if duration_dat is not None:
-                top_indices = [i for i in top_indices if duration_dat[i] <= 1]
-            # Replace the values in the observed sequence at these indices
-            replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
-            print(f"Prop keep: {float(prop_keep*100)}%, under cond1&2, replace count: {replace_cnt}")
-            alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
+    # # Find the indices of the top prop_keep proportion of probabilities
+    # num_samples = len(speaker_states_viterbi_prob)
+    # for prop_keep in prop_keep_list:
+    #     alabels_smoothed = copy.deepcopy(alabels)
+    #     num_keep = int(num_samples * prop_keep)
+    #     if num_keep > 0:
+    #         # indices of the hidden states with the highest probabilities
+    #         top_indices = np.argsort(speaker_states_viterbi_prob)[-num_keep:]
+    #         top_indices = top_indices[cond1_flags[top_indices] & cond2_flags[top_indices]]
+    #         # select only those indices where duration_dat <= 1 second, if duration_dat is provided
+    #         if duration_dat is not None:
+    #             top_indices = [i for i in top_indices if duration_dat[i] <= 1]
+    #         # Replace the values in the observed sequence at these indices
+    #         replace_cnt = (alabels_smoothed[top_indices] != speaker_states_viterbi[top_indices]).sum()
+    #         print(f"Prop keep: {float(prop_keep*100)}%, under cond1&2, replace count: {replace_cnt}")
+    #         alabels_smoothed[top_indices] = speaker_states_viterbi[top_indices]
         
-        # Save the smoothed alabels to a new JSON file
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
+    #     # Save the smoothed alabels to a new JSON file
+    #     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    #     with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond1&2_prop{float(prop_keep*100)}.json'), 'w', encoding='utf-8') as f:
+    #         json.dump(smoothed_cluster_dic, f, indent=2)
 
 
 def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
