@@ -57,3 +57,4 @@ cluster:
 
 # for HMM_X post-processing
 main_actors_num: 5
+selective_change: true

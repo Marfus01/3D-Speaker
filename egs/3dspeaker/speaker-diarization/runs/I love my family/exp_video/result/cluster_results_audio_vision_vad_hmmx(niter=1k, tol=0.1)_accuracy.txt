@@ -1,0 +1,6 @@
+overall_accuracy: 0.7945
+group_0_accuracy: 0.619
+group_1_accuracy: 0.7571
+group_2_accuracy: 0.8305
+group_3_accuracy: 0.871
+group_4_accuracy: 0.8214
