@@ -402,6 +402,12 @@ class HMM_X():
                 total = stats['speaker_emission_counts'][speaker].sum()
                 if total > 0:
                     self.B_S_[speaker] = stats['speaker_emission_counts'][speaker] / total  # row normalization
+                    if self.B_S_[speaker, speaker] < 0.7:
+                        temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
+                        self.B_S_[speaker, speaker] = 0.7
+                        for i in range(self.n_actors):
+                          if i != speaker:
+                            self.B_S_[speaker, i] = (1-0.7) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
                     self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
                     self.B_S_[speaker] /= self.B_S_[speaker].sum()
                 else:
