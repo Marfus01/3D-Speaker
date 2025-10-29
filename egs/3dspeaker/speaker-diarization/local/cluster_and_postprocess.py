@@ -151,7 +151,7 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
     print("\n=== 训练模型 ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model = HMM_X(n_actors=n_actors, n_iter=1000, tol=1e-1, verbose=True)
+    model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
     model.fit(S_hat_onehot, X_onehot, lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
@@ -175,7 +175,7 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
     print("解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
     alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, 'cluster_results_audio_vision_vad_hmmx(niter=1k, tol=0.1).json'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(result_dir, 'cluster_results_audio_vision_vad_hmmx.json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
 
     if selective_change == True:
@@ -203,7 +203,7 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
         print(f"解码结果相较观测改变数量(cond2约束下, 选取top-{pp_keep}%): ", num_keep)
 
         smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx(niter=1k, tol=0.1)_cond(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
             json.dump(smoothed_cluster_dic, f, indent=2)
 
 def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
