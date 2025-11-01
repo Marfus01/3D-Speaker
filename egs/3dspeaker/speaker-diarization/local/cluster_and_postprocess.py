@@ -478,6 +478,27 @@ def save_cluster_results_vision_vad(audio_times, visual_times, audio_seg_ids, vl
     with open(out_json.replace('.json', '_major.json'), 'w') as f:
         json.dump(seg_dict_major, f, indent=2)
 
+def save_cluster_results_vison_mf(labels, audio_seg_ids_mf, face_idxs_mf, out_json):
+    """
+    Save mid-frame visual clustering results to a JSON file.
+
+    Args:
+        labels (ndarray): Cluster labels for each mid-frame embedding, of shape [N].
+        audio_seg_ids_mf (ndarray): Audio segment IDs corresponding to each mid-frame embedding, of shape [N].
+        face_idxs_mf (ndarray): Face indices corresponding to each mid-frame embedding, of shape [N].
+        out_json (str): Path to the output JSON file.
+
+    Output:
+        Saves a JSON file where each key is a combination of the audio segment ID and face index 
+        (formatted as "<audio_seg_id>_<face_idx>"), and the value is the corresponding cluster label.
+    """
+    # Create a dictionary mapping segment ID and face index to cluster labels
+    cluster_results = {f"{seg_id}_{int(face_id)}": int(label) for seg_id, face_id, label in zip(audio_seg_ids_mf, face_idxs_mf, labels)}
+
+    # Save the dictionary to a JSON file
+    with open(out_json, 'w') as f:
+        json.dump(cluster_results, f, indent=2)
+
 def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
     """
     仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
@@ -599,6 +620,83 @@ def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, resul
     alabels_hmmX_smooth(S_hat_onehot, X_onehot, alengths, audio_seg_ids, result_dir, flag_has_neg1=(-1 in labels_processed),
                         selective_change=config.selective_change, duration_dat=audio_times[:,1] - audio_times[:,0])
 
+
+def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
+    # NOTE: length of audio_embeddings and visual_embeddings_vad, visual_embeddings_mf may be different
+    audio_embeddings = np.array([], dtype=np.float32)
+    visual_embeddings_vad = np.array([], dtype=np.float32)
+    visual_embeddings_mf = np.array([], dtype=np.float32)
+    audio_times = np.array([], dtype=np.float32)
+    visual_times_vad = np.array([], dtype=np.float32)
+    audio_seg_ids = np.array([], dtype='<U50')  # of the same length as audio_embeddings
+    audio_seg_ids_mf = np.array([], dtype='<U50')  # of the same length as visual_embeddings_mf
+    face_idxs_mf = np.array([], dtype=np.int32)  # of the same length as visual_embeddings_mf
+    alengths = []  # list of int, number of audio segments for each audio file
+    # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
+
+    # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
+    for file_idx, wav_file in enumerate(local_wav_list):
+        wav_name = os.path.basename(wav_file)
+        rec_id = wav_name.rsplit('.', 1)[0]
+        audio_embs_file = os.path.join(audio_embs_dir, rec_id + '.pkl')
+        visual_embs_file_vad = os.path.join(visual_embs_dir, rec_id + '_vad.pkl')
+        visual_embs_file_mf = os.path.join(visual_embs_dir, rec_id + '_midframe.pkl')
+        if not os.path.exists(audio_embs_file) or not os.path.exists(visual_embs_file_vad) or not os.path.exists(visual_embs_file_mf):
+            print("[WARNING]: %s or %s or %sdoes not exist, it is possible that vad model did not detect valid speech or face in file %s, please check it."%(audio_embs_file, visual_embs_file_vad, visual_embs_file_mf, wav_file))
+            continue
+        
+        time_begin_crt = 0 if file_idx == 0 else np.max(audio_times) + 120
+        ## load embeddings
+        with open(audio_embs_file, 'rb') as f:
+            stat_obj = pickle.load(f)
+            alengths.append(len(stat_obj['subseg_ids']))
+            if file_idx == 0:
+                audio_embeddings = stat_obj['embeddings']
+                audio_times = stat_obj['times']
+                audio_seg_ids = stat_obj['subseg_ids']
+            else:
+                audio_embeddings = np.vstack((audio_embeddings, stat_obj['embeddings']))
+                audio_times = np.vstack((audio_times, stat_obj['times']+time_begin_crt))
+                audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
+
+        with open(visual_embs_file_vad, 'rb') as f:
+            stat_obj = pickle.load(f)
+            # visual_infos.append((rec_id, time_begin_crt, len(stat_obj['embeddings'])))
+            if file_idx == 0:
+                visual_embeddings_vad = stat_obj['embeddings']
+                visual_times_vad = stat_obj['times']
+            else:
+                visual_embeddings_vad = np.vstack((visual_embeddings_vad, stat_obj['embeddings']))
+                visual_times_vad = np.hstack((visual_times_vad, stat_obj['times']+time_begin_crt))
+
+        with open(visual_embs_file_mf, 'rb') as f:
+            stat_obj = pickle.load(f)
+            if file_idx == 0:
+                visual_embeddings_mf = stat_obj['feat']
+                audio_seg_ids_mf = stat_obj['audio_seg_id'] # np.ndarray, (N, )
+                face_idxs_mf = stat_obj['face_idx'] # np.ndarray, (N, )
+            else:
+                visual_embeddings_mf = np.vstack((visual_embeddings_mf, stat_obj['feat']))
+                audio_seg_ids_mf = np.hstack((audio_seg_ids_mf, stat_obj['audio_seg_id']))
+                face_idxs_mf = np.hstack((face_idxs_mf, stat_obj['face_idx']))
+
+
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings, and {len(visual_embeddings_mf)} mid-frame face embeddings.")
+    cluster = build('cluster', config)
+
+    # visual-only clustering
+    ## 聚类流程
+    ## 1. 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)
+    ## 2. 将极小簇就近合并到较大簇
+    ## 3. 根据聚类中心余弦相似度合并相似簇
+    vlabels_mf = cluster.vision_cluster(visual_embeddings_mf)
+    vlabels_mf = reset_cluster_ids(vlabels_mf)
+    del visual_embeddings_mf
+    visual_embeddings_mf = None # 释放内存
+    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
+    save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_vision_mid_frame.json'))
+
 def main():
     args = parser.parse_args()
     # 获取所有待处理的wav文件列表
@@ -624,7 +722,7 @@ def main():
         elif args.visual_info_type == 'key_frame':
             raise NotImplementedError("Not implemented yet.")
         else:
-            raise NotImplementedError("Not implemented yet.")
+            audio_vision_func_vad_mf(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
 
 
 if __name__ == "__main__":

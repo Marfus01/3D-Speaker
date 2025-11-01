@@ -115,10 +115,17 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
   echo "$(basename $0) Stage6: Get the final metrics..."
   speaker_anno_file=$examples/annotation/text_annotated.xlsx
   if [ -f "$speaker_anno_file" ]; then
-    echo "Computing accuracy..."
+    echo "Computing speaker recognition accuracy..."
     python local/compute_acc_spk.py --result_dir "$result_dir" --ref_xlsx "$speaker_anno_file"
   else
     echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
+  fi
+  face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
+  if [ -f "$face_anno_file" ]; then
+    echo "Computing face recognition accuracy..."
+    python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
+  else
+    echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
   fi
 fi
 

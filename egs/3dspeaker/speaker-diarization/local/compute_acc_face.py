@@ -9,9 +9,9 @@ from acc_utils import *
 def main(args):
     os.makedirs(args.result_dir, exist_ok=True)
     json_files = [os.path.join(args.result_dir, f) for f in os.listdir(args.result_dir) if f.endswith('.json') and os.path.isfile(os.path.join(args.result_dir, f))]  # all cluster json files for evaluation
-    json_files = [f for f in json_files if 'faces' not in os.path.basename(f)]  # only evaluate speaker clustering results based on audio or audio+vision
+    json_files = [f for f in json_files if 'faces' in os.path.basename(f) and 'mid_frame' in os.path.basename(f)]  # only evaluate face clustering results in mid-frame
     if not json_files:
-        print("No speaker cluster json files found in", args.result_dir)
+        print("No face cluster json files found in", args.result_dir)
         sys.exit(1)
     
     for json_file in json_files:
@@ -20,13 +20,12 @@ def main(args):
             cluster_dic = json.load(f)
         # 2. 读取标注文件，并筛选有标注的数据，提取对应的segment id，说话人和时长
         df = pd.read_excel(args.ref_xlsx) # Text Index列从 0 开始
-        df = df[df['whether annotate speaker'] == 'Yes']
-        keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 与聚类结果中的 segment ID 完全对应
-        speaker_labels = df['speaker'].tolist()
-        speaker_others_set = set([speaker for speaker in speaker_labels if speaker not in main_character_list])
-        print("Non-main character labels in the reference xlsx:", speaker_others_set)
-        speaker_labels = ['Others' if speaker not in main_character_list else speaker for speaker in speaker_labels] # Replace all non-main characters with 'Others'
-        durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
+        keys = df.apply(lambda row: f"{row['audio_seg_id']}_{int(row['face index'])}", axis=1)  # 与聚类结果中的 face ID 完全对应
+        face_labels = df['face label'].tolist()
+        face_others_set = set([face_label for face_label in face_labels if face_label not in main_character_list])
+        print("Non-main character labels in the reference xlsx:", face_others_set)
+        face_labels = ['Others' if face_label not in main_character_list else face_label for face_label in face_labels] # Replace all non-main characters with 'Others'
+        face_sizes = df.apply(lambda row: (row['x2'] - row['x1']) * (row['y2'] - row['y1']), axis=1)
 
         # 3. 获取所有有标注数据的聚类标签
         cluster_labels = [cluster_dic.get(k, -2) for k in keys]
@@ -37,9 +36,9 @@ def main(args):
           total_keys_num = len(keys)
           print(f"Warning: {missing_keys_num} out of {total_keys_num} keys in the reference xlsx are missing in {json_file}.")
           keys = [keys[i] for i in valid_idx]
-          speaker_labels = [speaker_labels[i] for i in valid_idx]
+          face_labels = [face_labels[i] for i in valid_idx]
           cluster_labels = [cluster_labels[i] for i in valid_idx]
-          durations = [durations[i] for i in valid_idx]
+          face_sizes = [face_sizes[i] for i in valid_idx]
 
         # 4. 调整 cluster_labels，使其从 0 开始连续编号
         print('Original cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
@@ -56,38 +55,38 @@ def main(args):
         cluster_labels = [cluster_label_mapping[label] for label in cluster_labels]
         print('Renamed cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
 
-        # 5. 根据标注文件，构建说话人名->speaker id的字典
-        unique_speakers = sorted(set(speaker_labels + ['Others']))
-        name2idx = {name: idx for idx, name in enumerate(unique_speakers)}
-        print("Speaker to index mapping:", name2idx)
+        # 5. 根据标注文件，构建标注演员名->face id的字典
+        unique_names = sorted(set(face_labels + ['Others']))
+        name2idx = {name: idx for idx, name in enumerate(unique_names)}
+        print("Character name to index mapping:", name2idx)
 
         # 6. 将 prediction 和 label 都转为 one-hot，随后利用匈牙利算法进行标签对齐
-        speaker_onehot = np.array([name2onehot(name, name2idx) for name in speaker_labels])
+        face_labels_onehot = np.array([name2onehot(name, name2idx) for name in face_labels])
         n_clusters = max(cluster_labels) + 1
         if flag_has_neg1:
             n_clusters -= 1  # 不考虑 -1 对应的簇
             neg1_new_cluster_label = cluster_label_mapping[-1]
             cluster_labels_filtered = [label for label in cluster_labels if label != neg1_new_cluster_label]
-            speaker_onehot_filtered = np.array([speaker_onehot[i] for i in range(len(cluster_labels)) if cluster_labels[i] != neg1_new_cluster_label])
+            faces_onehot_filtered = np.array([face_labels_onehot[i] for i in range(len(cluster_labels)) if cluster_labels[i] != neg1_new_cluster_label])
             cluster_onehot_filtered = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels_filtered)))
-            mapping = class_matching(speaker_onehot_filtered, cluster_onehot_filtered, others_chara_id=name2idx['Others'])
+            mapping = class_matching(faces_onehot_filtered, cluster_onehot_filtered, others_chara_id=name2idx['Others'])
             mapping[neg1_new_cluster_label] = name2idx['Others']  # 将 -1 对应的簇映射到 'Others'
         else:
-            cluster_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
-            mapping = class_matching(speaker_onehot, cluster_onehot, others_chara_id=name2idx['Others'])
+            cluster_labels_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
+            mapping = class_matching(face_labels_onehot, cluster_labels_onehot, others_chara_id=name2idx['Others'])
 
         cluster_pred = np.eye(len(name2idx))[np.array([mapping[label] for label in cluster_labels])]
-        print("Cluster_id to speaker_id mapping:", mapping)
+        print("Cluster_id to character_name_id mapping:", mapping)
 
         # 7. 按时长分组，计算分组/整体的 accuracy
-        bins = [0, 1, 2, 3, 4, float('inf')]
-        group_indices = np.digitize(durations, bins) - 1  # 取值范围 [0, 4]，len(group_indices) == len(durations)
+        bins = [0, 10000, 20000, 30000, 40000, float('inf')]
+        group_indices = np.digitize(face_sizes, bins) - 1  # 取值范围 [0, 4]，len(group_indices) == len(durations)
         results = {}
-        results['overall_accuracy'] = cal_accuracy_onehot(speaker_onehot, cluster_pred)
+        results['overall_accuracy'] = cal_accuracy_onehot(face_labels_onehot, cluster_pred)
         for i in range(5):
             idx = [j for j, g in enumerate(group_indices) if g == i]
             if idx:
-                acc = cal_accuracy_onehot(speaker_onehot[idx], cluster_pred[idx])
+                acc = cal_accuracy_onehot(face_labels_onehot[idx], cluster_pred[idx])
                 results[f'group_{i}_accuracy'] = acc
 
         # 8. 保存结果
