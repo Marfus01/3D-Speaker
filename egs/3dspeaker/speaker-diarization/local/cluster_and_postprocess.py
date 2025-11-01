@@ -22,6 +22,7 @@ if project_root not in sys.path:
     
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
+from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
@@ -233,62 +234,6 @@ def extract_aligned_avd_results(visual_times, vlabels, vlabels_aligned_dic):
     vlabels_new = np.array([vlabels_aligned_dic[label] for label in filtered_vlabels])
 
     return filtered_visual_times, vlabels_new
-
-def summary_cluster_results(labels, modal_type='audio'):
-    """
-    Summary statistics of cluster sizes
-    """
-    uniq = np.unique(labels)
-    # Count occurrences of each unique label
-    cluster_sizes = {label: np.sum(labels == label) for label in uniq}
-    # Sort labels by their occurrence counts in descending order
-    sorted_label_counts = sorted(cluster_sizes.items(), key=lambda x: x[1], reverse=True)
-
-    # print total number of clusters and total number of samples
-    clusters_num = len(uniq)
-    total_samples = len(labels)
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} {modal_type} clustering results: total {clusters_num} clusters, total {total_samples} samples.")
-
-    # Print the top 20 labels with their counts
-    print(f"[INFO] Detailed {modal_type} cluster sizes:")
-    print(f"[INFO] Top 20 label counts:")
-    for i, (label, count) in enumerate(sorted_label_counts[:20]):
-        print(f"{modal_type} cluster {label}: of size {count};")
-
-    # Aggregate counts for the remaining labels
-    remaining_counts = {}
-    for label, count in sorted_label_counts[20:]:
-        if count not in remaining_counts:
-            remaining_counts[count] = 0
-        remaining_counts[count] += 1
-
-    # Print the aggregated counts for remaining labels
-    if len(remaining_counts) > 0:
-        print("[INFO] Aggregated counts for remaining labels:")
-        for count, num_labels in sorted(remaining_counts.items()):
-            print(f"{num_labels} {modal_type} clusters of size {count}.")    
-
-def reset_cluster_ids(labels):
-    """
-    Reset cluster IDs to be consecutive integers starting from 0.
-
-    Args:
-        labels (ndarray): Original cluster labels, of shape [N].
-
-    Returns:
-        ndarray: New cluster labels with consecutive integers starting from 0, of shape [N].
-    """
-    uniq = np.unique(labels)
-    # Count occurrences of each unique label
-    uniq_count = {label: np.sum(labels == label) for label in uniq}
-    # Sort labels by count (descending), then by label value (descending)
-    sorted_uniq = sorted(uniq_count.keys(), key=lambda x: (-uniq_count[x], -x))
-
-    new_labels = np.zeros(len(labels), dtype=int)
-    for new_id, old_id in enumerate(sorted_uniq):
-        new_labels[labels==old_id] = new_id
-    return new_labels
 
 def process_top_cluster_ids_together(alabels, vlabels_aligned, main_actors_num=1):
   """
@@ -683,19 +628,26 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
 
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings, and {len(visual_embeddings_mf)} mid-frame face embeddings.")
-    cluster = build('cluster', config)
+    # cluster = build('cluster', config)
 
     # visual-only clustering
     ## 聚类流程
     ## 1. 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)
     ## 2. 将极小簇就近合并到较大簇
     ## 3. 根据聚类中心余弦相似度合并相似簇
-    vlabels_mf = cluster.vision_cluster(visual_embeddings_mf)
-    vlabels_mf = reset_cluster_ids(vlabels_mf)
+    fix_cos_thr_list = [round(0.05 * i, 2) for i in range(1, 11)]  # [0.05, 0.1, ..., 0.5]
+    for fix_cos_thr in fix_cos_thr_list:
+        print(f"[INFO] Updated 'fix_cos_thr' to {fix_cos_thr} for mid-frame faces clustering.")
+        config_copy = copy.deepcopy(config)
+        config_copy.vision_cluster['args']['fix_cos_thr'] = fix_cos_thr
+        cluster = build('cluster', config_copy)
+        vlabels_mf = cluster.vision_cluster(visual_embeddings_mf)
+        vlabels_mf = reset_cluster_ids(vlabels_mf)
+        summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
+        save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame(fix_cos_thr={fix_cos_thr}).json'))
+
     del visual_embeddings_mf
     visual_embeddings_mf = None # 释放内存
-    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
-    save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame.json'))
 
 def main():
     args = parser.parse_args()

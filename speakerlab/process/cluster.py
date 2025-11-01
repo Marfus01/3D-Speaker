@@ -60,6 +60,26 @@ def summary_cluster_results(labels, modal_type='audio'):
         for count, num_labels in sorted(remaining_counts.items()):
             print(f"{num_labels} {modal_type} clusters of size {count}.")  
 
+def reset_cluster_ids(labels):
+    """
+    Reset cluster IDs to be consecutive integers starting from 0.
+
+    Args:
+        labels (ndarray): Original cluster labels, of shape [N].
+
+    Returns:
+        ndarray: New cluster labels with consecutive integers starting from 0, of shape [N].
+    """
+    uniq = np.unique(labels)
+    # Count occurrences of each unique label
+    uniq_count = {label: np.sum(labels == label) for label in uniq}
+    # Sort labels by count (descending), then by label value (descending)
+    sorted_uniq = sorted(uniq_count.keys(), key=lambda x: (-uniq_count[x], -x))
+
+    new_labels = np.zeros(len(labels), dtype=int)
+    for new_id, old_id in enumerate(sorted_uniq):
+        new_labels[labels==old_id] = new_id
+    return new_labels
 
 class SpectralCluster:
     """
