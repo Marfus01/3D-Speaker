@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--wavs', default=None, help='Wav list file')
 parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clustering type, support "audio_only" and "audio_vision"')
-parser.add_argument('--visual_info_type', default='vad', type=str, help='Visual information type, support "vad", "key_frame", "vad+key_frame"')
+parser.add_argument('--visual_info_type', default='vad+key_frame', type=str, help='Visual information type, support "vad", "key_frame", "vad+key_frame"')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding dir')
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
@@ -695,7 +695,7 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     del visual_embeddings_mf
     visual_embeddings_mf = None # 释放内存
     summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
-    save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_vision_mid_frame.json'))
+    save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame.json'))
 
 def main():
     args = parser.parse_args()
