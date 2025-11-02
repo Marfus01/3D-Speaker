@@ -59,7 +59,7 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
         row_ind = row_ind[valid]
         col_ind = col_ind[valid]
     else:
-        assert others_chara_id is not None and others_chara_id in ref_classes, "When n_ref < n_pred, others_chara_id must be provided and exist in reference classes."
+        assert others_chara_id is not None, "When n_ref < n_pred, others_chara_id must be provided."
         # 行补齐
         pad_val = np.min(count_matrix) - 1
         padded_matrix = np.pad(count_matrix, ((0,n_pred-n_ref),(0,0)), constant_values=pad_val)
@@ -76,8 +76,8 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
             row_ind = row_ind_valid
             col_ind = col_ind_valid        
 
-    # 构建映射字典：pred_class -> ref_class
-    mapping = {pred_classes[col]: ref_classes[row] for row, col in zip(row_ind, col_ind)}
+    # 构建映射字典：pred_class -> ref_class。考虑了n_ref < n_pred时，label_ref中不存在others，但是部分簇需要映射到others的情况
+    mapping = {pred_classes[col]: ref_classes[row] if row in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
     return mapping
 
 

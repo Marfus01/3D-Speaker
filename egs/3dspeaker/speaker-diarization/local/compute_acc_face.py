@@ -66,10 +66,18 @@ def main(args):
         if flag_has_neg1:
             n_clusters -= 1  # 不考虑 -1 对应的簇
             neg1_new_cluster_label = cluster_label_mapping[-1]
+            # 从聚类结果覆盖样本与标注数据覆盖样本的交集中，筛选聚类标签非 -1 的部分数据，用于构建聚类簇-->角色映射
             cluster_labels_filtered = [label for label in cluster_labels if label != neg1_new_cluster_label]
-            faces_onehot_filtered = np.array([face_labels_onehot[i] for i in range(len(cluster_labels)) if cluster_labels[i] != neg1_new_cluster_label])
+            faces_labels_filtered = [name2idx[face_labels[i]] for i in range(len(cluster_labels)) if cluster_labels[i] != neg1_new_cluster_label]
+            # 用于构建cluster->character映射的部分标注不一定包含所有演员，需要重新编号
+            face_label_mapping_temp = {name_idx: temp_idx for temp_idx, name_idx in enumerate(sorted(np.unique(faces_labels_filtered).tolist()))}
+            face_label_mapping_temp_rev = {v: k for k, v in face_label_mapping_temp.items()}
+            # 构建 one-hot 编码
             cluster_onehot_filtered = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels_filtered)))
+            faces_onehot_filtered =  np.array(list(map(lambda x: list2onehot(x, len(face_label_mapping_temp)), faces_labels_filtered)))
+            # 进行匹配
             mapping = class_matching(faces_onehot_filtered, cluster_onehot_filtered, others_chara_id=name2idx['Others'])
+            mapping = {k: face_label_mapping_temp_rev[v] if v in face_label_mapping_temp_rev else name2idx['Others'] for k, v in mapping.items()} # 需要考虑筛选出的数据不包含others，但是class_matching由于n_class_ref<n_class_pred会自动将部分簇映射到others的情况
             mapping[neg1_new_cluster_label] = name2idx['Others']  # 将 -1 对应的簇映射到 'Others'
         else:
             cluster_labels_onehot = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels)))
