@@ -55,6 +55,9 @@ cluster:
     audio_cluster: <audio_cluster>
     vision_cluster: <vision_cluster>
 
+# for mid-frame faces clustering
+fix_cos_thr_mf: 0.15
+
 # for HMM_X post-processing
 main_actors_num: 5
 selective_change: true

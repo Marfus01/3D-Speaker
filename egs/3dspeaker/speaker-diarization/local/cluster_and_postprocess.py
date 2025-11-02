@@ -22,7 +22,7 @@ if project_root not in sys.path:
     
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
-from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids
+from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids, align_clusters
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
@@ -628,23 +628,59 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
 
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings, and {len(visual_embeddings_mf)} mid-frame face embeddings.")
-    # cluster = build('cluster', config)
+
+    # create cluster object for audio-visual(vad) joint clustering and visual(mid-frame) clustering
+    config_mf = copy.deepcopy(config)
+    config_mf.vision_cluster['args']['fix_cos_thr'] = config_mf.fix_cos_thr_mf
+    del config_mf.audio_cluster, config_mf.cluster
+    config_mf_vad = copy.deepcopy(config)
+
+    cluster = build('cluster', config)
+    cluster_mf = build('vision_cluster', config_mf)
 
     # visual-only clustering
     ## 聚类流程
     ## 1. 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)
     ## 2. 将极小簇就近合并到较大簇
     ## 3. 根据聚类中心余弦相似度合并相似簇
+
+    ## active speaker face clustering
+    vlabels_vad = cluster.vision_cluster(visual_embeddings_vad)
+    vlabels_vad = reset_cluster_ids(vlabels_vad)
+    summary_cluster_results(vlabels_vad, modal_type='visual_vad')
+    save_cluster_results_vision_vad(audio_times, visual_times_vad, audio_seg_ids, vlabels_vad, os.path.join(result_dir, f'cluster_results_vision_vad.json'))
+    ## mid-frame face clustering
+    vlabels_mf = cluster_mf(visual_embeddings_mf)
+    vlabels_mf = reset_cluster_ids(vlabels_mf)
+    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
+    save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame.json'))
+
+    ## align mid-frame face clustering results with active speaker face clustering results
+    ### Method 1: 根据两种视觉聚类结果的聚类中心余弦相似度进行对齐
+    align_cos_thr_list = [round(0.05 * i, 2) for i in range(20)]  # [0.00, 0.05, ..., 0.95]
+    for align_cos_thr in align_cos_thr_list:
+        print(f"[INFO] Update cos-similarity threshold  to {align_cos_thr} during aligning mid-frame faces clustering and active speaker fave clustering.")
+        vlabels_mf_copy = copy.deepcopy(vlabels_mf)
+        vlabels_vad_copy = copy.deepcopy(vlabels_vad)
+        vlabels_mf_copy = align_clusters(vlabels_mf_copy, vlabels_vad_copy, visual_embeddings_mf, visual_embeddings_vad, align_cos_thr=align_cos_thr)
+        summary_cluster_results(vlabels_mf_copy, modal_type='visual_mid_frame_aligned_m1')
+        save_cluster_results_vison_mf(vlabels_mf_copy, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_aligned_m1(align_cos_thr={align_cos_thr}).json'))
+
+    ### Method 2: 将所有人脸的embeddings放到一起聚类，然后根据来源区分avd part and mid-frame part
     fix_cos_thr_list = [round(0.05 * i, 2) for i in range(1, 11)]  # [0.05, 0.1, ..., 0.5]
     for fix_cos_thr in fix_cos_thr_list:
-        print(f"[INFO] Updated 'fix_cos_thr' to {fix_cos_thr} for mid-frame faces clustering.")
-        config_copy = copy.deepcopy(config)
+        print(f"[INFO] Updated 'fix_cos_thr' to {fix_cos_thr} for all faces clustering.")
+        config_copy = copy.deepcopy(config_mf_vad)
         config_copy.vision_cluster['args']['fix_cos_thr'] = fix_cos_thr
         cluster = build('cluster', config_copy)
-        vlabels_mf = cluster.vision_cluster(visual_embeddings_mf)
-        vlabels_mf = reset_cluster_ids(vlabels_mf)
-        summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame')
-        save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame(fix_cos_thr={fix_cos_thr}).json'))
+        vlabels_all = cluster.vision_cluster( np.vstack((visual_embeddings_mf, visual_embeddings_vad)))
+        vlabels_all = reset_cluster_ids(vlabels_all)
+        vlabels_mf = vlabels_all[:len(visual_embeddings_mf)]
+        summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_m2')
+        save_cluster_results_vison_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_m2(fix_cos_thr={fix_cos_thr}).json'))
+        vlabels_vad = vlabels_all[len(visual_embeddings_mf):]
+        summary_cluster_results(vlabels_vad, modal_type='visual_vad_m2')
+        save_cluster_results_vision_vad(audio_times, visual_times_vad, audio_seg_ids, vlabels_vad, os.path.join(result_dir, f'cluster_results_vision_vad_m2(fix_cos_thr={fix_cos_thr}).json'))
 
     del visual_embeddings_mf
     visual_embeddings_mf = None # 释放内存

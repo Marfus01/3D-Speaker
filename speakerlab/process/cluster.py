@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 
 import numpy as np
-import scipy
+import copy, scipy
 import sklearn
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
@@ -80,6 +80,48 @@ def reset_cluster_ids(labels):
     for new_id, old_id in enumerate(sorted_uniq):
         new_labels[labels==old_id] = new_id
     return new_labels
+
+def align_clusters(source_labels, target_labels, source_embeddings, target_embeddings, align_cos_thr=0.5):
+    """
+    Align source cluster labels to target cluster labels based on cosine similarity of cluster centroids.
+
+    Args:
+        source_labels (ndarray): Source cluster labels, of shape [N].
+        target_labels (ndarray): Target cluster labels, of shape [M].
+        source_embeddings (ndarray): Source embeddings, of shape [N, D].
+        target_embeddings (ndarray): Target embeddings, of shape [M, D].
+        align_cos_thr (float): Cosine similarity threshold for alignment. Default is 0.5.
+
+    Returns:
+        ndarray: Aligned source cluster labels, of shape [N].
+    """
+    print(source_labels.shape, target_labels.shape)
+    print(source_labels[:10], target_labels[:10])
+    # Map source_labels and target_labels to consecutive integers starting from 0
+    source_label_map = {label: idx for idx, label in enumerate(np.unique(source_labels))}
+    target_label_map = {label: idx for idx, label in enumerate(np.unique(target_labels))}
+    # Lookup tables for reverse mapping
+    reverse_source_label_map = {v: k for k, v in source_label_map.items()}
+    reverse_target_label_map = {v: k for k, v in target_label_map.items()}
+
+    # Remap labels
+    remapped_source_labels = np.array([source_label_map[label] for label in source_labels])
+    remapped_target_labels = np.array([target_label_map[label] for label in target_labels])
+
+    # Compute centroids
+    source_centroids = np.array([source_embeddings[remapped_source_labels == i].mean(axis=0) for i in range(len(source_label_map))])
+    target_centroids = np.array([target_embeddings[remapped_target_labels == j].mean(axis=0) for j in range(len(target_label_map))])
+
+    # Compute cosine similarity and align labels
+    sim_matrix = cosine_similarity(source_centroids, target_centroids)
+    aligned_source_labels = copy.deepcopy(source_labels)
+    for i in range(sim_matrix.shape[0]):  # current source cluster
+      j = np.argmax(sim_matrix[i])  # most similar target cluster
+      if sim_matrix[i, j] >= align_cos_thr:
+          aligned_source_labels[source_labels == reverse_source_label_map[i]] = reverse_target_label_map[j]
+      else:
+          aligned_source_labels[source_labels == reverse_source_label_map[i]] = -1  # unaligned clusters are assigned to -1
+    return aligned_source_labels
 
 class SpectralCluster:
     """
