@@ -74,7 +74,7 @@ def main(args):
             face_label_mapping_temp_rev = {v: k for k, v in face_label_mapping_temp.items()}
             # 构建 one-hot 编码
             cluster_onehot_filtered = np.array(list(map(lambda x: list2onehot(x, n_clusters), cluster_labels_filtered)))
-            faces_onehot_filtered =  np.array(list(map(lambda x: list2onehot(x, len(face_label_mapping_temp)), faces_labels_filtered)))
+            faces_onehot_filtered =  np.array(list(map(lambda x: list2onehot(face_label_mapping_temp[x], len(face_label_mapping_temp)), faces_labels_filtered)))
             # 进行匹配
             mapping = class_matching(faces_onehot_filtered, cluster_onehot_filtered, others_chara_id=name2idx['Others'])
             mapping = {k: face_label_mapping_temp_rev[v] if v in face_label_mapping_temp_rev else name2idx['Others'] for k, v in mapping.items()} # 需要考虑筛选出的数据不包含others，但是class_matching由于n_class_ref<n_class_pred会自动将部分簇映射到others的情况
