@@ -195,7 +195,7 @@ class NestedHMM_full():
                 self._log_trans_speaker[prev_s, :, :, active_x] = np.array([self._compute_speaker_transition_probs(
                     prev_s, config, x_config) for config in self.face_configs]).T
 
-    def fit(self, S_hat_onehot, F_hat, X_onehot, lengths=None):
+    def fit(self, S_hat_onehot, F_hat, X_onehot, B_S_diag_min=None, B_F_diag_min=None, lengths=None):
         """训练嵌套HMM模型"""
         S_hat_onehot = np.array(S_hat_onehot)
         F_hat = np.array(F_hat)
@@ -224,7 +224,7 @@ class NestedHMM_full():
 
             # M步：更新参数
             start_time = time.time()
-            self._do_mstep(stats, lengths)
+            self._do_mstep(stats, B_S_diag_min, B_F_diag_min, lengths)
             mstep_time = time.time() - start_time
 
             # print(f"E步耗时: {estep_time:.4f}秒")
@@ -504,7 +504,7 @@ class NestedHMM_full():
 
         return stats_updated
 
-    def _do_mstep(self, stats, lengths):
+    def _do_mstep(self, stats, B_S_diag_min, B_F_diag_min, lengths):
         """M步：更新参数"""
         # 更新面部初始概率
         if 'a' in self.params:
@@ -542,11 +542,14 @@ class NestedHMM_full():
                     total = stats['face_emission_counts'][actor, state].sum()
                     if total > 0:
                         self.B_F_[actor, state] = stats['face_emission_counts'][actor, state] / total # row normalization
-                        self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
-                        self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
                     else:
                         self.B_F_[actor, state] = np.ones(2) / 2
                         print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
+                    if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
+                        self.B_F_[actor, state, state] = B_F_diag_min
+                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
+                    self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
+                    self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
@@ -554,11 +557,17 @@ class NestedHMM_full():
                 total = stats['speaker_emission_counts'][speaker].sum()
                 if total > 0:
                     self.B_S_[speaker] = stats['speaker_emission_counts'][speaker] / total  # row normalization
-                    self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
-                    self.B_S_[speaker] /= self.B_S_[speaker].sum()
                 else:
                     self.B_S_[speaker] = np.ones(self.n_actors) / self.n_actors
                     print(f"Warning: Emission probabilities for speaker {speaker} were not updated due to insufficient data. Reset to uniform distribution.")
+                if B_S_diag_min is not None and self.B_S_[speaker, speaker] < B_S_diag_min:
+                    temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
+                    self.B_S_[speaker, speaker] = B_S_diag_min
+                    for i in range(self.n_actors):
+                        if i != speaker:
+                            self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
+                self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
+                self.B_S_[speaker] /= self.B_S_[speaker].sum()
 
         # 更新预计算的对数转移矩阵
         self._update_log_transition_matrices()

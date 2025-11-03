@@ -40,6 +40,7 @@ def summary_cluster_results(labels, modal_type='audio'):
     total_samples = len(labels)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[INFO] {current_time} {modal_type} clustering results: total {clusters_num} clusters, total {total_samples} samples.")
+    print(f"[INFO] {modal_type} clustering ids: {uniq.tolist()}")
 
     # Print the top 20 labels with their counts
     print(f"[INFO] Detailed {modal_type} cluster sizes:")
@@ -95,8 +96,6 @@ def align_clusters(source_labels, target_labels, source_embeddings, target_embed
     Returns:
         ndarray: Aligned source cluster labels, of shape [N].
     """
-    print(source_labels.shape, target_labels.shape)
-    print(source_labels[:10], target_labels[:10])
     # Map source_labels and target_labels to consecutive integers starting from 0
     source_label_map = {label: idx for idx, label in enumerate(np.unique(source_labels))}
     target_label_map = {label: idx for idx, label in enumerate(np.unique(target_labels))}
