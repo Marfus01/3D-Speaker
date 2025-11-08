@@ -511,7 +511,6 @@ class NestedHMM_full():
             if m_segs > 0:
                 self.alpha_ = stats['face_initial_counts'] / m_segs
                 self.alpha_ = np.clip(self.alpha_, 1e-6, 1-1e-6)  # 避免0概率
-                self.alpha_ /= self.alpha_.sum()
         
         # 更新面部转移矩阵
         if 'b' in self.params:
