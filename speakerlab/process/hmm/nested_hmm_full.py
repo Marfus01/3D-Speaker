@@ -1,5 +1,8 @@
 import numpy as np
-from scipy.special import softmax, logsumexp
+import jax
+import jax.numpy as jnp
+import jax.scipy.special as jsp_special
+from scipy.special import logsumexp
 from scipy.optimize import minimize
 from sklearn.utils import check_random_state
 from functools import partial
@@ -10,6 +13,66 @@ import time, copy, itertools
 
 ## 内存相关
 ### 1. 当处理实际电视剧数据时， U, V 矩阵尺寸较大，有可能导致内存不足。如果出现此类问题，可以先将每季的UV统计量存到本地，然后再读取进行累积
+def objective_face_transition_jax(params, stats_dict, face_configs_arr):
+    # params: shape (n_actors*2,)
+    n_actors = face_configs_arr.shape[1]
+    A_F_diags = params.reshape((n_actors, 2))
+    A_F_diags = jnp.clip(A_F_diags, 1e-8, 1-1e-8)
+    # 构造A_F_矩阵
+    A_F_ = jnp.zeros((n_actors, 2, 2))
+    A_F_ = A_F_.at[:, 0, 0].set(A_F_diags[:, 0])
+    A_F_ = A_F_.at[:, 0, 1].set(1 - A_F_diags[:, 0])
+    A_F_ = A_F_.at[:, 1, 1].set(A_F_diags[:, 1])
+    A_F_ = A_F_.at[:, 1, 0].set(1 - A_F_diags[:, 1])
+
+    # 批量处理所有统计量
+    keys = list(stats_dict.keys())
+    F_idxs_curr_list = [jnp.array(list(k)) for k in keys]
+    F_idxs_prev_list = [jnp.array(v[0]) for v in stats_dict.values()]
+    weights_list = [jnp.array(v[1]) for v in stats_dict.values()]
+
+    # 计算所有 probs_factors
+    @jax.jit
+    def sample_log_probs(face_prev, face_curr, weight):
+        # shape: (n_actors, n_face_states_prev, n_face_states_curr)
+        probs_factors = A_F_[jnp.arange(n_actors)[:, None, None], face_prev.T[:, :, None], face_curr.T[:, None, :]]
+        log_probs_unnormed = jnp.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev, n_face_states_curr)
+        log_probs = log_probs_unnormed - jsp_special.logsumexp(log_probs_unnormed, axis=1, keepdims=True)
+        return jnp.sum(log_probs * weight)
+
+    # 向量化处理所有统计量
+    log_probs_weighted_sum = jnp.array([
+        sample_log_probs(face_configs_arr[F_idxs_prev], face_configs_arr[F_idxs_curr], weight)
+        for F_idxs_prev, F_idxs_curr, weight in zip(F_idxs_prev_list, F_idxs_curr_list, weights_list)
+    ])
+
+    loss = -jnp.sum(log_probs_weighted_sum)
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} Finished processing face transition objective.")
+    return loss
+
+objective_face_transition_jax_and_grad = jax.jit(jax.value_and_grad(objective_face_transition_jax, argnums=0))
+
+
+@jax.jit
+def objective_speaker_transition(params, offdiag_idx, face_features, x_features, weights):
+    # params: [A_S_offdiag, gamma2, eta2]
+    n_actors = weights.shape[-1]
+    A_S_mat = jnp.zeros((n_actors, n_actors))  # 对角线强制为0
+    A_S_mat = A_S_mat.at[offdiag_idx].set(params[:-2])# 从flattend 参数重建A_S矩阵
+    gamma2 = params[-2]
+    eta2 = params[-1]
+
+    # 计算logits和loss
+    # [n_face_states, n_x_states, n_actors_prev, n_actors_curr(speaker/face)]
+    logits = A_S_mat[None, None, :, :] + gamma2 * face_features[:, None, None, :] + eta2 * x_features[None, :, None, :]
+    log_probs = logits - jsp_special.logsumexp(logits, axis=3, keepdims=True)
+    
+    loss = -jnp.sum(weights * log_probs) # JAX可以处理整个数组，不用mask
+    
+    return loss
+# 使用JAX的value_and_grad来同时获取值和梯度
+# JIT编译这个组合函数
+speaker_trans_obj_and_grad = jax.jit(jax.value_and_grad(objective_speaker_transition, argnums=0))
 
 
 class NestedHMM_full():
@@ -299,6 +362,7 @@ class NestedHMM_full():
                 stats, seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, fwd_lattice, bwd_lattice, seq_loglik)
             accumulate_time += time.time() - start_time
             stats = stats_updated
+            del seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, fwd_lattice, bwd_lattice
 
             start_idx = end_idx
             
@@ -544,6 +608,8 @@ class NestedHMM_full():
                 for face_state in [0, 1]:  # 人脸期望式中的 $\delta$
                     mask_filtered = (self.face_configs_arr[F_idxs_curr, actor] == face_state)
                     stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] += gamma_faces_filtered[mask_filtered].sum()
+                    if actor in [4, 7, 9] and face_state == 1 and F_hat[t, actor] == 1:
+                        print(f"Debug: At time {t}, actor {actor}, mask_filtered in F_idxs_curr: {mask_filtered}, gamma_faces_filtered[mask_filtered]: {gamma_faces_filtered[mask_filtered]}, sum: {gamma_faces_filtered[mask_filtered].sum()}")
 
         return stats_updated
 
@@ -551,22 +617,30 @@ class NestedHMM_full():
         """M步：更新参数"""
         # 更新面部初始概率
         if 'a' in self.params:
+            start_time = time.time()
             self._update_face_initial_params(stats)
             self.alpha_ = np.clip(self.alpha_, 1e-6, 1-1e-6)
+            print(f"面部初始参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新面部转移矩阵
         if 'b' in self.params:
+            start_time = time.time()
             self._update_face_transition_params(stats)
             self.A_F_ = np.clip(self.A_F_, 1e-6, 1-1e-6)
             self.A_F_ /= self.A_F_.sum(axis=2, keepdims=True)  # row normalization
+            print(f"面部转移参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人初始概率参数 (beta, gamma1, eta1)
         if 'c' in self.params or 'd' in self.params or 'i' in self.params:
+            start_time = time.time()
             self._update_speaker_initial_params(stats)
+            print(f"说话人初始参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人转移概率参数 (A_S, gamma2, eta2)
         if 'e' in self.params or 'f' in self.params or 'j' in self.params:
+            start_time = time.time()
             self._update_speaker_transition_params(stats)
+            print(f"说话人转移参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新面部发射矩阵
         if 'g' in self.params:
@@ -637,60 +711,64 @@ class NestedHMM_full():
                 print(f"Final objective value for face transition params: {obj_final:.4f}")
         else:
             print("Warning: face initial parameters optimization did not converge.")
-            print(f"Initial objective value for face initial params: {obj_init:.4f}")
-            print(f"Final objective value for face initial params: {obj_final:.4f}")
+        print(f"Initial objective value for face initial params: {obj_init:.4f}")
+        print(f"Final objective value for face initial params: {obj_final:.4f}")
 
     def _update_face_transition_params(self, stats):
-        """使用数值优化更新面部转移参数"""
-        def face_transition_probs_weighted_sum(A_F_diags_flatten, F_idxs_curr_key, prevf_and_weights):
-            """
-            计算潜在面部配置的转移概率 $\bbP(F_{i,t,\cdot}\vert F_{i,t-1,\cdot}, <context>)$ 的对数的加权平均值。
-            - return: log_probs_weighted_sum = \sum_{f_prev,f_curr} \log \bbP(F_{i,t,\cdot}=f_curr \vert F_{i,t-1,\cdot}=f_prev) * weight(f_prev, f_curr)
-            """
-            A_F_diags = A_F_diags_flatten.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
-            A_F_diags = np.clip(A_F_diags, 1e-8, 1-1e-8)
-            A_F_ = np.zeros((self.n_actors, 2, 2))
-            A_F_[:, 0, 0] = A_F_diags[:, 0]
-            A_F_[:, 0, 1] = 1 -  A_F_[:, 0, 0]
-            A_F_[:, 1, 1] = A_F_diags[:, 1]
-            A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
-            
-            F_idxs_curr = list(F_idxs_curr_key)
-            F_idxs_prev, expectation_weight = prevf_and_weights
-            face_configs_arr_prev = self.face_configs_arr[F_idxs_prev]  # shape: (n_face_states_prev, n_actors)
-            face_configs_arr_curr = self.face_configs_arr[F_idxs_curr]  # shape: (n_face_states_curr, n_actors)
-            
-            probs_factors = A_F_[np.arange(self.n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
-            log_probs_unnormed = np.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev,n_face_states_curr)
-            log_probs = log_probs_unnormed - logsumexp(log_probs_unnormed, axis=1)[:, None]  # 归一化, 每个元素是从prev_config转移到curr_config的对数概率
-            log_probs_weighted_sum = np.sum(log_probs * expectation_weight) # 内层求和
-            return log_probs_weighted_sum
+        """使用JAX数值优化更新面部转移参数（矢量化实现，无for循环）"""
+        x0 = np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2)
+        stats_dict = stats['face_transition_counts']
 
-        def objective_face_transition(params):
-            loss = - sum(face_transition_probs_weighted_sum(params, k, v) for k, v in stats['face_transition_counts'].items())
-            return loss
-        
-        # 初始参数
-        x0 =  np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2). diagonal elements in A_F_\rho
-        # 优化
-        result = minimize(objective_face_transition, x0, method='L-BFGS-B', bounds=[(1e-6, 1-1e-6)]*self.n_actors*2)
-        obj_init = objective_face_transition(x0)
-        obj_final = objective_face_transition(result.x)
+        # 优化前，计算全局loss
+        obj_init = objective_face_transition_jax(
+            jnp.array(x0),
+            stats_dict,
+            jnp.array(self.face_configs_arr)
+        )
+
+        keys = list(stats_dict.keys())
+        batch_size = 100  # 每次只优化一个batch，极省内存
+
+        def batch_objective(params, batch_keys):
+            stats_dict_batch = {k: stats_dict[k] for k in batch_keys}
+            loss, grad = objective_face_transition_jax_and_grad(
+                jnp.array(params), stats_dict_batch, jnp.array(self.face_configs_arr)
+            )
+            return loss, grad
+
+        # 分批优化
+        for i in range(0, len(keys), batch_size):
+            start_time = time.time()
+            batch_keys = keys[i:min(i+batch_size, len(keys))]
+            result = minimize(
+                lambda p: batch_objective(p, batch_keys),
+                x0,
+                method='L-BFGS-B',
+                jac=True,
+                bounds=[(1e-6, 1-1e-6)]*self.n_actors*2
+            )
+            x0 = result.x  # 用上一次结果作为下一次初始值
+            print(f"Batch {i//batch_size + 1}: Optimization took {time.time() - start_time:.4f} seconds.")
+
+        # 优化后，计算全局loss
+        obj_final = objective_face_transition_jax(
+            jnp.array(x0),
+            stats_dict,
+            jnp.array(self.face_configs_arr)
+        )
         
         if result.success or obj_final < obj_init:
             self.A_F_ = np.zeros((self.n_actors, 2, 2))
             self.A_F_[:, 0, 0] = result.x.reshape((self.n_actors, 2))[:, 0]
-            self.A_F_[:, 0, 1] = 1 -  self.A_F_[:, 0, 0]
+            self.A_F_[:, 0, 1] = 1 - self.A_F_[:, 0, 0]
             self.A_F_[:, 1, 1] = result.x.reshape((self.n_actors, 2))[:, 1]
-            self.A_F_[:, 1, 0] = 1 -  self.A_F_[:, 1, 1]
+            self.A_F_[:, 1, 0] = 1 - self.A_F_[:, 1, 1]
             if not result.success:
                 print("Warning: Face transition parameters optimization did not fully converge, but objective improved.")
-                print(f"Initial objective value for face transition params: {obj_init:.4f}")
-                print(f"Final objective value for face transition params: {obj_final:.4f}")
         else:
             print("Warning: face transition parameters optimization did not converge.")
-            print(f"Initial objective value for face transition params: {obj_init:.4f}")
-            print(f"Final objective value for face transition params: {obj_final:.4f}")
+        print(f"Initial objective value for face transition params: {obj_init:.4f}")
+        print(f"Final objective value for face transition params: {obj_final:.4f}")
 
 
     def _update_speaker_initial_params(self, stats):
@@ -723,36 +801,33 @@ class NestedHMM_full():
             self.eta1_ = result.x[-1]
         else:
             print("Warning: Speaker initial parameters optimization did not converge.")
-            print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
-            print(f"Final objective value for speaker initial params: {obj_final:.4f}")
+        print(f"Initial objective value for speaker initial params: {obj_init:.4f}")
+        print(f"Final objective value for speaker initial params: {obj_final:.4f}")
 
     def _update_speaker_transition_params(self, stats):
         """使用数值优化更新说话人转移参数(只优化非对角线元素和gamma2, eta2)"""
         mask_offdiag = ~np.eye(self.n_actors, dtype=bool)
+        offdiag_idx = np.where(mask_offdiag)  # 得到 (row_idx, col_idx)，都是一维数组
+        
+        # 准备数据
+        weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2))
 
-        def objective_speaker_transition(params):
-            # params: [A_S_offdiag, gamma2, eta2]
-            A_S_mat = np.zeros((self.n_actors, self.n_actors))  # 对角线强制为0
-            A_S_mat[mask_offdiag] = params[:-2]# 从flattend 参数重建A_S矩阵
-            gamma2 = params[-2]
-            eta2 = params[-1]
-            
-            weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2)) # [f_curr, x_onehot_curr, s_prev, s_curr]
-            mask = (weights > 0)
-            # [n_face_states, n_x_states, n_actors_prev, n_actors_curr(speaker/face)]
-            logits = A_S_mat[None, None, :, :] + gamma2 * self.face_configs_arr[:, None, None, :] + eta2 * self.X_arr[None, :, None, :]   
-            log_probs = logits - logsumexp(logits, axis=3, keepdims=True)
-            loss = - np.sum(weights[mask] * log_probs[mask])
-            
-            return loss
+        # Scipy的minimize需要numpy数组和float64
+        def wrapper_func(params):
+            # 将numpy数组转换为JAX数组
+            params_jnp = jnp.array(params)
+            # 调用JAX函数
+            loss, grad = speaker_trans_obj_and_grad(params_jnp, offdiag_idx, self.face_configs_arr, self.X_arr, weights)
+            # 将结果转换回numpy数组
+            return np.array(loss, dtype=np.float64), np.array(grad, dtype=np.float64)
         
         # 初始参数：只取A_S_非对角线元素和gamma2, eta2
         x0 = np.concatenate([self.A_S_[mask_offdiag], np.array([self.gamma2_, self.eta2_])])    # shape: (n_actors*(n_actors-1) + 2,)
         
         # 优化
-        result = minimize(objective_speaker_transition, x0, method='L-BFGS-B')
-        obj_init = objective_speaker_transition(x0)
-        obj_final = objective_speaker_transition(result.x)
+        result = minimize(wrapper_func, x0, method='L-BFGS-B', jac=True)
+        obj_init,_ = wrapper_func(x0)
+        obj_final,_ = wrapper_func(result.x)
 
         if result.success or obj_final < obj_init:
             # 重建A_S_，对角线为0
@@ -762,8 +837,8 @@ class NestedHMM_full():
             self.eta2_ = result.x[-1]
         else:
             print("Warning: Speaker transition parameters optimization did not converge.")
-            print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
-            print(f"Final objective value for speaker transition params: {obj_final:.4f}")
+        print(f"Initial objective value for speaker transition params: {obj_init:.4f}")
+        print(f"Final objective value for speaker transition params: {obj_final:.4f}")
 
     def score(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, lengths=None):
         """计算观测序列的对数似然"""
