@@ -211,6 +211,9 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
                                   audio_seg_ids, result_dir, flag_has_neg1=False, B_S_diag_min=None, B_F_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
+    print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
+    print(f"Count of each actor in F_hat: {np.sum(F_hat, axis=0)}")
+    print(f"Count of each actor in X_onehot: {np.sum(X_onehot, axis=0)}")
     
     print("\n=== 训练模型 ===")
     start_time = time.time()
@@ -874,11 +877,19 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
     summary_cluster_results(vlabels_mf_aligned, modal_type='visual_mid_frame_vision-audio_aligned')
     save_cluster_results_vision_mf(vlabels_mf_aligned, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_visionn-audio_aligned.json'))
+                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision-audio_aligned.json'))
 
     ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
-    alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, 
-                                                                                                      vlabels_mf_aligned, main_actors_num = config.main_actors_num)
+    alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
+    summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
+    summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
+    summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
+    save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
+    save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
+                                   os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
+    save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
+
     ## 获取所有audio samples和前述对齐和重命名处理后，剩余的所有关键帧人脸 samples，并据此创建每个sample潜在对应的聚类簇候选集
     ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
     ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
