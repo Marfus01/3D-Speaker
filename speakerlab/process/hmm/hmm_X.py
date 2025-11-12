@@ -27,21 +27,18 @@ class HMM_X():
     verbose : bool, optional (default: False)
         是否打印详细信息
     params : str, optional (default: "cehi")
-        控制哪些参数被更新
-    init_params : str, optional (default: "cehi")
-        控制哪些参数被初始化
+        控制模型包含哪些参数
     random_state : int or RandomState, optional
         随机种子
     """
     
     def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False,
-                 params="ceh", init_params="ceh", random_state=None):
+                 params="ceh", random_state=100):
         self.n_actors = n_actors    # 演员数量
         self.n_iter = n_iter    # 最大迭代次数
         self.tol = tol  # 收敛阈值
         self.verbose = verbose  # 是否打印详细信息
-        self.params = params    # 控制哪些参数被更新
-        self.init_params = init_params  # 控制哪些参数被初始化
+        self.params = params    # 控制模型中包含哪些参数
         self.random_state = random_state
 
         # 创建监控器
@@ -58,20 +55,17 @@ class HMM_X():
             self.n_face_states = 2 ** self.n_actors  # 面部状态数量 (每个演员有2个状态)
             self.face_state_powers = np.array([2 ** i for i in range(self.n_actors)])# shape (n_actors,), 用于将二进制向量转换为索引
             self.face_configs_arr = np.array(self._enumerate_face_configs()) # shape (n_face_states, n_actors)
-
-
-
         
 
     def _determine_covariate_mode(self):
         """
-        根据 init_params 确定协变量模式
+        根据 params 确定协变量模式
         返回: 'X_only', 'F_only', 'both', 'none'
         """
-        has_gamma1 = 'd' in self.init_params
-        has_gamma2 = 'f' in self.init_params
-        has_eta1 = 'i' in self.init_params
-        has_eta2 = 'j' in self.init_params
+        has_gamma1 = 'd' in self.params
+        has_gamma2 = 'f' in self.params
+        has_eta1 = 'i' in self.params
+        has_eta2 = 'j' in self.params
 
         has_X = has_eta1 or has_eta2
         has_F = has_gamma1 or has_gamma2
@@ -85,7 +79,7 @@ class HMM_X():
         elif not has_X and not has_F:
             return 'none'
         else:
-            raise ValueError(f"Invalid combination of init_params: {self.init_params}")
+            raise ValueError(f"Invalid combination of params: {self.params}")
 
     def _check_and_set_n_features(self, S_hat_onehot, X_onehot, F_hat):
         """
@@ -146,36 +140,36 @@ class HMM_X():
         """初始化HMM的参数"""
         random_state = check_random_state(self.random_state)
 
-        if 'c' in self.init_params:
+        if 'c' in self.params:
             # β: 说话人初始概率的logits,不要求和为1
             self.beta_ = random_state.normal(0, 1, self.n_actors)
             self.beta_ -= self.beta_[0]  # 固定第一个演员的logit为0，作为基准
 
-        if 'd' in self.init_params:
+        if 'd' in self.params:
             # γ1: F_hat 对说话人初始状态的影响
             self.gamma1_ = random_state.uniform(0.5, 2.0)
             
-        if 'e' in self.init_params:
+        if 'e' in self.params:
             # A_S: 说话人状态转移矩阵的logits (n_actors, n_actors),不要求和为1
             diag_main = np.diag(random_state.uniform(0.3, 0.7, self.n_actors))
             self.A_S_ = diag_main + (1-diag_main) * random_state.normal(0, 1, (self.n_actors, self.n_actors))
             self.A_S_ -= np.diag(self.A_S_)[:,None]    # 固定转移到自己的logit为0，作为基准
 
-        if 'f' in self.init_params:
+        if 'f' in self.params:
             # γ2: F_hat 对说话人转移的影响
             self.gamma2_ = random_state.uniform(0.5, 2.0)
 
-        if 'h' in self.init_params:
+        if 'h' in self.params:
             # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
             self.B_S_ = np.zeros((self.n_actors, self.n_actors))
             for actor in range(self.n_actors):
                 self.B_S_[actor] = random_state.dirichlet([2 if i == actor else 1 for i in range(self.n_actors)])
 
-        if 'i' in self.init_params:
+        if 'i' in self.params:
             # η1: 协变量X取值为1对说话人初始状态的影响
             self.eta1_ = random_state.uniform(1, 3)
 
-        if 'j' in self.init_params:
+        if 'j' in self.params:
             # η2: 协变量X取值为1对说话人转移的影响
             self.eta2_ = random_state.uniform(1, 3)
 
@@ -665,13 +659,25 @@ class HMM_X():
             elif self.covariate_mode == 'both':
                 A_S_mat[mask_offdiag] = params[:-2]
                 gamma2, eta2 = params[-2], params[-1]
-                weights = np.transpose(stats['speaker_transition_counts'], axes=(2, 3, 0, 1))  # [x_index, f_actor, s_prev, s_curr]
-                nonzero_f_indices = np.where(weights.sum(axis=(1,2,3)) > 0)[0]  # 找出非零行的索引
-                weights = weights[nonzero_f_indices]
-                F_configs = self.face_configs_arr[nonzero_f_indices]
+                weights = np.transpose(stats['speaker_transition_counts'], axes=(2, 3, 0, 1))  # [f_actor, x_index, s_prev, s_curr]
                 
-                logits = A_S_mat[None, None, :, :] + gamma2 * F_configs[:, None, None, :] + eta2 * self.X_arr[None, :, None, :]
-                log_probs = logits - logsumexp(logits, axis=3, keepdims=True)
+                # 对后两个维度求和，得到 [f_actor, x_index] 的二维矩阵
+                weights_sum = weights.sum(axis=(2, 3))  # shape: (n_face_states, n_actors+1)
+                # 找出所有非零元素的索引
+                nonzero_indices = np.nonzero(weights_sum)  # 返回两个数组: (f_indices, x_indices)
+                f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
+                x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
+                
+                # 根据非零索引提取对应的 weights 子集
+                weights = weights[f_indices, x_indices, :, :]  # shape: (n_nonzero, n_actors, n_actors)
+                
+                # 根据索引提取对应的配置
+                F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
+                X_configs = self.X_arr[x_indices]  # shape: (n_nonzero, n_actors)
+                logits = (A_S_mat[None, :, :] + gamma2 * F_configs[:, None, :] +
+                          eta2 * X_configs[:, None, :])  # shape: (n_nonzero, n_actors, n_actors)
+                
+                log_probs = logits - logsumexp(logits, axis=2, keepdims=True)
             
             mask = (weights > 0)
             loss = -np.sum(weights[mask] * log_probs[mask])
