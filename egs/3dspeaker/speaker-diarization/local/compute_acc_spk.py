@@ -100,11 +100,24 @@ def main(args):
             if idx:
                 acc = cal_accuracy_onehot(speaker_onehot[idx], cluster_pred[idx])
                 results[f'group_{i}_accuracy'] = acc
+        # 7.2 按真实说话人计算 accuracy
+        name2idx_sorted = sorted(name2idx.items(), key=lambda x:  speaker_onehot[:, x[1]].sum(), reverse=True)  # 按说话人出现次数排序
+        for name, idx in name2idx_sorted:
+            idxs = [i for i in range(len(speaker_onehot)) if speaker_onehot[i][idx] == 1]
+            if idxs:
+                acc = cal_accuracy_onehot(speaker_onehot[idxs], cluster_pred[idxs])
+                results[f'accuracy_{name}'] = acc
+
 
         # 8. 保存结果
         filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
         with open(os.path.join(args.result_dir, filename), 'w') as f:
+            name_grp_cnt = 0
             for k, v in results.items():
+                if k.startswith('accuracy_'):
+                    if name_grp_cnt == 0:
+                        f.write("\n")
+                    name_grp_cnt += 1
                 f.write(f"{k}: {v}\n")
 
         print("Accuracy results saved to", os.path.join(args.result_dir, filename))
