@@ -22,7 +22,7 @@ if project_root not in sys.path:
     
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
-from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids, align_clusters2clusters, align_samples2clusters_self
+from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids, align_clusters2clusters, align_samples2clusters, get_unreliable_metrics
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
@@ -208,7 +208,7 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
             json.dump(smoothed_cluster_dic, f, indent=2)
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params,
-                                  audio_seg_ids, result_dir, flag_has_neg1=False, B_S_diag_min=None):
+                                  audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, B_S_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -248,10 +248,15 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_B_S}{save_name_part_has_neg1}.json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
+    if alabels_unreliable_metrics is not None:
+        for unreliable_pp in [2, 5, 10, 15, 20, 35, 50, 75, 100]:
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+            alabels_smoothed = copy.deepcopy(alabels)
+            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
+            smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+                json.dump(smoothed_cluster_dic, f, indent=2)
 
     
 
@@ -882,18 +887,20 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
     summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
     summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
-    save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
-    save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
-                                   os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
-    save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
+    #                                os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+    #                                os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
 
+    ## 获取audio samples cluster result的unreliable metrics
+    alabels_unreliable_metrics = get_unreliable_metrics(copy.deepcopy(alabels_processed), audio_embeddings)
     ## 获取所有audio samples和前述对齐和重命名处理后，剩余的所有关键帧人脸 samples，并据此创建每个sample潜在对应的聚类簇候选集
     ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
     ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
-    alabels_potential_list = align_samples2clusters_self(copy.deepcopy(alabels_processed), audio_embeddings,
+    alabels_potential_list = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
                                                         candi_align_cluster_num=3) # of the same length as alabels_processed
-    vlabels_mf_potential_list = align_samples2clusters_self(copy.deepcopy(vlabels_mf_processed), visual_embeddings_mf[aligned_mask_mf],
+    vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed), visual_embeddings_mf[aligned_mask_mf],
                                                             candi_align_cluster_num=3) # of the same length as vlabels_mf_processed
     del audio_embeddings, visual_embeddings_mf
 
@@ -905,11 +912,12 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     S_potential_list, F_potential_list = collect_potential_states(audio_seg_ids, S_hat_onehot.shape[1], alabels_potential_list, 
                                                                   audio_seg_ids_mf_aligned, vlabels_mf_potential_list)
     
-    np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
+    # np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
     ## HMM_nested_X 平滑
-    for params in ["ceh", "cehdf", "cehij", "cehdfij"]:
-        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1)
-        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, B_S_diag_min=0.7)
+    
+    for params in ["cehdfij"]:
+        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics)
+        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, B_S_diag_min=0.7)
 
 
 def main():

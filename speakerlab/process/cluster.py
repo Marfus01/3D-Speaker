@@ -122,33 +122,25 @@ def align_clusters2clusters(source_labels, target_labels, source_embeddings, tar
           aligned_source_labels[source_labels == reverse_source_label_map[i]] = -1  # unaligned clusters are assigned to -1
     return aligned_source_labels
 
-def align_samples2clusters_self(aligned_source_labels, source_embeddings, candi_align_cluster_num=0):
-    """
-    For each source sample, get candidate aligned source cluster labels based on cosine similarity of source cluster centroids.
-
-    Args:
-        aligned_source_labels (ndarray): Source cluster labels after cluster-cluster alignment, of shape [N].
-        source_embeddings (ndarray): Source embeddings, of shape [N, D].
-        candi_align_cluster_num (int): Number of potential alignments for a source to consider. Default is 0 (not used).
-    Returns:
-        list: A list of length N, where each element is a list of candidate aligned source cluster labels for the corresponding source sample.
-    """
-    return align_samples2clusters(aligned_source_labels, aligned_source_labels, source_embeddings, source_embeddings, candi_align_cluster_num)
-
-def align_samples2clusters(aligned_source_labels, target_labels, source_embeddings, target_embeddings, candi_align_cluster_num=0):
+def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align_cluster_num=0, target_labels=None, target_embeddings=None):
     """
     For each source sample, get candidate aligned target cluster labels based on cosine similarity of target cluster centroids.
 
     Args:
         aligned_source_labels (ndarray): Source cluster labels after cluster-cluster alignment, of shape [N].
-        target_labels (ndarray): Target cluster labels, of shape [M].
         source_embeddings (ndarray): Source embeddings, of shape [N, D].
-        target_embeddings (ndarray): Target embeddings, of shape [M, D].
         candi_align_cluster_num (int): Number of potential alignments for a source to consider. Default is 0 (not used).
+        target_labels (ndarray): Target cluster labels, of shape [M].
+        target_embeddings (ndarray): Target embeddings, of shape [M, D].
 
     Returns:
         list: A list of length N, where each element is a list of candidate aligned target cluster labels for the corresponding source sample.
     """
+    if target_labels==None:
+        target_labels = copy.deepcopy(aligned_source_labels)
+    if target_embeddings==None:
+        target_embeddings = copy.deepcopy(source_embeddings)
+    
     assert set(np.unique(aligned_source_labels)) <= set(np.unique(target_labels)).union({-1}), "aligned_source_labels should be aligned to target_labels first."
     # Map target_labels to consecutive integers starting from 0
     target_label_map = {label: idx for idx, label in enumerate(np.unique(target_labels))}
@@ -174,6 +166,45 @@ def align_samples2clusters(aligned_source_labels, target_labels, source_embeddin
         candi_aligned_source_labels = [[aligned_source_labels[i]] for i in range(len(aligned_source_labels))]
 
     return candi_aligned_source_labels
+
+
+def get_unreliable_metrics(aligned_source_labels, source_embeddings, target_labels=None, target_embeddings=None):
+    """
+    For each source sample, get the unreliable metric based on cosine similarity difference between top-2 most similar target cluster centroids.
+
+    Args:
+        aligned_source_labels (ndarray): Source cluster labels after cluster-cluster alignment, of shape [N].
+        source_embeddings (ndarray): Source embeddings, of shape [N, D].
+        target_labels (ndarray): Target cluster labels, of shape [M].
+        target_embeddings (ndarray): Target embeddings, of shape [M, D].
+
+    Returns:
+        ndarray: Unreliable metrics for each source sample, of shape [N].
+    """
+    if target_labels==None:
+        target_labels = copy.deepcopy(aligned_source_labels)
+    if target_embeddings==None:
+        target_embeddings = copy.deepcopy(source_embeddings)
+    
+    assert set(np.unique(aligned_source_labels)) <= set(np.unique(target_labels)).union({-1}), "aligned_source_labels should be aligned to target_labels first."
+    # Map target_labels to consecutive integers starting from 0
+    target_label_map = {label: idx for idx, label in enumerate(np.unique(target_labels))}
+    # Lookup tables for reverse mapping
+    reverse_target_label_map = {v: k for k, v in target_label_map.items()}
+    # Remap labels and compute centroids
+    remapped_target_labels = np.array([target_label_map[label] for label in target_labels])
+    target_centroids = np.array([target_embeddings[remapped_target_labels == j].mean(axis=0) for j in range(len(target_label_map))])
+
+    # Compute cosine similarity between each source embedding and each target centroid
+    sim_matrix_sample = cosine_similarity(source_embeddings, target_centroids)
+    unreliable_metrics = []
+    for i in range(sim_matrix_sample.shape[0]):  # current source sample
+        ## Get indices of top-2 most similar target clusters for current source sample
+        top_2_indices = np.argsort(sim_matrix_sample[i])[-2:]
+        unreliable_metrics.append(sim_matrix_sample[i, top_2_indices[-1]] - sim_matrix_sample[i, top_2_indices[-2]])
+
+    return np.array(unreliable_metrics)
+
 
 class SpectralCluster:
     """
