@@ -253,7 +253,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
             alabels_smoothed = copy.deepcopy(alabels)
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
+            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
             with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
