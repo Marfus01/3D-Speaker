@@ -33,12 +33,16 @@ class HMM_X():
     """
     
     def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False,
-                 params="ceh", random_state=100):
+                 params="ceh", n_audio_dur_grps=None, random_state=100):
         self.n_actors = n_actors    # 演员数量
         self.n_iter = n_iter    # 最大迭代次数
         self.tol = tol  # 收敛阈值
         self.verbose = verbose  # 是否打印详细信息
         self.params = params    # 控制模型中包含哪些参数
+        self.n_audio_dur_grps = n_audio_dur_grps  # 语音时长分组数量
+        if n_audio_dur_grps is not None:
+            if 'l' not in self.params:
+                self.params += 'l'
         self.random_state = random_state
 
         # 创建监控器
@@ -160,10 +164,16 @@ class HMM_X():
             self.gamma2_ = random_state.uniform(0.5, 2.0)
 
         if 'h' in self.params:
-            # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
-            self.B_S_ = np.zeros((self.n_actors, self.n_actors))
-            for actor in range(self.n_actors):
-                self.B_S_[actor] = random_state.dirichlet([2 if i == actor else 1 for i in range(self.n_actors)])
+            if 'l' in self.params:
+                # B_S: 说话人识别混淆矩阵的logits (n_actors, n_actors),不要求和为1
+                diag_main = np.diag(random_state.uniform(0.3, 0.7, self.n_actors))
+                self.B_S = diag_main + (1-diag_main) * random_state.normal(0, 1, (self.n_actors, self.n_actors))
+                self.B_S -= np.diag(self.B_S)[:,None]    # 固定转移到自己的logit为0，作为基准
+            else:
+                # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
+                self.B_S_ = np.zeros((self.n_actors, self.n_actors))
+                for actor in range(self.n_actors):
+                    self.B_S_[actor] = random_state.dirichlet([2 if i == actor else 1 for i in range(self.n_actors)])
 
         if 'i' in self.params:
             # η1: 协变量X取值为1对说话人初始状态的影响
@@ -172,6 +182,12 @@ class HMM_X():
         if 'j' in self.params:
             # η2: 协变量X取值为1对说话人转移的影响
             self.eta2_ = random_state.uniform(1, 3)
+
+        if 'l' in self.params:
+            # ι: 语音时长分组对说话人识别混淆矩阵的影响
+            assert self.n_audio_dur_grps is not None, "n_audio_dur_grps must be specified when 'l' is in params."
+            self.iota_ = random_state.uniform(0, 1, self.n_audio_dur_grps)
+            self.iota_ -= self.iota_[0]  # 固定第一个分组的logit为0，作为基准
 
     def X2index(self, x_onehot):
         """
@@ -524,11 +540,15 @@ class HMM_X():
         """M步：更新参数"""
         # 更新说话人初始概率参数
         if 'c' in self.params or 'd' in self.params or 'i' in self.params:
+            # start_time = time.time()
             self._update_speaker_initial_params(stats)
+            # print(f"说话人初始参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人转移概率参数
         if 'e' in self.params or 'f' in self.params or 'j' in self.params:
+            # start_time = time.time()
             self._update_speaker_transition_params(stats)
+            # print(f"说话人转移参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:

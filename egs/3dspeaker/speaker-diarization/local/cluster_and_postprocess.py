@@ -208,20 +208,26 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
             json.dump(smoothed_cluster_dic, f, indent=2)
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params,
-                                  audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, B_S_diag_min=None):
+                                  audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, 
+                                  audio_dur_grps_onehot=None, B_S_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
     print(f"Count of each actor in F_hat: {np.sum(F_hat, axis=0)}")
     print(f"Count of each actor in X_onehot: {np.sum(X_onehot, axis=0)}")
     
-    model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
+    if audio_dur_grps_onehot is None:
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
+    else:
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
     print(f"\n=== 训练模型(covariate_mode = {model.covariate_mode}) ===")
+    if audio_dur_grps_onehot is not None:
+        print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
     if B_S_diag_min is not None:
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model.fit(S_hat_onehot, X_onehot, F_hat, B_S_diag_min, lengths)
+    model.fit(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, B_S_diag_min, lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
@@ -229,7 +235,12 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
     print("\n=== 模型参数 ===")
     print("说话人初始概率 β 的logits：\n", model.beta_)
     print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    if audio_dur_grps_onehot is None:
+        print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    else:
+        print("说话人识别混淆矩阵 B_S 的logits:\n", model.B_S_)
+        print("语音时长分组对说话人识别混淆矩阵的影响 iota_ :\n", model.iota_)        
+    
     if model.covariate_mode in ['X_only', 'both']:
         print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
         print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
@@ -238,9 +249,10 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
         print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", model.gamma2_)
 
     # 使用训练好的模型解码隐藏状态
-    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, F_hat, lengths) # viterbi 解码结果
+    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, lengths) # viterbi 解码结果
 
     save_name_part_has_neg1 ='_has_neg1' if flag_has_neg1 else ''
+    save_name_part_adur_grps = f'_adur_grps' if audio_dur_grps_onehot is not None else ''
     save_name_part_B_S = f'_B_S_diagmin={B_S_diag_min}' if B_S_diag_min is not None else ''
     
     if flag_has_neg1:  # 将说话人的-1标签还原回来
@@ -255,7 +267,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
             print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
 
     
@@ -908,6 +920,13 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     S_hat_onehot, X_onehot, F_hat, flag_has_neg1 = convert201_together(audio_seg_ids, alabels_processed, 
                                                                        audio_times, visual_times_vad_aligned, vlabels_vad_processed, 
                                                                        audio_seg_ids_mf_aligned, vlabels_mf_processed)
+    ## 将语音时长分组，转化为 onehot 格式
+    audio_durs = audio_times[:,1] - audio_times[:,0]
+    audio_dur_bins = [0, 1, 2, 3, 4, float('inf')]
+    audio_dur_grps = np.digitize(audio_durs, audio_dur_bins) - 1  # 取值范围 {0,1,2,3,4}
+    audio_dur_grps_onehot = np.zeros((len(audio_dur_grps), len(audio_dur_bins)-1), dtype=np.int32)
+    audio_dur_grps_onehot[np.arange(len(audio_dur_grps)), audio_dur_grps] = 1
+    
     ## 收集每个audio segment中 S_t, F_t 的潜在状态集合，并将-1替换为n_states-1
     S_potential_list, F_potential_list = collect_potential_states(audio_seg_ids, S_hat_onehot.shape[1], alabels_potential_list, 
                                                                   audio_seg_ids_mf_aligned, vlabels_mf_potential_list)
@@ -915,9 +934,8 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     # np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
     ## HMM_nested_X 平滑
     
-    for params in ["cehdfij"]:
-        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics)
-        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, B_S_diag_min=0.7)
+    for params in ["ceh", "cehdf", "cehij", "cehdfij"]:
+        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
 
 
 def main():
