@@ -219,7 +219,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
     if audio_dur_grps_onehot is None:
         model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
     else:
-        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     print(f"\n=== 训练模型(covariate_mode = {model.covariate_mode}) ===")
     if audio_dur_grps_onehot is not None:
         print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
@@ -267,7 +267,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
             print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}_{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_{model.covariate_mode}{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
 
     
@@ -934,8 +934,10 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     # np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
     ## HMM_nested_X 平滑
     
-    for params in ["ceh", "cehdf", "cehij", "cehdfij"]:
+    for params in ["cehdfij"]:
+    # for params in ["ceh", "cehdf", "cehij", "cehdfij"]:
         labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
+        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot, B_S_diag_min=0.7)
 
 
 def main():

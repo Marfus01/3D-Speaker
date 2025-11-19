@@ -1,16 +1,10 @@
 import numpy as np
-from scipy.special import softmax, logsumexp
+from scipy.special import logsumexp
 from scipy.optimize import minimize
 from sklearn.utils import check_random_state
-from functools import partial
 
 from .monitor import ConvergenceMonitor
 import time, copy
-
-
-## 内存相关
-### 1. 当处理实际电视剧数据时， U, V 矩阵尺寸较大，有可能导致内存不足。如果出现此类问题，可以先将每季的UV统计量存到本地，然后再读取进行累积
-
 
 class HMM_X():
     """
@@ -28,6 +22,8 @@ class HMM_X():
         是否打印详细信息
     params : str, optional (default: "cehi")
         控制模型包含哪些参数
+    n_audio_dur_grps : int, optional
+        语音时长分组数量，如果为None则不使用时长分组信息
     random_state : int or RandomState, optional
         随机种子
     """
@@ -39,7 +35,7 @@ class HMM_X():
         self.tol = tol  # 收敛阈值
         self.verbose = verbose  # 是否打印详细信息
         self.params = params    # 控制模型中包含哪些参数
-        self.n_audio_dur_grps = n_audio_dur_grps  # 语音时长分组数量
+        self.n_audio_dur_grps = n_audio_dur_grps  # 语音时长分组数量，后续实质控制混淆矩阵B_S是否受时长分组影响
         if n_audio_dur_grps is not None:
             if 'l' not in self.params:
                 self.params += 'l'
@@ -85,12 +81,13 @@ class HMM_X():
         else:
             raise ValueError(f"Invalid combination of params: {self.params}")
 
-    def _check_and_set_n_features(self, S_hat_onehot, X_onehot, F_hat):
+    def _check_and_set_n_features(self, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot):
         """
         验证HMM数据格式，要求
         - S_hat_onehot: 说话人观测，one-hot编码，形状 (n_samples, n_actors)
         - X_onehot: 协变量，one-hot编码，形状 (n_samples, n_actors)，可为None
         - F_hat: 人脸观测，二进制数据，形状 (n_samples, n_actors)，可为None
+        - audio_dur_grps_onehot: 语音时长分组，one-hot编码，形状 (n_samples, n_audio_dur_grps)，可为None
         """
         if S_hat_onehot.shape[1] != self.n_actors:
             raise ValueError(f"Expected {self.n_actors} actors, got {S_hat_onehot.shape}")
@@ -115,6 +112,16 @@ class HMM_X():
                 raise ValueError("F_hat must be binary (0 or 1)")
                 
         # 'none' mode: no additional checks needed
+
+        # 检查 audio_dur_grps_onehot
+        if self.n_audio_dur_grps is not None:
+            assert audio_dur_grps_onehot is not None, "audio_dur_grps_onehot is required when n_audio_dur_grps is not None"
+            if audio_dur_grps_onehot.shape[0] != S_hat_onehot.shape[0]:
+                raise ValueError(f"audio_dur_grps_onehot and S_hat_onehot must have the same number of samples, got {audio_dur_grps_onehot.shape[0]} and {S_hat_onehot.shape[0]}")
+            if audio_dur_grps_onehot.shape[1] != self.n_audio_dur_grps:
+                raise ValueError(f"audio_dur_grps_onehot must have {self.n_audio_dur_grps} columns, got {audio_dur_grps_onehot.shape[1]}")
+            if not np.allclose(audio_dur_grps_onehot.sum(axis=1), 1):
+                raise ValueError("audio_dur_grps_onehot must be one-hot encoded (each row sums to 1)")
 
     def _validate_lengths(self, X, lengths):
         """
@@ -165,10 +172,9 @@ class HMM_X():
 
         if 'h' in self.params:
             if 'l' in self.params:
-                # B_S: 说话人识别混淆矩阵的logits (n_actors, n_actors),不要求和为1
-                diag_main = np.diag(random_state.uniform(0.3, 0.7, self.n_actors))
-                self.B_S = diag_main + (1-diag_main) * random_state.normal(0, 1, (self.n_actors, self.n_actors))
-                self.B_S -= np.diag(self.B_S)[:,None]    # 固定转移到自己的logit为0，作为基准
+                # B_S: 说话人识别混淆矩阵的logits (n_actors, n_actors),对角线元素为0作为基准
+                off_diag_values = random_state.normal(0, 1, (self.n_actors, self.n_actors))
+                self.B_S_ = off_diag_values - np.diag(np.diag(off_diag_values))  # 对角线元素设为0
             else:
                 # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
                 self.B_S_ = np.zeros((self.n_actors, self.n_actors))
@@ -211,15 +217,17 @@ class HMM_X():
         index = int(np.dot(f_onehot, self.face_state_powers))
         return index
 
-    def fit(self, S_hat_onehot, X_onehot=None, F_hat=None, B_S_diag_min=None, lengths=None):
+    def fit(self, S_hat_onehot, X_onehot=None, F_hat=None, audio_dur_grps_onehot=None, B_S_diag_min=None, lengths=None):
         """训练HMM模型"""
         S_hat_onehot = np.array(S_hat_onehot)
         if X_onehot is not None:
             X_onehot = np.array(X_onehot)
         if F_hat is not None:
             F_hat = np.array(F_hat)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_onehot = np.array(audio_dur_grps_onehot)
         
-        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat)
+        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
         
         # 初始化参数
@@ -231,7 +239,7 @@ class HMM_X():
         for n_iter in range(self.n_iter):
             # E步：计算前向后向概率和期望统计量
             start_time = time.time()
-            stats = self._do_estep(S_hat_onehot, X_onehot, F_hat, lengths)
+            stats = self._do_estep(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, lengths)
             estep_time = time.time() - start_time
 
             # 检查收敛
@@ -250,7 +258,7 @@ class HMM_X():
 
         return self
 
-    def _do_estep(self, S_hat_onehot, X_onehot, F_hat, lengths):
+    def _do_estep(self, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, lengths):
         """E步：使用前向-后向算法计算期望统计量，同时获取数据总体的log-likelihood"""
         
         stats = self._initialize_sufficient_statistics()
@@ -268,15 +276,16 @@ class HMM_X():
             seq_S_hat_onehot = S_hat_onehot[start_idx:end_idx]
             seq_X_onehot = X_onehot[start_idx:end_idx] if X_onehot is not None else None
             seq_F_hat = F_hat[start_idx:end_idx] if F_hat is not None else None
+            seq_audio_dur_grps_onehot = audio_dur_grps_onehot[start_idx:end_idx] if audio_dur_grps_onehot is not None else None
             
             # 前向算法
             start_time = time.time()
-            fwd_lattice = self._do_forward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat)
+            fwd_lattice = self._do_forward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot)
             forward_time += time.time() - start_time
             
             # 后向算法
             start_time = time.time()
-            bwd_lattice = self._do_backward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat)
+            bwd_lattice = self._do_backward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot)
             backward_time += time.time() - start_time
             
             # 计算观测序列段的对数似然 $\bbP(\cI_i^{obs}\vert\btheta^{(s)})$
@@ -286,7 +295,7 @@ class HMM_X():
             # 更新累积统计量，实现对 i=1,...,m 的求和
             start_time = time.time()
             stats_updated = self._accumulate_sufficient_statistics(
-                stats, seq_S_hat_onehot, seq_X_onehot, seq_F_hat, fwd_lattice, bwd_lattice, seq_loglik)
+                stats, seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik)
             accumulate_time += time.time() - start_time
             stats = stats_updated
 
@@ -300,12 +309,13 @@ class HMM_X():
         
         return stats
 
-    def _do_forward_pass(self, S_hat_onehot, X_onehot, F_hat):
+    def _do_forward_pass(self, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot):
         """
         前向算法计算前向概率的对数
             - S_hat_onehot: 说话人观测，形状 (n_samples, n_actors)，one-hot编码
             - X_onehot: 协变量，形状 (n_samples, n_actors)，one-hot编码（可以全0），可为None
             - F_hat: 人脸观测，形状 (n_samples, n_actors)，二进制数据，可为None
+            - audio_dur_grps_onehot: 语音时长分组，形状 (n_samples, n_audio_dur_grps)，one-hot编码，可为None
             - return: fwd_lattice, 形状 (n_samples, n_actors), (t, s) 表示时刻t 说话人为s的对数概率 $ \log (\bbU_{i,t}(\varrho))$
         """
         n_samples = len(S_hat_onehot)
@@ -319,7 +329,8 @@ class HMM_X():
         f_config_0 = F_hat[0] if F_hat is not None else None
         log_speaker_probs = self._compute_speaker_initial_probs(x_config_0, f_config_0)  # shape (n_actors,)
         ## 计算初始时刻所有可能隐藏状态对应的观测概率
-        log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[0])
+        l_config_0 = audio_dur_grps_onehot[0] if audio_dur_grps_onehot is not None else None
+        log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[0], l_config_0)
         fwd_lattice[0, :] = log_speaker_probs + log_speaker_emissions
 
         # 递推
@@ -334,7 +345,8 @@ class HMM_X():
                 print(f"t={t}: fwd_lattice[t-1] contains {num_inf} -np.inf out of {total_elements} elements")
 
             ## 计算当前时刻所有可能隐藏状态对应的观测概率
-            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t])
+            l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
+            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t], l_config_t)
 
             ## 计算当前时刻所有可能的转移概率
             x_config_t = X_onehot[t] if X_onehot is not None else None
@@ -347,12 +359,13 @@ class HMM_X():
         
         return fwd_lattice
 
-    def _do_backward_pass(self, S_hat_onehot, X_onehot, F_hat):
+    def _do_backward_pass(self, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot):
         """
         后向算法计算后向概率的对数
             - S_hat_onehot: 说话人观测，形状 (n_samples, n_actors)，one-hot编码
             - X_onehot: 协变量，形状 (n_samples, n_actors)，one-hot编码（可以全0），可为None
             - F_hat: 人脸观测，形状 (n_samples, n_actors)，二进制数据，可为None
+            - audio_dur_grps_onehot: 语音时长分组，形状 (n_samples, n_audio_dur_grps)，one-hot编码，可为None
             - return: bwd_lattice, 形状 (n_samples, n_actors), (t, s) 表示时刻 t 说话人为s的对数概率 $ \log (\bbV_{i,t}(\varrho))$
         """
         n_samples = len(S_hat_onehot)
@@ -375,7 +388,8 @@ class HMM_X():
                 print(f"t={t}: bwd_lattice[t+1] contains {num_inf} -np.inf out of {total_elements} elements")
 
             ## 计算当前时刻所有可能隐藏状态对应的观测概率
-            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t+1])
+            l_config_t1 = audio_dur_grps_onehot[t+1] if audio_dur_grps_onehot is not None else None
+            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t+1], l_config_t1)
 
             ## 计算当前时刻所有可能的转移概率
             x_config_t1 = X_onehot[t+1] if X_onehot is not None else None
@@ -429,20 +443,40 @@ class HMM_X():
         log_probs = logits - logsumexp(logits, axis=1, keepdims=True)  # of shape (n_actors_prev, n_actors_curr)
         return log_probs
 
-    def _compute_emission_probs(self, s_hat):
+    def _compute_emission_probs(self, s_hat, l_config=None):
         """
-        计算所有隐藏状态对应的对数发射概率$\bB_S(S_{i,t},\hat S_{i,t})$
+        计算所有隐藏状态对应的对数发射概率$P(\hat S_{i,t}) | S_{i,t}, L_{i,t})$
+        - s_hat: shape (n_actors,), one-hot编码的观测说话人
+        - l_config: shape (n_audio_dur_grps,), one-hot编码的时长分组，可为None
         """
         assert s_hat.shape[0] == self.n_actors
-        # 对数说话人观测概率 $\bB_S(S_{i,t},\hat S_{i,t})$
         speaker_obs = np.argmax(s_hat)  # one-hot to index
-        log_speaker_emissions = np.log(self.B_S_[:, speaker_obs])  # shape (n_actors,)
+     
+        if self.n_audio_dur_grps is None:
+            # 不使用时长分组信息，B_S_是概率矩阵
+            log_speaker_emissions = np.log(self.B_S_[:, speaker_obs])  # shape (n_actors,)
+        else:
+            # 使用时长分组信息，B_S_是logits矩阵，需要结合iota_计算概率
+            # P(s_obs=j | s_true=i, L_class=c) ∝ exp(B_S_[i,j] + sum_{m=1}^{n_audio_dur_grps-1} iota_[m] * I(L_class=m) * I(i=j))
+            # 注意：iota_[0]=0已经固定为基准
+            assert l_config is not None, "l_config is required when n_audio_dur_grps is not None"
+            l_class = np.argmax(l_config)  # one-hot to index
+            
+            # 计算logits: shape (n_actors, n_actors)
+            ## logit 在self.B_S_的对角线上施加了时长分组的影响
+            logits = self.B_S_ + np.diag(np.full(self.n_actors, self.iota_[l_class]))
+            # 对每个s_true (每行) 进行softmax，得到概率
+            log_probs = logits - logsumexp(logits, axis=1, keepdims=True)  # shape (n_actors, n_actors)
+            
+            # 提取对应观测s_obs的列
+            log_speaker_emissions = log_probs[:, speaker_obs]  # shape (n_actors,)
+        
         return log_speaker_emissions
 
     def _initialize_sufficient_statistics(self):
         """
         初始化充分统计量，也即 M 步用到的期望值
-        根据 covariate_mode 确定统计量的形状
+        根据 covariate_mode 和 n_audio_dur_grps 确定统计量的形状
         """
         sufficient_stats = {}
 
@@ -469,10 +503,15 @@ class HMM_X():
         else:
             raise ValueError(f"Invalid covariate_mode: {self.covariate_mode}")
         
-        sufficient_stats['speaker_emission_counts'] = np.zeros((self.n_actors, self.n_actors))  # [s, s_hat]
+        # 发射统计量的形状取决于是否使用时长分组
+        if self.n_audio_dur_grps is None:
+            sufficient_stats['speaker_emission_counts'] = np.zeros((self.n_actors, self.n_actors))  # [s, s_hat]
+        else:
+            sufficient_stats['speaker_emission_counts'] = np.zeros((self.n_audio_dur_grps, self.n_actors, self.n_actors))  # [l, s, s_hat]
+        
         return sufficient_stats
 
-    def _accumulate_sufficient_statistics(self, stats, S_hat_onehot, X_onehot, F_hat, fwd_lattice, bwd_lattice, seq_loglik):
+    def _accumulate_sufficient_statistics(self, stats, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik):
         """
         更新累积充分统计量 stats，以便于后续执行参数更新
         """
@@ -490,6 +529,7 @@ class HMM_X():
                 active_x = self.X2index(X_onehot[t])
             if self.covariate_mode in ['F_only', 'both']:
                 active_f = self.F2index(F_hat[t])
+            
             # 累积初始统计量
             if t == 0:
                 # 计算说话人初始充分统计量 $\bbE\left[\bbN(S_{\cdot,1}=\varrho\vert \btheta^{(s)})\right] $
@@ -507,7 +547,8 @@ class HMM_X():
             # 累积转移统计量
             if t > 0:
                 ## 计算对数转移后验概率 xi[t-1, s_prev, s_curr]
-                log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t])
+                l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
+                log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t], l_config_t)
                 
                 x_config_t = X_onehot[t] if X_onehot is not None else None
                 f_config_t = F_hat[t] if F_hat is not None else None
@@ -532,7 +573,13 @@ class HMM_X():
             # 累积发射统计量
             ## 说话人发射统计量
             speaker_obs = np.argmax(S_hat_onehot[t]) # 说话人期望计算式中的 $\varrho'$
-            stats_updated['speaker_emission_counts'][:, speaker_obs] += gamma
+            if self.n_audio_dur_grps is None:
+                # 不使用时长分组
+                stats_updated['speaker_emission_counts'][:, speaker_obs] += gamma
+            else:
+                # 使用时长分组
+                l_class = np.argmax(audio_dur_grps_onehot[t])  # 时长分组索引
+                stats_updated['speaker_emission_counts'][l_class, :, speaker_obs] += gamma
 
         return stats_updated
 
@@ -552,21 +599,21 @@ class HMM_X():
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
-            for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
-                total = stats['speaker_emission_counts'][speaker].sum()
-                if total > 0:
-                    self.B_S_[speaker] = stats['speaker_emission_counts'][speaker] / total  # row normalization
-                else:
-                    self.B_S_[speaker] = np.ones(self.n_actors) / self.n_actors
-                    print(f"Warning: Emission probabilities for speaker {speaker} were not updated due to insufficient data. Reset to uniform distribution.")
-                if B_S_diag_min is not None and self.B_S_[speaker, speaker] < B_S_diag_min:
-                    temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
-                    self.B_S_[speaker, speaker] = B_S_diag_min
-                    for i in range(self.n_actors):
-                        if i != speaker:
-                            self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
-                self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
-                self.B_S_[speaker] /= self.B_S_[speaker].sum()
+            # start_time = time.time()
+            self._update_speaker_emission_params(stats)
+            # print(f"说话人发射参数更新耗时: {time.time() - start_time:.4f}秒")
+
+            # Additional step to enforce minimum diagonal values if specified
+            if B_S_diag_min is not None:
+                for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
+                    if self.B_S_[speaker, speaker] < B_S_diag_min:
+                        temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
+                        self.B_S_[speaker, speaker] = B_S_diag_min
+                        for i in range(self.n_actors):
+                            if i != speaker:
+                                self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
+                    self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
+                    self.B_S_[speaker] /= self.B_S_[speaker].sum()
 
     def _update_speaker_initial_params(self, stats):
         """使用数值优化更新说话人初始参数"""
@@ -638,7 +685,7 @@ class HMM_X():
         else:
             print("Warning: Speaker initial parameters optimization did not converge.")
 
-        print(f"Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        print(f"For objective_speaker_initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
 
     def _update_speaker_transition_params(self, stats):
@@ -733,20 +780,74 @@ class HMM_X():
         else:
             print("Warning: Speaker transition parameters optimization did not converge.")
 
-        print(f"Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        print(f"For objective_speaker_transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
-    def score(self, S_hat_onehot, X_onehot=None, F_hat=None, lengths=None):
+    def _update_speaker_emission_params(self, stats):
+        """更新说话人发射概率参数"""
+        if self.n_audio_dur_grps is None:
+            # 不使用时长分组，直接用统计量更新
+            for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
+                total = stats['speaker_emission_counts'][speaker].sum()
+                if total > 0:
+                    self.B_S_[speaker] = stats['speaker_emission_counts'][speaker] / total  # row normalization
+                else:
+                    self.B_S_[speaker] = np.ones(self.n_actors) / self.n_actors
+                    print(f"Warning: Emission probabilities for speaker {speaker} were not updated due to insufficient data. Reset to uniform distribution.")
+        else:
+            # 使用时长分组，使用数值优化更新B_S_和iota_
+            mask_offdiag = ~np.eye(self.n_actors, dtype=bool)
+            
+            def objective_speaker_emission(params):
+                # 解析参数
+                B_S_mat = np.zeros((self.n_actors, self.n_actors))
+                B_S_mat[mask_offdiag] = params[:mask_offdiag.sum()]
+                iota = np.concatenate(([0.0], params[mask_offdiag.sum():]))  # 第一个元素固定为0
+                
+                # weights: [l, s, s_hat]
+                weights = stats['speaker_emission_counts']  # shape: (n_audio_dur_grps, n_actors, n_actors)
+                # 计算logits: shape (n_audio_dur_grps, n_actors, n_actors)
+                ## logits[l, i, j] = B_S_mat[i, j] + iota[l]*I(i==j)
+                logits = B_S_mat[None, :, :] + np.einsum('i,jk->ijk', iota, np.eye(self.n_actors))
+                # 对每个 (l, s_true) 组合进行softmax
+                log_probs = logits - logsumexp(logits, axis=2, keepdims=True)  # shape: (n_audio_dur_grps, n_actors, n_actors)
+                
+                # 计算损失
+                mask = (weights > 0)
+                loss = -np.sum(weights[mask] * log_probs[mask])
+                return loss
+            
+            # 初始化优化参数
+            x0 = np.concatenate([self.B_S_[mask_offdiag], self.iota_[1:]])
+            
+            # 数值优化
+            result = minimize(objective_speaker_emission, x0, method='L-BFGS-B')
+            obj_init = objective_speaker_emission(x0)
+            obj_final = objective_speaker_emission(result.x)
+            
+            # 参数赋值
+            if result.success or obj_final < obj_init:
+                self.B_S_ = np.zeros((self.n_actors, self.n_actors))
+                self.B_S_[mask_offdiag] = result.x[:mask_offdiag.sum()]
+                self.iota_ = np.concatenate(([0.0], result.x[mask_offdiag.sum():]))
+            else:
+                print("Warning: Speaker emission parameters optimization did not converge.")
+            
+            print(f"For objective_speaker_emission, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+
+    def score(self, S_hat_onehot, X_onehot=None, F_hat=None, audio_dur_grps_onehot=None, lengths=None):
         """计算观测序列的对数似然"""
         S_hat_onehot = np.array(S_hat_onehot)
         if X_onehot is not None:
             X_onehot = np.array(X_onehot)
         if F_hat is not None:
             F_hat = np.array(F_hat)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_onehot = np.array(audio_dur_grps_onehot)
 
         # EM算法总以M步结束，为了确保计算最新的对数似然，这里重新计算一次E步        
-        return self._do_estep(S_hat_onehot, X_onehot, F_hat, lengths)['log_likelihood']
+        return self._do_estep(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, lengths)['log_likelihood']
 
-    def predict_proba(self, S_hat_onehot, X_onehot=None, F_hat=None, lengths=None):
+    def predict_proba(self, S_hat_onehot, X_onehot=None, F_hat=None, audio_dur_grps_onehot=None, lengths=None):
         """
         计算给定观测序列时说话人隐藏状态的后验概率 $\lambda_{i,t,\\varrho} = \\bbP(S_{i,t}=\\varrho \\vert \cI_i^{obs}, \\btheta^{(s)})$
         
@@ -758,6 +859,8 @@ class HMM_X():
             观测的X状态，one-hot编码(可以全0)
         F_hat : array-like, shape (n_samples, n_actors), optional
             人脸观测，二进制数据
+        audio_dur_grps_onehot : array-like, shape (n_samples, n_audio_dur_grps), optional
+            语音时长分组，one-hot编码
         lengths : array-like of integers, optional
             每个序列的长度
             
@@ -773,8 +876,10 @@ class HMM_X():
             X_onehot = np.array(X_onehot)
         if F_hat is not None:
             F_hat = np.array(F_hat)
-            
-        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_onehot = np.array(audio_dur_grps_onehot)
+
+        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
         n_samples = len(S_hat_onehot)
 
@@ -790,10 +895,11 @@ class HMM_X():
             seq_S_hat_onehot = S_hat_onehot[start_idx:end_idx]
             seq_X_onehot = X_onehot[start_idx:end_idx] if X_onehot is not None else None
             seq_F_hat = F_hat[start_idx:end_idx] if F_hat is not None else None
+            seq_audio_dur_grps_onehot = audio_dur_grps_onehot[start_idx:end_idx] if audio_dur_grps_onehot is not None else None
             
             ## 计算前向和后向概率，以及序列的对数似然
-            fwd_lattice = self._do_forward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat)
-            bwd_lattice = self._do_backward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat)
+            fwd_lattice = self._do_forward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot)
+            bwd_lattice = self._do_backward_pass(seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot)
             seq_loglik = logsumexp(fwd_lattice[-1])
             
             ## 计算每个时刻的后验概率
@@ -809,7 +915,7 @@ class HMM_X():
             'speaker_states': speaker_posteriors, 
         }
 
-    def predict(self, S_hat_onehot, X_onehot=None, F_hat=None, lengths=None):
+    def predict(self, S_hat_onehot, X_onehot=None, F_hat=None, audio_dur_grps_onehot=None, lengths=None):
         """
         使用Viterbi算法，预测最可能的隐藏状态序列(说话人状态)
         
@@ -821,6 +927,8 @@ class HMM_X():
             观测的X状态，one-hot编码(可以全0)
         F_hat : array-like, shape (n_samples, n_actors), optional
             人脸观测，二进制数据
+        audio_dur_grps_onehot : array-like, shape (n_samples, n_audio_dur_grps), optional
+            语音时长分组，one-hot编码
         lengths : array-like of integers, optional
             每个序列的长度，如果为None，则假设是单一序列
 
@@ -834,8 +942,10 @@ class HMM_X():
             X_onehot = np.asarray(X_onehot)
         if F_hat is not None:
             F_hat = np.asarray(F_hat)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_onehot = np.asarray(audio_dur_grps_onehot)
             
-        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat)
+        self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
         
         # 初始化输出数组
@@ -849,9 +959,10 @@ class HMM_X():
             seq_S_hat_onehot = S_hat_onehot[start_idx:end_idx]
             seq_X_onehot = X_onehot[start_idx:end_idx] if X_onehot is not None else None
             seq_F_hat = F_hat[start_idx:end_idx] if F_hat is not None else None
+            seq_audio_dur_grps_onehot = audio_dur_grps_onehot[start_idx:end_idx] if audio_dur_grps_onehot is not None else None
 
             # 使用维特比算法预测
-            seq_speaker_states = self._viterbi(seq_S_hat_onehot, seq_X_onehot, seq_F_hat)
+            seq_speaker_states = self._viterbi(seq_S_hat_onehot, seq_X_onehot, seq_F_hat, seq_audio_dur_grps_onehot)
             
             # 存储结果
             speaker_states[start_idx:end_idx] = seq_speaker_states
@@ -860,7 +971,7 @@ class HMM_X():
             
         return speaker_states
         
-    def _viterbi(self, S_hat_onehot, X_onehot, F_hat):
+    def _viterbi(self, S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot):
         """
         对单个序列使用维特比算法进行解码
         
@@ -872,6 +983,8 @@ class HMM_X():
             观测的X状态序列
         F_hat : array-like, shape (n_frames, n_actors), optional
             人脸观测序列
+        audio_dur_grps_onehot : array-like, shape (n_frames, n_audio_dur_grps), optional
+            语音时长分组序列
         
         Returns
         -------
@@ -891,15 +1004,17 @@ class HMM_X():
         x_config_0 = X_onehot[0] if X_onehot is not None else None
         f_config_0 = F_hat[0] if F_hat is not None else None
         log_speaker_probs = self._compute_speaker_initial_probs(x_config_0, f_config_0)  # shape (n_actors,)
-        ## 计算对数观测概率 P(S_hat | S)
-        log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[0])
+        ## 计算对数观测概率 P(S_hat | S, ...)
+        l_config_0 = audio_dur_grps_onehot[0] if audio_dur_grps_onehot is not None else None
+        log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[0], l_config_0)
         viterbi[0, :] = log_speaker_probs + log_speaker_emissions
         
         # 前向传播 t=1到n_frames-1
         for t in range(1, n_frames):
             x_config_t = X_onehot[t] if X_onehot is not None else None
             f_config_t = F_hat[t] if F_hat is not None else None
-            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t])
+            l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
+            log_speaker_emissions = self._compute_emission_probs(S_hat_onehot[t], l_config_t)
             log_trans_probs = self._compute_speaker_transition_probs(x_config_t, f_config_t)  # shape (n_actors_prev, n_actors_curr)
 
             # 计算每个当前状态对应的 $\delta_{t}(s)$
