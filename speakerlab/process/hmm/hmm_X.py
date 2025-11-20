@@ -600,20 +600,8 @@ class HMM_X():
         # 更新说话人发射矩阵  
         if 'h' in self.params:
             # start_time = time.time()
-            self._update_speaker_emission_params(stats)
+            self._update_speaker_emission_params(stats, B_S_diag_min)
             # print(f"说话人发射参数更新耗时: {time.time() - start_time:.4f}秒")
-
-            # Additional step to enforce minimum diagonal values if specified
-            if B_S_diag_min is not None:
-                for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
-                    if self.B_S_[speaker, speaker] < B_S_diag_min:
-                        temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
-                        self.B_S_[speaker, speaker] = B_S_diag_min
-                        for i in range(self.n_actors):
-                            if i != speaker:
-                                self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
-                    self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
-                    self.B_S_[speaker] /= self.B_S_[speaker].sum()
 
     def _update_speaker_initial_params(self, stats):
         """使用数值优化更新说话人初始参数"""
@@ -782,7 +770,7 @@ class HMM_X():
 
         print(f"For objective_speaker_transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
-    def _update_speaker_emission_params(self, stats):
+    def _update_speaker_emission_params(self, stats, B_S_diag_min=None):
         """更新说话人发射概率参数"""
         if self.n_audio_dur_grps is None:
             # 不使用时长分组，直接用统计量更新
@@ -793,6 +781,18 @@ class HMM_X():
                 else:
                     self.B_S_[speaker] = np.ones(self.n_actors) / self.n_actors
                     print(f"Warning: Emission probabilities for speaker {speaker} were not updated due to insufficient data. Reset to uniform distribution.")
+            # Additional step to enforce minimum diagonal values if specified
+            if B_S_diag_min is not None:
+                for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
+                    if self.B_S_[speaker, speaker] < B_S_diag_min:
+                        temp_B_S_speaker = copy.deepcopy(self.B_S_[speaker])
+                        self.B_S_[speaker, speaker] = B_S_diag_min
+                        for i in range(self.n_actors):
+                            if i != speaker:
+                                self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
+                    self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
+                    self.B_S_[speaker] /= self.B_S_[speaker].sum()
+        
         else:
             # 使用时长分组，使用数值优化更新B_S_和iota_
             mask_offdiag = ~np.eye(self.n_actors, dtype=bool)

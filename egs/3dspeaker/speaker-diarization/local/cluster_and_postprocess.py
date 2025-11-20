@@ -937,7 +937,6 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     for params in ["cehdfij"]:
     # for params in ["ceh", "cehdf", "cehij", "cehdfij"]:
         labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
-        labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot, B_S_diag_min=0.7)
 
 
 def main():
