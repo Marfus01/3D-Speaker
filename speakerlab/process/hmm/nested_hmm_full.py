@@ -1,11 +1,11 @@
 import numpy as np
-from scipy.special import softmax, logsumexp
+from scipy.special import logsumexp
 from scipy.optimize import minimize
 from sklearn.utils import check_random_state
-from functools import partial
 
 from .monitor import ConvergenceMonitor
 import time, copy, itertools
+import pickle
 
 
 ## 内存相关
@@ -164,6 +164,65 @@ class NestedHMM_full():
         if 'j' in self.init_params:
             # η2: 协变量X取值为1对说话人转移的影响
             self.eta2_ = random_state.uniform(1, 3)
+
+    def save_params(self, path):
+        """
+        保存 HMM 参数到指定路径的文件中。
+        
+        Parameters
+        ----------
+        path : str
+            保存参数的文件路径
+        """
+        params = {}
+
+        if 'a' in self.init_params:
+            # α: 对于每个 actor，其面部出现的初始概率，不要求和为1
+            params['alpha_'] = self.alpha_
+        if 'b' in self.init_params:
+            # A_F: 面部状态转移矩阵 (n_actors, 2, 2), 每行和为1
+            params['A_F_'] = self.A_F_
+        if 'c' in self.init_params:
+            # β: 说话人初始概率的logits,不要求和为1
+            params['beta_'] = self.beta_        
+        if 'd' in self.init_params:
+            # γ₁: 面部对说话人初始状态的影响
+            params['gamma1_'] = self.gamma1_        
+        if 'e' in self.init_params:
+            # A_S: 说话人状态转移矩阵的logits (n_actors, n_actors),不要求和为1
+            params['A_S_'] = self.A_S_        
+        if 'f' in self.init_params:
+            # γ₂: 面部对说话人转移的影响
+            params['gamma2_'] = self.gamma2_        
+        if 'g' in self.init_params:
+            # B_F: 面部识别混淆矩阵 (n_actors, 2, 2), 每行和为1
+            params['B_F_'] = self.B_F_
+        if 'h' in self.init_params:
+            # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
+            params['B_S_'] = self.B_S_
+        if 'i' in self.init_params:
+            # η1: 协变量X取值为1对说话人初始状态的影响
+            params['eta1_'] = self.eta1_
+        if 'j' in self.init_params:
+            # η2: 协变量X取值为1对说话人转移的影响
+            params['eta2_'] = self.eta2_
+        
+        with open(path, 'wb') as f:
+            pickle.dump(params, f)
+
+    def load_params(self, path):
+        """
+        从指定路径的文件中加载 HMM 参数。
+        
+        Parameters
+        ----------
+        path : str
+            加载参数的文件路径
+        """
+        with open(path, 'rb') as f:
+            params = pickle.load(f)
+        for key, value in params.items():
+            setattr(self, key, value)
 
     def X2index(self, x_onehot):
         """
@@ -591,7 +650,11 @@ class NestedHMM_full():
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
                     self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
                     self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
-        
+
+        # print("说话人发射统计量：")
+        # print(stats['face_emission_counts'])
+        # print("面部发射矩阵：")
+        # print(self.B_F_)
         # 更新说话人发射矩阵  
         if 'h' in self.params:
             for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
@@ -744,10 +807,24 @@ class NestedHMM_full():
             eta2 = params[-1]
             
             weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2)) # [f_curr, x_onehot_curr, s_prev, s_curr]
+            weights_sum = weights.sum(axis=(2, 3))  # shape: (n_face_states, n_actors+1)
+            # 找出所有非零元素的索引
+            nonzero_indices = np.nonzero(weights_sum)  # 返回两个数组: (f_indices, x_indices)
+            f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
+            x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
+
+            # 根据非零索引提取对应的 weights 子集
+            weights = weights[f_indices, x_indices, :, :]  # shape: (n_nonzero, n_actors, n_actors)
+
+            # 根据索引提取对应的配置
+            F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
+            X_configs = self.X_arr[x_indices]  # shape: (n_nonzero, n_actors)
+            # [n_nonzero, n_actors_prev, n_actors_curr(speaker/face)]
+            logits = A_S_mat[None, :, :] + gamma2 * F_configs[:, None, :] + eta2 * X_configs[:, None, :]   
+            
+            log_probs = logits - logsumexp(logits, axis=2, keepdims=True)
+
             mask = (weights > 0)
-            # [n_face_states, n_x_states, n_actors_prev, n_actors_curr(speaker/face)]
-            logits = A_S_mat[None, None, :, :] + gamma2 * self.face_configs_arr[:, None, None, :] + eta2 * self.X_arr[None, :, None, :]   
-            log_probs = logits - logsumexp(logits, axis=3, keepdims=True)
             loss = - np.sum(weights[mask] * log_probs[mask])
             
             return loss
@@ -964,10 +1041,22 @@ class NestedHMM_full():
         log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[0], S_hat_onehot[0], F_idxs_init)
         viterbi[0, F_idxs_init, :] = log_face_probs_filtered[:, None] + log_speaker_probs_filtered[:, :] + log_face_emissions_filtered[:, None] + log_speaker_emissions[None, :]
         
+        print(f"Viterbi first log-probabilitys: {viterbi[0, seq_F_potential_idxs[0]]}")
+        obs_fst_f, obs_fst_s = sum(2**i for i in F_hat[0].nonzero()[0]), np.argmax(S_hat_onehot[0])
+        print(f"Observed face at t=0: {F_hat[0]}")
+        print(f"Candidate face state indices at t=0: {self.face_configs_arr[seq_F_potential_idxs[0]]}")
+        print(f"Observed emissions at first frame indices: face_idx={obs_fst_f}, speaker={obs_fst_s}")
+        print(f"Viterbi observed first log-probability: {viterbi[0, obs_fst_f, obs_fst_s]:.4f}")
+        print(f"log_face_probs_filtered: {log_face_probs_filtered}")
+        print(f"log_speaker_probs_filtered: {log_speaker_probs_filtered}")
+        print(f"log_face_emissions_filtered: {log_face_emissions_filtered}")
+        print(f"log_speaker_emissions: {log_speaker_emissions}")
+        
         # 前向传播 t=1到n_frames-1
         for t in range(1, n_frames):
             F_idxs_prev = seq_F_potential_idxs[t-1]
             F_idxs_curr = seq_F_potential_idxs[t]
+            assert sum(2**i for i in F_hat[t].nonzero()[0]) in F_idxs_curr, "当前时刻观测的面部状态不在可能状态列表中！"
             ## 计算 f 所有可能的转移组合的转移概率
             log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_prev, F_idxs_curr)
             log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化
@@ -991,11 +1080,29 @@ class NestedHMM_full():
                     # 确定 $\psi_{t}(f,s)$
                     path_face[t, f_idx, speaker] = best_prev_f
                     path_speaker[t, f_idx, speaker] = best_prev_s
-        
+
+            if t == 1:
+                print(f"Viterbi second log-probabilitys: {viterbi[1, seq_F_potential_idxs[1]]}")
+                obs_scd_f, obs_scd_s = sum(2**i for i in F_hat[1].nonzero()[0]), np.argmax(S_hat_onehot[1])
+                print(f"Observed face at t=1: {F_hat[1]}")
+                print(f"Candidate face state indices at t=1: {self.face_configs_arr[seq_F_potential_idxs[1]]}")
+                print(f"Observed emissions at second frame indices: face_idx={obs_scd_f}, speaker={obs_scd_s}")
+                print(f"Viterbi observed second log-probability: {viterbi[1, obs_scd_f, obs_scd_s]:.4f}")
+                print(f"log_trans_face_filtered: {log_trans_face_filtered}")
+                print(f"log_trans_speaker_filtered: {log_trans_speaker_filtered}")
+  
+
         # 找到最优路径的结束状态 $i_T^\ast$: best_end_f, best_end_s
         last_viterbi = viterbi[n_frames-1, :, :]  # shape (n_face_states, n_actors)
         best_end_flat = np.argmax(last_viterbi)
         best_end_f, best_end_s = np.unravel_index(best_end_flat, last_viterbi.shape)
+        print(f"Viterbi last log-probabilitys: {last_viterbi[seq_F_potential_idxs[n_frames-1]]}")
+        print(f"Observed face at last t: {F_hat[-1]}")
+        print(f"Viterbi best end state: face_idx={best_end_f}, speaker={best_end_s}")
+        print(f"Viterbi best end log-probability: {last_viterbi[best_end_f, best_end_s]:.4f}")
+        obs_end_f, obs_end_s = sum(2**i for i in F_hat[-1].nonzero()[0]), np.argmax(S_hat_onehot[-1])
+        print(f"Observed emissions at last frame indices: face_idx={obs_end_f}, speaker={obs_end_s}")
+        print(f"Viterbi observed end log-probability: {last_viterbi[obs_end_f, obs_end_s]:.4f}")
         
         # 回溯最优路径
         face_states = np.zeros((n_frames, self.n_actors), dtype=int)
