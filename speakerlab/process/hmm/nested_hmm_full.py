@@ -150,6 +150,7 @@ class NestedHMM_full():
             for actor in range(self.n_actors):
                 for s in range(2):
                     self.B_F_[actor, s] = random_state.dirichlet([2, 1] if s == 0 else [1, 2])
+            self.set_B_F_eyes()  # NOTE: 将人脸混淆矩阵设为单位阵
 
         if 'h' in self.init_params:
             # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
@@ -223,6 +224,12 @@ class NestedHMM_full():
             params = pickle.load(f)
         for key, value in params.items():
             setattr(self, key, value)
+
+    def set_B_F_eyes(self):
+        """将面部识别混淆矩阵 B_F 设置为单位阵"""
+        self.B_F_ = np.zeros((self.n_actors, 2, 2))
+        for actor in range(self.n_actors):
+            self.B_F_[actor] = np.eye(2)
 
     def X2index(self, x_onehot):
         """
@@ -637,19 +644,20 @@ class NestedHMM_full():
         
         # 更新面部发射矩阵
         if 'g' in self.params:
-            for actor in range(self.n_actors):  # (14)式中的 $\varrho$
-                for state in range(2):  # (14)式中的 $\delta$
-                    total = stats['face_emission_counts'][actor, state].sum()
-                    if total > 0:
-                        self.B_F_[actor, state] = stats['face_emission_counts'][actor, state] / total # row normalization
-                    else:
-                        self.B_F_[actor, state] = np.ones(2) / 2
-                        print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
-                    if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
-                        self.B_F_[actor, state, state] = B_F_diag_min
-                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
-                    self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
+            self.set_B_F_eyes()
+            # for actor in range(self.n_actors):  # (14)式中的 $\varrho$
+            #     for state in range(2):  # (14)式中的 $\delta$
+            #         total = stats['face_emission_counts'][actor, state].sum()
+            #         if total > 0:
+            #             self.B_F_[actor, state] = stats['face_emission_counts'][actor, state] / total # row normalization
+            #         else:
+            #             self.B_F_[actor, state] = np.ones(2) / 2
+            #             print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
+            #         if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
+            #             self.B_F_[actor, state, state] = B_F_diag_min
+            #             self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
+            #         self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
+            #         self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
 
         # print("说话人发射统计量：")
         # print(stats['face_emission_counts'])
