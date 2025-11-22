@@ -27,22 +27,19 @@ class NestedHMM_full():
     verbose : bool, optional (default: False)
         是否打印详细信息
     params : str, optional (default: "abcdefgh")
-        控制哪些参数被更新
-    init_params : str, optional (default: "abcdefgh")
-        控制哪些参数被初始化
+        控制模型包含哪些参数
     random_state : int or RandomState, optional
         随机种子
     """
     
     def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False,
-                 params="abcdefghij", init_params="abcdefghij", random_state=None):
+                 params="abcdefghij", random_state=None):
         self.n_actors = n_actors    # 演员数量
         self.n_face_states = 2 ** n_actors  # 面部状态数量 (每个演员有2个状态)
         self.n_iter = n_iter    # 最大迭代次数
         self.tol = tol  # 收敛阈值
         self.verbose = verbose  # 是否打印详细信息
         self.params = params    # 控制哪些参数被更新
-        self.init_params = init_params  # 控制哪些参数被初始化
         self.random_state = random_state
 
         # 添加缓存变量，避免反复计算
@@ -114,55 +111,55 @@ class NestedHMM_full():
         """初始化嵌套HMM的参数"""
         random_state = check_random_state(self.random_state)
         
-        if 'a' in self.init_params:
+        if 'a' in self.params:
             # α: 对于每个 actor，其面部出现的初始概率，不要求和为1
             self.alpha_ = random_state.uniform(0.3, 0.7, self.n_actors)
             
-        if 'b' in self.init_params:
+        if 'b' in self.params:
             # A_F: 面部状态转移矩阵 (n_actors, 2, 2), 每行和为1
             self.A_F_ = np.zeros((self.n_actors, 2, 2))
             for actor in range(self.n_actors):
                 for s in range(2):
                     self.A_F_[actor, s] = random_state.dirichlet([2, 1] if s == 0 else [1, 2])
 
-        if 'c' in self.init_params:
+        if 'c' in self.params:
             # β: 说话人初始概率的logits,不要求和为1
             self.beta_ = random_state.normal(0, 1, self.n_actors)
             self.beta_ -= self.beta_[0]  # 固定第一个演员的logit为0，作为基准
             
-        if 'd' in self.init_params:
+        if 'd' in self.params:
             # γ₁: 面部对说话人初始状态的影响
             self.gamma1_ = random_state.uniform(0.5, 2.0)
             
-        if 'e' in self.init_params:
+        if 'e' in self.params:
             # A_S: 说话人状态转移矩阵的logits (n_actors, n_actors),不要求和为1
             diag_main = np.diag(random_state.uniform(0.3, 0.7, self.n_actors))
             self.A_S_ = diag_main + (1-diag_main) * random_state.normal(0, 1, (self.n_actors, self.n_actors))
             self.A_S_ -= np.diag(self.A_S_)[:,None]    # 固定转移到自己的logit为0，作为基准
             
-        if 'f' in self.init_params:
+        if 'f' in self.params:
             # γ₂: 面部对说话人转移的影响
             self.gamma2_ = random_state.uniform(0.5, 2.0)
             
-        if 'g' in self.init_params:
+        if 'g' in self.params:
             # B_F: 面部识别混淆矩阵 (n_actors, 2, 2), 每行和为1
             self.B_F_ = np.zeros((self.n_actors, 2, 2))
             for actor in range(self.n_actors):
                 for s in range(2):
                     self.B_F_[actor, s] = random_state.dirichlet([2, 1] if s == 0 else [1, 2])
-            self.set_B_F_eyes()  # NOTE: 将人脸混淆矩阵设为单位阵
+            # self.set_B_F_eyes()  # NOTE: 将人脸混淆矩阵设为单位阵
 
-        if 'h' in self.init_params:
+        if 'h' in self.params:
             # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
             self.B_S_ = np.zeros((self.n_actors, self.n_actors))
             for actor in range(self.n_actors):
                 self.B_S_[actor] = random_state.dirichlet([2 if i == actor else 1 for i in range(self.n_actors)])
 
-        if 'i' in self.init_params:
+        if 'i' in self.params:
             # η1: 协变量X取值为1对说话人初始状态的影响
             self.eta1_ = random_state.uniform(1, 3)
 
-        if 'j' in self.init_params:
+        if 'j' in self.params:
             # η2: 协变量X取值为1对说话人转移的影响
             self.eta2_ = random_state.uniform(1, 3)
 
@@ -177,34 +174,34 @@ class NestedHMM_full():
         """
         params = {}
 
-        if 'a' in self.init_params:
+        if 'a' in self.params:
             # α: 对于每个 actor，其面部出现的初始概率，不要求和为1
             params['alpha_'] = self.alpha_
-        if 'b' in self.init_params:
+        if 'b' in self.params:
             # A_F: 面部状态转移矩阵 (n_actors, 2, 2), 每行和为1
             params['A_F_'] = self.A_F_
-        if 'c' in self.init_params:
+        if 'c' in self.params:
             # β: 说话人初始概率的logits,不要求和为1
             params['beta_'] = self.beta_        
-        if 'd' in self.init_params:
+        if 'd' in self.params:
             # γ₁: 面部对说话人初始状态的影响
             params['gamma1_'] = self.gamma1_        
-        if 'e' in self.init_params:
+        if 'e' in self.params:
             # A_S: 说话人状态转移矩阵的logits (n_actors, n_actors),不要求和为1
             params['A_S_'] = self.A_S_        
-        if 'f' in self.init_params:
+        if 'f' in self.params:
             # γ₂: 面部对说话人转移的影响
             params['gamma2_'] = self.gamma2_        
-        if 'g' in self.init_params:
+        if 'g' in self.params:
             # B_F: 面部识别混淆矩阵 (n_actors, 2, 2), 每行和为1
             params['B_F_'] = self.B_F_
-        if 'h' in self.init_params:
+        if 'h' in self.params:
             # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
             params['B_S_'] = self.B_S_
-        if 'i' in self.init_params:
+        if 'i' in self.params:
             # η1: 协变量X取值为1对说话人初始状态的影响
             params['eta1_'] = self.eta1_
-        if 'j' in self.init_params:
+        if 'j' in self.params:
             # η2: 协变量X取值为1对说话人转移的影响
             params['eta2_'] = self.eta2_
         
@@ -644,25 +641,21 @@ class NestedHMM_full():
         
         # 更新面部发射矩阵
         if 'g' in self.params:
-            self.set_B_F_eyes()
-            # for actor in range(self.n_actors):  # (14)式中的 $\varrho$
-            #     for state in range(2):  # (14)式中的 $\delta$
-            #         total = stats['face_emission_counts'][actor, state].sum()
-            #         if total > 0:
-            #             self.B_F_[actor, state] = stats['face_emission_counts'][actor, state] / total # row normalization
-            #         else:
-            #             self.B_F_[actor, state] = np.ones(2) / 2
-            #             print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
-            #         if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
-            #             self.B_F_[actor, state, state] = B_F_diag_min
-            #             self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-            #         self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
-            #         self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
-
-        # print("说话人发射统计量：")
-        # print(stats['face_emission_counts'])
-        # print("面部发射矩阵：")
-        # print(self.B_F_)
+            # self.set_B_F_eyes()
+            for actor in range(self.n_actors):  # (14)式中的 $\varrho$
+                for state in range(2):  # (14)式中的 $\delta$
+                    total = stats['face_emission_counts'][actor, state].sum()
+                    if total > 0:
+                        self.B_F_[actor, state] = stats['face_emission_counts'][actor, state] / total # row normalization
+                    else:
+                        self.B_F_[actor, state] = np.ones(2) / 2
+                        print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
+                    if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
+                        self.B_F_[actor, state, state] = B_F_diag_min
+                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
+                    self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
+                    self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
+        
         # 更新说话人发射矩阵  
         if 'h' in self.params:
             for speaker in range(self.n_actors):  # (15)式中的 $\varrho$
@@ -973,38 +966,6 @@ class NestedHMM_full():
         speaker_states : array, shape (n_samples,)
             预测的说话人状态序列 (0到n_actors-1)
         """
-        # 将说话人相关的模型参数设为hmmx_v2的结果，以确定维特比解码是否存在bug
-        self.eta1_ = 1.4863483317748507
-        self.eta2_ = 3.9923142457447263
-        self.gamma1_ = 13.268951254548176
-        self.gamma2_ = 3.999533293772083
-        self.beta_ = np.array([0., -0.81717667, -8.27146234, -0.05904508, -0.89109935, -8.04463531, -0.73570404, 11.69363198, -4.90856268, -7.38864012, -1.24262274])
-        self.A_S_ = np.array([
-            [0., -0.17971836, -0.23732562, -1.06385269, -1.49355632, -2.29223229, -0.07993623, 1.43621806, -0.75221971, 0.46409954, -3.97662662],
-            [-0.40424504, 0., -0.01981337, -0.89105794, -3.12481352, -1.5016751, 0.82170643, -0.39309162, -1.93108952, 0.75707279, -4.98744043],
-            [-0.73823654, -0.25248484, 0., -1.34920033, -1.92131976, -0.81124965, -3.55054404, -8.70022469, -1.69381636, -0.15990251, -7.84040812],
-            [-1.04183034, -0.57621968, 0.02451188, 0., -1.86814618, -1.827771, -1.47146884, -4.1172216, -1.19591153, 1.02182042, -5.17527639],
-            [-5.12281478, -15.60494213, -4.44522011, -6.673671, 0., -4.54149166, -11.47339001, -12.07978556, -11.61148434, -12.22263803, -14.89507996],
-            [-4.25385481, -3.31459328, -4.67578631, -2.62336267, -9.59472873, 0., -5.87722837, -2.84496772, -3.19737126, -9.10796989, -13.01545354],
-            [-5.9236483, -4.27983381, -3.99954572, -6.51481496, -4.66794385, -6.70513692, 0., -3.48264226, -3.04169594, -9.14272878, -6.27149399],
-            [-2.49469985, -4.73703041, -3.68695912, -2.69741634, -3.92721507, -7.06651316, -8.35474355, 0., -4.84046962, -4.49404464, -10.10147414],
-            [-2.06290181, -3.57943163, -1.59093436, -3.14299541, -2.53618209, -2.16823166, -0.41969502, -9.55173545, 0., -2.52366201, -13.18069631],
-            [-3.71122566, -3.84668553, -3.62811905, -4.61339017, -11.52610794, -10.05190126, -10.94317082, -11.08321199, -12.44696126, 0., -6.80903689],
-            [-3.63710329, -4.78479366, -4.33860798, -2.0966113, -9.7192744, -8.72091371, -7.26358823, -9.92466631, -10.39932148, -1.12248039, 0.]
-        ])
-        self.B_S_ = np.array([
-            [9.85162263e-01, 9.99998288e-07, 7.35972369e-05, 9.99998288e-07, 3.73857202e-04, 1.39970694e-02, 9.99998288e-07, 9.99998288e-07, 3.62020437e-04, 2.61931652e-05, 9.99998288e-07],
-            [6.97016004e-03, 9.00170024e-01, 3.94468068e-02, 1.22758320e-02, 2.94528287e-06, 1.01160232e-02, 3.10142083e-02, 9.99998340e-07, 9.99998340e-07, 9.99998340e-07, 9.99998340e-07],
-            [6.92616652e-03, 4.83409464e-03, 9.76589447e-01, 9.99997938e-07, 9.99997938e-07, 9.99997938e-07, 6.15254554e-03, 5.49174604e-03, 9.99997938e-07, 9.99997938e-07, 9.99997938e-07],
-            [9.99998943e-07, 1.13766858e-05, 1.86311727e-06, 9.26364544e-01, 2.83211906e-02, 3.01545857e-02, 7.97977053e-03, 9.99998943e-07, 2.43439691e-03, 4.72892963e-03, 1.34323477e-06],
-            [1.14898648e-02, 4.00559790e-01, 9.99997640e-07, 3.51266654e-02, 5.15331646e-03, 6.50317534e-03, 1.95413374e-02, 5.14927606e-01, 9.99997640e-07, 9.99997640e-07, 6.69524496e-03],
-            [9.99995525e-07, 9.99995525e-07, 1.95249087e-02, 1.95231115e-02, 9.99995525e-07, 9.39069016e-01, 2.18759636e-02, 9.99995525e-07, 9.99995525e-07, 9.99995525e-07, 9.99995525e-07],
-            [7.31842827e-02, 7.46268000e-01, 9.99998678e-07, 2.57066767e-04, 9.47912713e-03, 2.04323837e-02, 1.10874008e-01, 9.99998678e-07, 9.99998678e-07, 4.18961172e-03, 3.53125193e-02],
-            [6.72931211e-01, 1.71639086e-01, 9.99998671e-07, 1.35309948e-02, 9.99998671e-07, 4.09329465e-02, 2.35814840e-02, 9.99998671e-07, 9.99998671e-07, 2.13311865e-02, 5.60490910e-02],
-            [1.24104027e-04, 1.70144647e-02, 9.99995890e-07, 9.99995890e-07, 9.99995890e-07, 9.99995890e-07, 9.99995890e-07, 9.99995890e-07, 9.82853431e-01, 9.99995890e-07, 9.99995890e-07],
-            [8.84255639e-03, 9.99998454e-07, 1.19205531e-02, 3.82751312e-02, 7.43410566e-01, 2.75959295e-02, 1.90837722e-02, 9.99998454e-07, 9.99998454e-07, 1.50867492e-01, 9.99998454e-07],
-            [3.19367998e-02, 1.34101861e-01, 1.74058068e-02, 9.15867859e-03, 2.98531159e-01, 1.30827376e-02, 3.03992757e-02, 9.99997555e-07, 9.99997555e-07, 9.99997555e-07, 4.65380681e-01]
-        ])
         S_hat_onehot = np.asarray(S_hat_onehot)
         F_hat = np.asarray(F_hat)
         X_onehot = np.asarray(X_onehot)
@@ -1081,17 +1042,6 @@ class NestedHMM_full():
         log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[0], S_hat_onehot[0], F_idxs_init)
         viterbi[0, F_idxs_init, :] = log_face_probs_filtered[:, None] + log_speaker_probs_filtered[:, :] + log_face_emissions_filtered[:, None] + log_speaker_emissions[None, :]
         
-        print(f"Viterbi first log-probabilitys: {viterbi[0, seq_F_potential_idxs[0]]}")
-        obs_fst_f, obs_fst_s = sum(2**i for i in F_hat[0].nonzero()[0]), np.argmax(S_hat_onehot[0])
-        print(f"Observed face at t=0: {F_hat[0]}")
-        print(f"Candidate face state indices at t=0: {self.face_configs_arr[seq_F_potential_idxs[0]]}")
-        print(f"Observed emissions at first frame indices: face_idx={obs_fst_f}, speaker={obs_fst_s}")
-        print(f"Viterbi observed first log-probability: {viterbi[0, obs_fst_f, obs_fst_s]:.4f}")
-        print(f"log_face_probs_filtered: {log_face_probs_filtered}")
-        print(f"log_speaker_probs_filtered: {log_speaker_probs_filtered}")
-        print(f"log_face_emissions_filtered: {log_face_emissions_filtered}")
-        print(f"log_speaker_emissions: {log_speaker_emissions}")
-        
         # 前向传播 t=1到n_frames-1
         for t in range(1, n_frames):
             F_idxs_prev = seq_F_potential_idxs[t-1]
@@ -1110,8 +1060,8 @@ class NestedHMM_full():
             for i, f_idx in enumerate(F_idxs_curr):
                 for j, speaker in enumerate(range(self.n_actors)):
                     # 遍历所有可能的前一状态 (f_prev, s_prev)，确定最佳前一状态
-                    total_prob_prev_no_obs = viterbi[t-1, :, :] 
-                    total_prob_prev_no_obs[F_idxs_prev, :] += log_trans_face_filtered[:, i][:, None] + log_trans_speaker_filtered[:, j, i][None, :]
+                    total_prob_prev_no_obs = copy.deepcopy(viterbi[t-1, :, :])   # 对应i_{t-1}。绝大多数行均为 -inf, 这是因为在t-1时刻，这些行对应的f_prev不在可能状态列表中
+                    total_prob_prev_no_obs[F_idxs_prev, :] += log_trans_face_filtered[:, i][:, None] + log_trans_speaker_filtered[:, j, i][None, :] # 未更新的行仍为 -inf
                     best_prev_flat = np.argmax(total_prob_prev_no_obs)
                     best_prev_f, best_prev_s = np.unravel_index(best_prev_flat, total_prob_prev_no_obs.shape)
 
@@ -1121,28 +1071,10 @@ class NestedHMM_full():
                     path_face[t, f_idx, speaker] = best_prev_f
                     path_speaker[t, f_idx, speaker] = best_prev_s
 
-            if t == 1:
-                print(f"Viterbi second log-probabilitys: {viterbi[1, seq_F_potential_idxs[1]]}")
-                obs_scd_f, obs_scd_s = sum(2**i for i in F_hat[1].nonzero()[0]), np.argmax(S_hat_onehot[1])
-                print(f"Observed face at t=1: {F_hat[1]}")
-                print(f"Candidate face state indices at t=1: {self.face_configs_arr[seq_F_potential_idxs[1]]}")
-                print(f"Observed emissions at second frame indices: face_idx={obs_scd_f}, speaker={obs_scd_s}")
-                print(f"Viterbi observed second log-probability: {viterbi[1, obs_scd_f, obs_scd_s]:.4f}")
-                print(f"log_trans_face_filtered: {log_trans_face_filtered}")
-                print(f"log_trans_speaker_filtered: {log_trans_speaker_filtered}")
-  
-
         # 找到最优路径的结束状态 $i_T^\ast$: best_end_f, best_end_s
         last_viterbi = viterbi[n_frames-1, :, :]  # shape (n_face_states, n_actors)
         best_end_flat = np.argmax(last_viterbi)
         best_end_f, best_end_s = np.unravel_index(best_end_flat, last_viterbi.shape)
-        print(f"Viterbi last log-probabilitys: {last_viterbi[seq_F_potential_idxs[n_frames-1]]}")
-        print(f"Observed face at last t: {F_hat[-1]}")
-        print(f"Viterbi best end state: face_idx={best_end_f}, speaker={best_end_s}")
-        print(f"Viterbi best end log-probability: {last_viterbi[best_end_f, best_end_s]:.4f}")
-        obs_end_f, obs_end_s = sum(2**i for i in F_hat[-1].nonzero()[0]), np.argmax(S_hat_onehot[-1])
-        print(f"Observed emissions at last frame indices: face_idx={obs_end_f}, speaker={obs_end_s}")
-        print(f"Viterbi observed end log-probability: {last_viterbi[obs_end_f, obs_end_s]:.4f}")
         
         # 回溯最优路径
         face_states = np.zeros((n_frames, self.n_actors), dtype=int)
