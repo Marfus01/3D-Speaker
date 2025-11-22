@@ -219,31 +219,32 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
     model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
-    model.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, B_S_diag_min, B_F_diag_min, lengths)
+    # model.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, B_S_diag_min, B_F_diag_min, lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
 
-    print("\n=== 模型参数 ===")
-    print("说话人初始概率 β 的logits：\n", model.beta_)
-    print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
-    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
-    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
-    print("初始时刻mid-frame中出现各个角色人脸的概率 α ：\n", model.alpha_)
-    print("mid-frame人脸出现转移矩阵 A_F_ ：\n", model.A_F_)
-    print("mid-frame人脸识别混淆矩阵 B_F :\n", model.B_F_)
-    print("中间帧出现某个角色的人脸对说话人初始状态的影响 γ₁_ :\n", model.gamma1_)
-    print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", model.gamma2_)
-
-    # 使用训练好的模型解码隐藏状态
-    face_states_viterbi, speaker_states_viterbi = model.predict(S_hat_onehot, F_hat, X_onehot,
-                                                                F_potential_list, lengths) # viterbi 解码结果
+    # print("\n=== 模型参数 ===")
+    # print("说话人初始概率 β 的logits：\n", model.beta_)
+    # print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
+    # print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    # print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
+    # print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+    # print("初始时刻mid-frame中出现各个角色人脸的概率 α ：\n", model.alpha_)
+    # print("mid-frame人脸出现转移矩阵 A_F_ ：\n", model.A_F_)
+    # print("mid-frame人脸识别混淆矩阵 B_F :\n", model.B_F_)
+    # print("中间帧出现某个角色的人脸对说话人初始状态的影响 γ₁_ :\n", model.gamma1_)
+    # print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", model.gamma2_)
 
     save_name_part_has_neg1 ='_has_neg1' if flag_has_neg1 else ''
     save_name_part_B_S = f'_B_S_diagmin={B_S_diag_min}' if B_S_diag_min is not None else ''
     save_name_part_B_F = f'_B_F_diagmin={B_F_diag_min}' if B_F_diag_min is not None else ''
-    model.save_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+    # model.save_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+
+    # 使用训练好的模型解码隐藏状态
+    model.load_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+    face_states_viterbi, speaker_states_viterbi = model.predict(S_hat_onehot, F_hat, X_onehot,
+                                                                F_potential_list, lengths) # viterbi 解码结果
     np.save(os.path.join(result_dir, f'cluster_results_face_states_viterbi_nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.npy'), face_states_viterbi)
 
     if flag_has_neg1:  # 将说话人的-1标签还原回来
@@ -885,11 +886,11 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
     summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
     summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
-    save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
-    save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
-                                   os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
-    save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
+    #                                os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
+    # save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+    #                                os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
 
     ## 获取所有audio samples和前述对齐和重命名处理后，剩余的所有关键帧人脸 samples，并据此创建每个sample潜在对应的聚类簇候选集
     ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
