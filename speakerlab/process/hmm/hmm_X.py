@@ -790,8 +790,10 @@ class HMM_X():
                         for i in range(self.n_actors):
                             if i != speaker:
                                 self.B_S_[speaker, i] = (1-B_S_diag_min) / (1 - temp_B_S_speaker[speaker]) * temp_B_S_speaker[i]
-                    self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
-                    self.B_S_[speaker] /= self.B_S_[speaker].sum()
+            # 确保数值稳定性
+            for speaker in range(self.n_actors):
+                self.B_S_[speaker] = np.clip(self.B_S_[speaker], 1e-6, 1-1e-6)
+                self.B_S_[speaker] /= self.B_S_[speaker].sum()
         
         else:
             # 使用时长分组，使用数值优化更新B_S_和iota_
