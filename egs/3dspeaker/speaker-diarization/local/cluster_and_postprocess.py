@@ -276,8 +276,9 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
             with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_nested_hmm_full{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
-
     
+    return face_states_viterbi, speaker_states_viterbi
+
 
 def extract_aligned_vlabels_results(vlabels, vlabels_aligned_dic, visual_times=None):
     """
@@ -559,6 +560,76 @@ def collect_potential_states(audio_seg_ids, n_states, alabels_potential_list=Non
       assert len(audio_seg_ids_mf) == len(vlabels_mf_potential_list), f"audio_seg_ids_mf and vlabels_mf_potential_list must have the same length, but got {len(audio_seg_ids_mf)} and {len(vlabels_mf_potential_list)}."
       vlabels_mf_potential_list_new = collect_labels_potential(audio_seg_ids, vlabels_mf_potential_list, n_states, audio_seg_ids_mf)
   return alabels_potential_list_new, vlabels_mf_potential_list_new
+
+def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf, vlabels_mf_potential_list):
+    """
+    Correct face labels based on decoding results and potential labels.
+
+    Args:
+        F_decode (ndarray): Decoded binary matrix indicating presence of mid-frame, shape [N, p].
+        F_hat (ndarray): Observed binary matrix indicating presence of mid-frame, shape [N, p].
+        audio_seg_ids (ndarray): Array of audio segment IDs, shape [N].
+        audio_seg_ids_mf (ndarray): Array of audio segment IDs for mid-frame, shape [M].
+        vlabels_mf (ndarray): Original visual labels for mid-frame segments, shape [M].
+        vlabels_mf_potential_list (list): List of potential visual labels for mid-frame segments, length M.
+    Returns:
+        ndarray: Corrected visual labels for mid-frame segments, shape [M].
+    """
+    # Validate input dimensions
+    assert F_decode.shape == F_hat.shape, "F_decode and F_hat must have the same shape."
+    assert F_decode.shape[0] == len(audio_seg_ids), "Number of rows in F_decode must match length of audio_seg_ids."
+    assert len(audio_seg_ids_mf) == len(vlabels_mf) == len(vlabels_mf_potential_list), "audio_seg_ids_mf, and vlabels_mf_potential_list must have the same length."
+
+    vlabels_mf_corrected = copy.deepcopy(vlabels_mf)
+    # get the rows where F_decode and F_hat differ
+    rows_equal = np.all(F_decode == F_hat, axis=1)
+    changed_audio_seg_idx = np.where(~rows_equal)[0]
+    
+    # Try to correct labels according to decoding results
+    changed_cnt = 0
+    for audio_idx in changed_audio_seg_idx:
+        audio_seg_id = audio_seg_ids[audio_idx]
+        # get pseudo label given by F_decode
+        appearing_face_states = np.where(F_decode[audio_idx, :] == 1)[0]
+
+        # Find all mid-frame face potential states corresponding to this audio segment
+        mf_indices_selected = np.where(audio_seg_ids_mf == audio_seg_id)[0]
+        vlabels_mf_potential_list_selected = [vlabels_mf_potential_list[mf_idx] for mf_idx in mf_indices_selected]
+
+        # Check whether the existence label can determine the face label directly
+        ## Get all potential labels for current audio segment
+        potential_states_all = [item for sublist in vlabels_mf_potential_list_selected for item in sublist]
+        potential_states_all = [label if label != -1 else F_decode.shape[1] - 1 for label in potential_states_all]  # replace -1 with n_states-1
+        ## Count occurrences of each unique element
+        unique_counts = {label: potential_states_all.count(label) for label in set(potential_states_all)}
+        ## Check if
+        all_appear_once = all(unique_counts.get(face_states, 0) == 1 for face_states in appearing_face_states)
+
+        if not all_appear_once:
+            continue  # Cannot determine labels directly, skip to next audio segment
+        
+        # Update labels based on appearing_face_states
+        for mf_indice in mf_indices_selected:
+            vlabel_mf_obs = vlabels_mf[mf_indice]
+            potential_states = vlabels_mf_potential_list[mf_indice]
+            # replace -1 with n_states-1
+            vlabel_mf_obs = vlabel_mf_obs if vlabel_mf_obs != -1 else F_decode.shape[1] - 1
+            potential_states = [label if label != -1 else F_decode.shape[1] - 1 for label in potential_states]
+
+            vlabel_mf_new = list(set(appearing_face_states).intersection(set(potential_states)))
+            assert len(vlabel_mf_new) == 1, f"There should be one intersected label, But got {vlabel_mf_new} for appearing_face_states {appearing_face_states} and potential_states {potential_states}."
+            vlabel_mf_new = vlabel_mf_new[0]
+
+            if vlabel_mf_new != vlabel_mf_obs:
+                vlabels_mf_corrected[mf_indice] = vlabel_mf_new
+                changed_cnt += 1
+
+    vlabels_mf_corrected = np.array([label if label != F_decode.shape[1] - 1 else -1 for label in vlabels_mf_corrected])  # revert n_states-1 back to -1
+    print(f"[INFO] There are {len(changed_audio_seg_idx)} audio segments where mid-frame presence labels differ between decoding and observation.")
+    print(f"[INFO] Corrected {changed_cnt} mid-frame face labels based on decoding results.")
+
+
+    return vlabels_mf_corrected
 
 def save_cluster_results_audio(labels, audio_seg_ids, out_json):
     """
@@ -940,8 +1011,11 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     
     # np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
     ## HMM_nested_X 平滑
-    labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
+    F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
 
+    vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
+    save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_corrected_by_HMM_nested_X.json'))
 
 def main():
     args = parser.parse_args()
