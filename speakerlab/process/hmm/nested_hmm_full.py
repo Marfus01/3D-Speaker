@@ -709,6 +709,7 @@ class NestedHMM_full():
         # 更新面部发射矩阵
         if 'g' in self.params:
             # self.set_B_F_eyes()
+            B_F_diag_max_flag = False
             for actor in range(self.n_actors):  # (14)式中的 $\varrho$
                 for state in range(2):  # (14)式中的 $\delta$
                     total = stats['face_emission_counts'][actor, state].sum()
@@ -720,8 +721,16 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
+                    B_F_diag_max = 0.95
+                    if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
+                        B_F_diag_max_flag = True
+                        self.B_F_[actor, state, state] = B_F_diag_max
+                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_max
+                    
                     # self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
                     self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
+            if B_F_diag_max_flag:
+                print(f"Warning: Some face emission probabilities exceeded the maximum diagonal limit and were adjusted accordingly.")
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
