@@ -92,8 +92,19 @@ array([6829, 6829, 6829, 6829, 6829, 6829, 6829, 6829, 6825, 6829, 6829])
 b. 语音解码：如果全部采纳解码值，spekaer acc略高于hmm_x (0.8455-->0.8475).部分采纳时，最优结果acc 0.9115(x=5%)，略低于hmm_x (x=15%, 0.912)。
 
 接下来尝试：
-1. 去除混淆矩阵的极小值戒断。因为numpy支持log(0)=-inf
-2. 人为设置人脸混淆矩阵的最大值，例如0.95，允许一定程度的混淆。
+1. 去除混淆矩阵的极小值戒断。因为numpy支持log(0)=-inf。效果与上面类似。
+2. 人为设置人脸混淆矩阵的最大值，例如0.95，允许一定程度的混淆。语音部分结果类似，但是人脸部分：
+```
+>>> import numpy as np
+>>> arr1 = np.load("/data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/cluster_results_face_states_obs.npy")
+>>> arr2 = np.load("/data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/cluster_results_face_states_viterbi_nested_hmm_full_has_neg1.npy")
+>>> sum(arr1==arr2)
+array([6794, 6784, 6813, 6807, 6829, 6820, 6829, 6829, 6824, 6829, 6824])
+>>> arr1.sum(axis=0)
+array([3078, 2848, 1334, 1377,    0,   43,    6,    0,   86,    0, 2483])
+>>> arr2.sum(axis=0)
+array([3109, 2877, 1342, 1387,    0,   52,    6,    0,   89,    0, 2478])
+```
 
 待办：
 1. 将hmmx_v2中说话人混淆矩阵引入时长协变量的代码迁移到nested_hmm_full中；
