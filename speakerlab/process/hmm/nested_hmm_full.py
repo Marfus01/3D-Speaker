@@ -721,7 +721,7 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    B_F_diag_max = 0.95
+                    B_F_diag_max = 0.90
                     if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
                         B_F_diag_max_flag = True
                         self.B_F_[actor, state, state] = B_F_diag_max
