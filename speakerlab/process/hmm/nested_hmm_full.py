@@ -721,7 +721,7 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    B_F_diag_max = 0.90
+                    B_F_diag_max = 0.99
                     if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
                         B_F_diag_max_flag = True
                         self.B_F_[actor, state, state] = B_F_diag_max
@@ -775,19 +775,11 @@ class NestedHMM_full():
 
     def _update_face_transition_params(self, stats):
         """使用数值优化更新面部转移参数"""
-        def face_transition_probs_weighted_sum(A_F_diags_flatten, F_idxs_curr_key, prevf_and_weights):
+        def face_transition_probs_weighted_sum(A_F_, F_idxs_curr_key, prevf_and_weights):
             """
             计算潜在面部配置的转移概率 $\bbP(F_{i,t,\cdot}\vert F_{i,t-1,\cdot}, <context>)$ 的对数的加权平均值。
             - return: log_probs_weighted_sum = \sum_{f_prev,f_curr} \log \bbP(F_{i,t,\cdot}=f_curr \vert F_{i,t-1,\cdot}=f_prev) * weight(f_prev, f_curr)
-            """
-            A_F_diags = A_F_diags_flatten.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
-            A_F_diags = np.clip(A_F_diags, 1e-8, 1-1e-8)
-            A_F_ = np.zeros((self.n_actors, 2, 2))
-            A_F_[:, 0, 0] = A_F_diags[:, 0]
-            A_F_[:, 0, 1] = 1 -  A_F_[:, 0, 0]
-            A_F_[:, 1, 1] = A_F_diags[:, 1]
-            A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
-            
+            """            
             F_idxs_curr = list(F_idxs_curr_key)
             F_idxs_prev, expectation_weight = prevf_and_weights
             face_configs_arr_prev = self.face_configs_arr[F_idxs_prev]  # shape: (n_face_states_prev, n_actors)
@@ -800,7 +792,14 @@ class NestedHMM_full():
             return log_probs_weighted_sum
 
         def objective_face_transition(params):
-            loss = - sum(face_transition_probs_weighted_sum(params, k, v) for k, v in stats['face_transition_counts'].items())
+            A_F_diags = params.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
+            A_F_diags = np.clip(A_F_diags, 1e-8, 1-1e-8)
+            A_F_ = np.zeros((self.n_actors, 2, 2))
+            A_F_[:, 0, 0] = A_F_diags[:, 0]
+            A_F_[:, 0, 1] = 1 -  A_F_[:, 0, 0]
+            A_F_[:, 1, 1] = A_F_diags[:, 1]
+            A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
+            loss = - sum(face_transition_probs_weighted_sum(A_F_, k, v) for k, v in stats['face_transition_counts'].items())
             return loss
         
         # 初始参数
@@ -860,7 +859,22 @@ class NestedHMM_full():
     def _update_speaker_transition_params(self, stats):
         """使用数值优化更新说话人转移参数(只优化非对角线元素和gamma2, eta2)"""
         mask_offdiag = ~np.eye(self.n_actors, dtype=bool)
+        # 预先计算非零权重及其索引
+        weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2)) # [f_curr, x_onehot_curr, s_prev, s_curr]
+        weights_sum = weights.sum(axis=(2, 3))  # shape: (n_face_states, n_actors+1)
+        # 找出所有非零元素的索引
+        nonzero_indices = np.nonzero(weights_sum)  # 返回两个数组: (f_indices, x_indices)
+        f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
+        x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
 
+        # 根据非零索引提取对应的 weights 子集
+        weights = weights[f_indices, x_indices, :, :]  # shape: (n_nonzero, n_actors, n_actors)
+        mask = (weights > 0)
+
+        # 根据索引提取对应的配置
+        F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
+        X_configs = self.X_arr[x_indices]  # shape: (n_nonzero, n_actors)
+        
         def objective_speaker_transition(params):
             # params: [A_S_offdiag, gamma2, eta2]
             A_S_mat = np.zeros((self.n_actors, self.n_actors))  # 对角线强制为0
@@ -868,25 +882,9 @@ class NestedHMM_full():
             gamma2 = params[-2]
             eta2 = params[-1]
             
-            weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2)) # [f_curr, x_onehot_curr, s_prev, s_curr]
-            weights_sum = weights.sum(axis=(2, 3))  # shape: (n_face_states, n_actors+1)
-            # 找出所有非零元素的索引
-            nonzero_indices = np.nonzero(weights_sum)  # 返回两个数组: (f_indices, x_indices)
-            f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
-            x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
-
-            # 根据非零索引提取对应的 weights 子集
-            weights = weights[f_indices, x_indices, :, :]  # shape: (n_nonzero, n_actors, n_actors)
-
-            # 根据索引提取对应的配置
-            F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
-            X_configs = self.X_arr[x_indices]  # shape: (n_nonzero, n_actors)
             # [n_nonzero, n_actors_prev, n_actors_curr(speaker/face)]
             logits = A_S_mat[None, :, :] + gamma2 * F_configs[:, None, :] + eta2 * X_configs[:, None, :]   
-            
             log_probs = logits - logsumexp(logits, axis=2, keepdims=True)
-
-            mask = (weights > 0)
             loss = - np.sum(weights[mask] * log_probs[mask])
             
             return loss
