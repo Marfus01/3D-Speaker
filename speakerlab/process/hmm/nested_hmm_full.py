@@ -870,6 +870,9 @@ class NestedHMM_full():
         # 根据非零索引提取对应的 weights 子集
         weights = weights[f_indices, x_indices, :, :]  # shape: (n_nonzero, n_actors, n_actors)
         mask = (weights > 0)
+        # 对 weights 在 F_configs&X_configs or speaker_curr 维度上求和，便于后续梯度计算
+        weights_sum_over_fx = weights.sum(axis=0)   # shape: (n_actors, n_actors)
+        weights_sum_over_scurr = weights.sum(axis=2)  # shape: (n_nonzero, n_actors)
 
         # 根据索引提取对应的配置
         F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
@@ -882,21 +885,34 @@ class NestedHMM_full():
             gamma2 = params[-2]
             eta2 = params[-1]
             
-            # [n_nonzero, n_actors_prev, n_actors_curr(speaker/face)]
-            logits = A_S_mat[None, :, :] + gamma2 * F_configs[:, None, :] + eta2 * X_configs[:, None, :]   
+            # Calculate loss
+            ## [n_nonzero, n_actors_prev, n_actors_curr(speaker/face)]
+            logits = A_S_mat[None, :, :] + gamma2 * F_configs[:, None, :] + eta2 * X_configs[:, None, :]
             log_probs = logits - logsumexp(logits, axis=2, keepdims=True)
             loss = - np.sum(weights[mask] * log_probs[mask])
             
-            return loss
+            # Calculate gradient
+            probs = np.exp(log_probs)  # shape: (n_nonzero, n_actors_prev, n_actors_curr)
+            ## For A_S_mat
+            grad_A_S = -weights_sum_over_fx + (probs*weights_sum_over_scurr[:, :, None]).sum(axis=0)  # shape: (n_actors, n_actors)
+            ## For gamma2
+            grad_gamma2 = -np.sum(weights * F_configs[:, None, :]) + np.sum(weights_sum_over_scurr*(probs * F_configs[:, None, :]).sum(axis=2))
+            ## For eta2
+            grad_eta2 = -np.sum(weights * X_configs[:, None, :]) + np.sum(weights_sum_over_scurr*(probs * X_configs[:, None, :]).sum(axis=2))
+            ## Combine gradients
+            grad_flat = np.concatenate([grad_A_S[mask_offdiag], np.array([grad_gamma2, grad_eta2])])
+
+            return loss, grad_flat
         
         # 初始参数：只取A_S_非对角线元素和gamma2, eta2
         x0 = np.concatenate([self.A_S_[mask_offdiag], np.array([self.gamma2_, self.eta2_])])    # shape: (n_actors*(n_actors-1) + 2,)
         
         # 优化
-        result = minimize(objective_speaker_transition, x0, method='L-BFGS-B',
-                          options={'maxiter': 10, 'ftol': 1e-3})
-        obj_init = objective_speaker_transition(x0)
-        obj_final = objective_speaker_transition(result.x)
+        ## jac=True 表示 objective_and_grad 同时返回 loss 和 gradient, disp=True 用于查看收敛信息(在sh中无法实时打印，暂时不用。但是能看到obj的持续下降)
+        result = minimize(objective_speaker_transition, x0, method='L-BFGS-B', jac=True,
+                          options={'maxiter': 10, 'ftol': 1e-3, 'disp': True})
+        obj_init, _ = objective_speaker_transition(x0)
+        obj_final, _ = objective_speaker_transition(result.x)
 
         if result.success or obj_final < obj_init:
             # 重建A_S_，对角线为0
