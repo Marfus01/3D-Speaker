@@ -670,10 +670,17 @@ class NestedHMM_full():
                 stats_updated['speaker_emission_counts'][l_class, :, speaker_obs] += gamma_filtered.sum(axis=0)
 
             ## 面部发射统计量
-            for actor in range(self.n_actors):  # 人脸期望式中的 $\varrho$
-                for face_state in [0, 1]:  # 人脸期望式中的 $\delta$
-                    mask_filtered = (self.face_configs_arr[F_idxs_curr, actor] == face_state)
-                    stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] += gamma_faces_filtered[mask_filtered].sum()
+            actor_idxs = np.arange(self.n_actors)
+            face_states = np.array([0, 1])
+            face_configs_arr_curr = self.face_configs_arr[F_idxs_curr,:]  # (n_face_states_potential, n_actors)
+            mask = (face_configs_arr_curr[:, :, None] == face_states[None, None, :])    # (n_face_states_potential, n_actors, 2)
+            face_emission_counts_delta = np.einsum('i,ijk->jk', gamma_faces_filtered, mask) # (n_actors, 2)
+            stats_updated['face_emission_counts'][actor_idxs[:, None], face_states[None, :], F_hat[t, actor_idxs][:, None]] += face_emission_counts_delta   # update all stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] at once. actor \in [0, n_actors-1], face_state \in [0,1]
+            # for actor in range(self.n_actors):  # 人脸期望式中的 $\varrho$
+            #     for face_state in [0, 1]:  # 人脸期望式中的 $\delta$
+            #         mask_filtered = (self.face_configs_arr[F_idxs_curr, actor] == face_state)
+                    # assert np.isclose(face_emission_counts_delta[actor, face_state], gamma_faces_filtered[mask_filtered].sum()), f"Mismatch in face emission counts for actor {actor}, face_state {face_state}: {face_emission_counts_delta[actor, face_state]} vs {gamma_faces_filtered[mask_filtered].sum()}"
+                    # stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] += gamma_faces_filtered[mask_filtered].sum()
 
         return stats_updated
 
@@ -788,8 +795,28 @@ class NestedHMM_full():
             probs_factors = A_F_[np.arange(self.n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
             log_probs_unnormed = np.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev,n_face_states_curr)
             log_probs = log_probs_unnormed - logsumexp(log_probs_unnormed, axis=1)[:, None]  # 归一化, 每个元素是从prev_config转移到curr_config的对数概率
+
+            # Calculate negative loss
             log_probs_weighted_sum = np.sum(log_probs * expectation_weight) # 内层求和
-            return log_probs_weighted_sum
+
+            # Calculate negative gradient
+            probs = np.exp(log_probs)
+            grad = np.zeros((self.n_actors, 2))  # shape: (n_actors, 2), diagonal elements for each actor
+            for actor in range(self.n_actors):  # $\varrho^\ast$
+                for delta in [0, 1]:
+                    mask_prev_delta = (face_configs_arr_prev[:, actor] == delta)  # shape: (n_face_states_prev,)
+                    mask_curr_delta = (face_configs_arr_curr[:, actor] == delta)  # shape: (n_face_states_curr,)
+                    wgt_sum_over_curr_delta = expectation_weight[np.ix_(mask_prev_delta, mask_curr_delta)].sum(axis=1)  # shape: (n_face_states_prev_selected,)
+                    wgt_sum_over_curr_delta_neg = expectation_weight[np.ix_(mask_prev_delta, ~mask_curr_delta)].sum(axis=1)
+                    wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
+                    probs_sum_over_curr_delta = probs[np.ix_(mask_prev_delta, mask_curr_delta)].sum(axis=1)
+                    probs_sum_over_curr_delta_neg = probs[np.ix_(mask_prev_delta, ~mask_curr_delta)].sum(axis=1)
+
+                    grad_part1 = np.sum(wgt_sum_over_curr_delta - wgt_sum_over_curr * probs_sum_over_curr_delta)/A_F_[actor, delta, delta]
+                    grad_part2 = np.sum(wgt_sum_over_curr_delta_neg - wgt_sum_over_curr * probs_sum_over_curr_delta_neg)/ (1 - A_F_[actor, delta, delta])
+                    grad[actor, delta] = grad_part1 - grad_part2
+
+            return log_probs_weighted_sum, grad
 
         def objective_face_transition(params):
             A_F_diags = params.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
@@ -799,17 +826,19 @@ class NestedHMM_full():
             A_F_[:, 0, 1] = 1 -  A_F_[:, 0, 0]
             A_F_[:, 1, 1] = A_F_diags[:, 1]
             A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
-            loss = - sum(face_transition_probs_weighted_sum(A_F_, k, v) for k, v in stats['face_transition_counts'].items())
-            return loss
+            loss_and_grad = [face_transition_probs_weighted_sum(A_F_, k, v) for k, v in stats['face_transition_counts'].items()]
+            loss = - sum(item[0] for item in loss_and_grad)
+            grad = - sum(item[1] for item in loss_and_grad)
+            return loss, grad.flatten()
         
         # 初始参数
         x0 =  np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2). diagonal elements in A_F_\rho
         # 优化
-        result = minimize(objective_face_transition, x0, method='L-BFGS-B',
+        result = minimize(objective_face_transition, x0, method='L-BFGS-B', jac=True,
                         bounds=[(1e-6, 1-1e-6)]*self.n_actors*2,
                         options={'maxiter': 10, 'ftol': 1e-3})
-        obj_init = objective_face_transition(x0)
-        obj_final = objective_face_transition(result.x)
+        obj_init, _ = objective_face_transition(x0)
+        obj_final, _ = objective_face_transition(result.x)
         
         if result.success or obj_final < obj_init:
             self.A_F_ = np.zeros((self.n_actors, 2, 2))
@@ -910,7 +939,7 @@ class NestedHMM_full():
         # 优化
         ## jac=True 表示 objective_and_grad 同时返回 loss 和 gradient, disp=True 用于查看收敛信息(在sh中无法实时打印，暂时不用。但是能看到obj的持续下降)
         result = minimize(objective_speaker_transition, x0, method='L-BFGS-B', jac=True,
-                          options={'maxiter': 10, 'ftol': 1e-3, 'disp': True})
+                          options={'maxiter': 10, 'ftol': 1e-3})
         obj_init, _ = objective_speaker_transition(x0)
         obj_final, _ = objective_speaker_transition(result.x)
 
