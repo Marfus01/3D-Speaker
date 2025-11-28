@@ -1,11 +1,12 @@
 import numpy as np
+import os, time, copy, itertools, pickle
 from scipy.special import logsumexp
 from scipy.optimize import minimize
 from sklearn.utils import check_random_state
-
+from concurrent.futures import ProcessPoolExecutor
 from .monitor import ConvergenceMonitor
-import time, copy, itertools
-import pickle
+
+max_workers = os.cpu_count()  # 获取当前机器的CPU核心数
 
 class NestedHMM_full():
     """
@@ -780,58 +781,57 @@ class NestedHMM_full():
             print("Warning: face initial parameters optimization did not converge.")
         print(f"For face initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
+    @staticmethod
+    def face_transition_probs_weighted_sum(args):
+        """
+        计算潜在面部配置的转移概率 $\bbP(F_{i,t,\cdot}\vert F_{i,t-1,\cdot}, <context>)$ 的对数的加权平均值。
+        - return: log_probs_weighted_sum = \sum_{f_prev,f_curr} \log \bbP(F_{i,t,\cdot}=f_curr \vert F_{i,t-1,\cdot}=f_prev) * weight(f_prev, f_curr)
+        """
+        A_F_, face_configs_arr_curr, face_configs_arr_prev, expectation_weight = args
+        n_actors = face_configs_arr_curr.shape[1]
+        
+        probs_factors = A_F_[np.arange(n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], 
+                                face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
+        log_probs_unnormed = np.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev,n_face_states_curr)
+        log_probs = log_probs_unnormed - logsumexp(log_probs_unnormed, axis=1)[:, None]  # 归一化, 每个元素是从prev_config转移到curr_config的对数概率
+
+        # Calculate negative loss
+        log_probs_weighted_sum = np.sum(log_probs * expectation_weight) # 内层求和
+
+        # Calculate negative gradient
+        probs = np.exp(log_probs)
+        actor_idxs = np.arange(n_actors)
+        deltas = np.array([0, 1])
+
+        ## 创建mask数组: mask[:, actor, delta] 表示prev/curr face config中actor的取值是否等于delta
+        mask_prev_deltas = (face_configs_arr_prev[:, :, None] == deltas[None, None, :])  # (n_face_states_prev, n_actors, 2)
+        mask_curr_deltas = (face_configs_arr_curr[:, :, None] == deltas[None, None, :])  # (n_face_states_curr, n_actors, 2)
+        mask_prev_deltas_4d = mask_prev_deltas[:, None, :, :]  # shape (n_face_states_prev, 1, n_actors, 2)
+        mask_curr_deltas_4d = mask_curr_deltas[None, :, :, :]  # shape (1, n_face_states_curr, n_actors, 2)
+        
+        ## 计算权重和与概率和， of shape (n_face_states_prev, n_actors, 2)
+        wgt_sum_over_curr_delta = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
+        wgt_sum_over_curr_delta_neg = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
+        wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
+        
+        # probs_sum_over_curr_delta: shape (n_face_states_prev, n_actors, 2)
+        probs_sum_over_curr_delta = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
+        probs_sum_over_curr_delta_neg = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
+        
+        ## 计算梯度的两部分
+        grad_part1 = np.sum((wgt_sum_over_curr_delta - wgt_sum_over_curr * probs_sum_over_curr_delta), axis=0
+                            ) / A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]]
+        
+        grad_part2 = np.sum((wgt_sum_over_curr_delta_neg - wgt_sum_over_curr * probs_sum_over_curr_delta_neg),
+                            axis=0) / (1 - A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]])
+        
+        # grad: shape (n_actors, 2)
+        grad = grad_part1 - grad_part2
+
+        return log_probs_weighted_sum, grad
+    
     def _update_face_transition_params(self, stats):
         """使用数值优化更新面部转移参数"""
-        def face_transition_probs_weighted_sum(A_F_, F_idxs_curr_key, prevf_and_weights):
-            """
-            计算潜在面部配置的转移概率 $\bbP(F_{i,t,\cdot}\vert F_{i,t-1,\cdot}, <context>)$ 的对数的加权平均值。
-            - return: log_probs_weighted_sum = \sum_{f_prev,f_curr} \log \bbP(F_{i,t,\cdot}=f_curr \vert F_{i,t-1,\cdot}=f_prev) * weight(f_prev, f_curr)
-            """            
-            F_idxs_curr = list(F_idxs_curr_key)
-            F_idxs_prev, expectation_weight = prevf_and_weights
-            face_configs_arr_prev = self.face_configs_arr[F_idxs_prev]  # shape: (n_face_states_prev, n_actors)
-            face_configs_arr_curr = self.face_configs_arr[F_idxs_curr]  # shape: (n_face_states_curr, n_actors)
-            
-            probs_factors = A_F_[np.arange(self.n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], 
-                                 face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
-            log_probs_unnormed = np.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev,n_face_states_curr)
-            log_probs = log_probs_unnormed - logsumexp(log_probs_unnormed, axis=1)[:, None]  # 归一化, 每个元素是从prev_config转移到curr_config的对数概率
-
-            # Calculate negative loss
-            log_probs_weighted_sum = np.sum(log_probs * expectation_weight) # 内层求和
-
-            # Calculate negative gradient
-            probs = np.exp(log_probs)
-            actor_idxs = np.arange(self.n_actors)
-            deltas = np.array([0, 1])
-
-            ## 创建mask数组: mask[:, actor, delta] 表示prev/curr face config中actor的取值是否等于delta
-            mask_prev_deltas = (face_configs_arr_prev[:, :, None] == deltas[None, None, :])  # (n_face_states_prev, n_actors, 2)
-            mask_curr_deltas = (face_configs_arr_curr[:, :, None] == deltas[None, None, :])  # (n_face_states_curr, n_actors, 2)
-            mask_prev_deltas_4d = mask_prev_deltas[:, None, :, :]  # shape (n_face_states_prev, 1, n_actors, 2)
-            mask_curr_deltas_4d = mask_curr_deltas[None, :, :, :]  # shape (1, n_face_states_curr, n_actors, 2)
-            
-            ## 计算权重和与概率和， of shape (n_face_states_prev, n_actors, 2)
-            wgt_sum_over_curr_delta = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
-            wgt_sum_over_curr_delta_neg = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
-            wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
-            
-            # probs_sum_over_curr_delta: shape (n_face_states_prev, n_actors, 2)
-            probs_sum_over_curr_delta = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
-            probs_sum_over_curr_delta_neg = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
-            
-            ## 计算梯度的两部分
-            grad_part1 = np.sum((wgt_sum_over_curr_delta - wgt_sum_over_curr * probs_sum_over_curr_delta), axis=0
-                                ) / A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]]
-            
-            grad_part2 = np.sum((wgt_sum_over_curr_delta_neg - wgt_sum_over_curr * probs_sum_over_curr_delta_neg),
-                                axis=0) / (1 - A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]])
-            
-            # grad: shape (n_actors, 2)
-            grad = grad_part1 - grad_part2
-
-            return log_probs_weighted_sum, grad
-
         def objective_face_transition(params):
             A_F_diags = params.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
             A_F_diags = np.clip(A_F_diags, 1e-8, 1-1e-8)
@@ -840,7 +840,11 @@ class NestedHMM_full():
             A_F_[:, 0, 1] = 1 -  A_F_[:, 0, 0]
             A_F_[:, 1, 1] = A_F_diags[:, 1]
             A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
-            loss_and_grad = [face_transition_probs_weighted_sum(A_F_, k, v) for k, v in stats['face_transition_counts'].items()]
+            
+            args_iter = ((A_F_, self.face_configs_arr[list(k)], self.face_configs_arr[v[0]], v[1]) for k, v in stats['face_transition_counts'].items())
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                loss_and_grad = list(executor.map(self.face_transition_probs_weighted_sum, args_iter))
+
             loss = - sum(item[0] for item in loss_and_grad)
             grad = - sum(item[1] for item in loss_and_grad)
             return loss, grad.flatten()
