@@ -792,7 +792,8 @@ class NestedHMM_full():
             face_configs_arr_prev = self.face_configs_arr[F_idxs_prev]  # shape: (n_face_states_prev, n_actors)
             face_configs_arr_curr = self.face_configs_arr[F_idxs_curr]  # shape: (n_face_states_curr, n_actors)
             
-            probs_factors = A_F_[np.arange(self.n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
+            probs_factors = A_F_[np.arange(self.n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], 
+                                 face_configs_arr_curr.T[:, None, :]]  # shape: (n_actors, n_face_states_prev, n_face_states_curr)
             log_probs_unnormed = np.log(probs_factors).sum(axis=0)  # shape: (n_face_states_prev,n_face_states_curr)
             log_probs = log_probs_unnormed - logsumexp(log_probs_unnormed, axis=1)[:, None]  # 归一化, 每个元素是从prev_config转移到curr_config的对数概率
 
@@ -801,20 +802,33 @@ class NestedHMM_full():
 
             # Calculate negative gradient
             probs = np.exp(log_probs)
-            grad = np.zeros((self.n_actors, 2))  # shape: (n_actors, 2), diagonal elements for each actor
-            for actor in range(self.n_actors):  # $\varrho^\ast$
-                for delta in [0, 1]:
-                    mask_prev_delta = (face_configs_arr_prev[:, actor] == delta)  # shape: (n_face_states_prev,)
-                    mask_curr_delta = (face_configs_arr_curr[:, actor] == delta)  # shape: (n_face_states_curr,)
-                    wgt_sum_over_curr_delta = expectation_weight[np.ix_(mask_prev_delta, mask_curr_delta)].sum(axis=1)  # shape: (n_face_states_prev_selected,)
-                    wgt_sum_over_curr_delta_neg = expectation_weight[np.ix_(mask_prev_delta, ~mask_curr_delta)].sum(axis=1)
-                    wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
-                    probs_sum_over_curr_delta = probs[np.ix_(mask_prev_delta, mask_curr_delta)].sum(axis=1)
-                    probs_sum_over_curr_delta_neg = probs[np.ix_(mask_prev_delta, ~mask_curr_delta)].sum(axis=1)
+            actor_idxs = np.arange(self.n_actors)
+            deltas = np.array([0, 1])
 
-                    grad_part1 = np.sum(wgt_sum_over_curr_delta - wgt_sum_over_curr * probs_sum_over_curr_delta)/A_F_[actor, delta, delta]
-                    grad_part2 = np.sum(wgt_sum_over_curr_delta_neg - wgt_sum_over_curr * probs_sum_over_curr_delta_neg)/ (1 - A_F_[actor, delta, delta])
-                    grad[actor, delta] = grad_part1 - grad_part2
+            ## 创建mask数组: mask[:, actor, delta] 表示prev/curr face config中actor的取值是否等于delta
+            mask_prev_deltas = (face_configs_arr_prev[:, :, None] == deltas[None, None, :])  # (n_face_states_prev, n_actors, 2)
+            mask_curr_deltas = (face_configs_arr_curr[:, :, None] == deltas[None, None, :])  # (n_face_states_curr, n_actors, 2)
+            mask_prev_deltas_4d = mask_prev_deltas[:, None, :, :]  # shape (n_face_states_prev, 1, n_actors, 2)
+            mask_curr_deltas_4d = mask_curr_deltas[None, :, :, :]  # shape (1, n_face_states_curr, n_actors, 2)
+            
+            ## 计算权重和与概率和， of shape (n_face_states_prev, n_actors, 2)
+            wgt_sum_over_curr_delta = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
+            wgt_sum_over_curr_delta_neg = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
+            wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
+            
+            # probs_sum_over_curr_delta: shape (n_face_states_prev, n_actors, 2)
+            probs_sum_over_curr_delta = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
+            probs_sum_over_curr_delta_neg = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
+            
+            ## 计算梯度的两部分
+            grad_part1 = np.sum((wgt_sum_over_curr_delta - wgt_sum_over_curr * probs_sum_over_curr_delta), axis=0
+                                ) / A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]]
+            
+            grad_part2 = np.sum((wgt_sum_over_curr_delta_neg - wgt_sum_over_curr * probs_sum_over_curr_delta_neg),
+                                axis=0) / (1 - A_F_[actor_idxs[:, None], deltas[None, :], deltas[None, :]])
+            
+            # grad: shape (n_actors, 2)
+            grad = grad_part1 - grad_part2
 
             return log_probs_weighted_sum, grad
 
