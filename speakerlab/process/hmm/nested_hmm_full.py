@@ -6,7 +6,6 @@ from sklearn.utils import check_random_state
 from concurrent.futures import ProcessPoolExecutor
 from .monitor import ConvergenceMonitor
 
-max_workers = os.cpu_count()  # 获取当前机器的CPU核心数
 
 class NestedHMM_full():
     """
@@ -321,6 +320,7 @@ class NestedHMM_full():
 
         self._check_and_set_n_features(S_hat_onehot, F_hat, X_onehot,F_potential_states_idxs, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
+        max_workers = min(os.cpu_count(), len(lengths))  # 获取当前机器的CPU核心数
         
         # 初始化参数
         self._init_params()
@@ -863,7 +863,7 @@ class NestedHMM_full():
     
     def _update_face_transition_params(self, stats):
         """使用数值优化更新面部转移参数"""
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(max_workers=os.cpu_count()//2) as executor:
             face_trans_stat = list(executor.map(self.preprocess_face_trans_stat, ((self.face_configs_arr, item) for item in stats['face_transition_counts'].items())))
 
         def objective_face_transition(params):
@@ -876,7 +876,7 @@ class NestedHMM_full():
             A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
             
             args_iter = ((A_F_, data) for data in face_trans_stat)
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=os.cpu_count()//2) as executor:
                 loss_and_grad = list(executor.map(self.face_transition_probs_weighted_sum, args_iter))
 
             loss = - sum(item[0] for item in loss_and_grad)
@@ -886,7 +886,7 @@ class NestedHMM_full():
         # 初始参数
         x0 =  np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2). diagonal elements in A_F_\rho
         # 优化
-        print("num_workers for face transition params optimization:", max_workers)
+        print("num_workers for face transition params optimization:", os.cpu_count()//2)
         result = minimize(objective_face_transition, x0, method='L-BFGS-B', jac=True,
                         bounds=[(1e-6, 1-1e-6)]*self.n_actors*2,
                         options={'maxiter': 10, 'ftol': 1e-3})
