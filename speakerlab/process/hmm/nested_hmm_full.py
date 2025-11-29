@@ -729,7 +729,7 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    B_F_diag_max = 0.99
+                    B_F_diag_max = 0.95
                     if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
                         B_F_diag_max_flag = True
                         self.B_F_[actor, state, state] = B_F_diag_max
@@ -738,7 +738,7 @@ class NestedHMM_full():
                     # self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
                     self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
             if B_F_diag_max_flag:
-                print(f"Warning: Some face emission probabilities exceeded the maximum diagonal limit and were adjusted accordingly.")
+                print(f"Warning: Some face emission probabilities exceeded the maximum diagonal limit={B_F_diag_max} and were adjusted accordingly.")
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
@@ -781,13 +781,56 @@ class NestedHMM_full():
             print("Warning: face initial parameters optimization did not converge.")
         print(f"For face initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
+    # 预先处理stats['face_transition_counts']的每一个item，避免重复计算
+    @staticmethod
+    def preprocess_face_trans_stat(args):
+        """预处理面部转移数据，计算mask和权重"""
+        face_configs_arr, item = args
+        ## 获取前一时刻/当前时刻的可能人脸配置
+        F_idxs_curr_key, prevf_and_weights = item
+        F_idxs_curr = list(F_idxs_curr_key)
+        F_idxs_prev, expectation_weight = prevf_and_weights
+        face_configs_arr_prev = face_configs_arr[F_idxs_prev]  # shape: (n_face_states_prev, n_actors)
+        face_configs_arr_curr = face_configs_arr[F_idxs_curr]  # shape: (n_face_states_curr, n_actors)
+        
+        ## 创建mask数组: mask[:, actor, delta] 表示prev/curr face config中actor的取值是否等于delta
+        deltas = np.array([0, 1])
+        mask_prev_deltas = (face_configs_arr_prev[:, :, None] == deltas[None, None, :])  # (n_face_states_prev, n_actors, 2)
+        mask_curr_deltas = (face_configs_arr_curr[:, :, None] == deltas[None, None, :])  # (n_face_states_curr, n_actors, 2)
+        mask_prev_deltas_4d = mask_prev_deltas[:, None, :, :]  # shape (n_face_states_prev, 1, n_actors, 2)
+        mask_curr_deltas_4d = mask_curr_deltas[None, :, :, :]  # shape (1, n_face_states_curr, n_actors, 2)
+        
+        ## 计算权重和与概率和， of shape (n_face_states_prev, n_actors, 2)
+        wgt_sum_over_curr_delta = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
+        wgt_sum_over_curr_delta_neg = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
+        wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
+        
+        return {
+            'face_configs_arr_curr': face_configs_arr_curr,
+            'face_configs_arr_prev': face_configs_arr_prev,
+            'expectation_weight': expectation_weight,
+            'mask_prev_deltas_4d': mask_prev_deltas_4d,
+            'mask_curr_deltas_4d': mask_curr_deltas_4d,
+            'wgt_sum_over_curr_delta': wgt_sum_over_curr_delta,
+            'wgt_sum_over_curr_delta_neg': wgt_sum_over_curr_delta_neg,
+            'wgt_sum_over_curr': wgt_sum_over_curr
+        }
+
     @staticmethod
     def face_transition_probs_weighted_sum(args):
         """
         计算潜在面部配置的转移概率 $\bbP(F_{i,t,\cdot}\vert F_{i,t-1,\cdot}, <context>)$ 的对数的加权平均值。
         - return: log_probs_weighted_sum = \sum_{f_prev,f_curr} \log \bbP(F_{i,t,\cdot}=f_curr \vert F_{i,t-1,\cdot}=f_prev) * weight(f_prev, f_curr)
         """
-        A_F_, face_configs_arr_curr, face_configs_arr_prev, expectation_weight = args
+        A_F_, data = args
+        face_configs_arr_curr = data['face_configs_arr_curr']
+        face_configs_arr_prev = data['face_configs_arr_prev']
+        expectation_weight = data['expectation_weight']
+        mask_prev_deltas_4d = data['mask_prev_deltas_4d']
+        mask_curr_deltas_4d = data['mask_curr_deltas_4d']
+        wgt_sum_over_curr_delta = data['wgt_sum_over_curr_delta']
+        wgt_sum_over_curr_delta_neg = data['wgt_sum_over_curr_delta_neg']
+        wgt_sum_over_curr = data['wgt_sum_over_curr']
         n_actors = face_configs_arr_curr.shape[1]
         
         probs_factors = A_F_[np.arange(n_actors)[:, None, None], face_configs_arr_prev.T[:, :, None], 
@@ -802,19 +845,7 @@ class NestedHMM_full():
         probs = np.exp(log_probs)
         actor_idxs = np.arange(n_actors)
         deltas = np.array([0, 1])
-
-        ## 创建mask数组: mask[:, actor, delta] 表示prev/curr face config中actor的取值是否等于delta
-        mask_prev_deltas = (face_configs_arr_prev[:, :, None] == deltas[None, None, :])  # (n_face_states_prev, n_actors, 2)
-        mask_curr_deltas = (face_configs_arr_curr[:, :, None] == deltas[None, None, :])  # (n_face_states_curr, n_actors, 2)
-        mask_prev_deltas_4d = mask_prev_deltas[:, None, :, :]  # shape (n_face_states_prev, 1, n_actors, 2)
-        mask_curr_deltas_4d = mask_curr_deltas[None, :, :, :]  # shape (1, n_face_states_curr, n_actors, 2)
-        
-        ## 计算权重和与概率和， of shape (n_face_states_prev, n_actors, 2)
-        wgt_sum_over_curr_delta = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
-        wgt_sum_over_curr_delta_neg = np.sum(expectation_weight[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
-        wgt_sum_over_curr = wgt_sum_over_curr_delta + wgt_sum_over_curr_delta_neg
-        
-        # probs_sum_over_curr_delta: shape (n_face_states_prev, n_actors, 2)
+        ## probs_sum_over_curr_delta: shape (n_face_states_prev, n_actors, 2)
         probs_sum_over_curr_delta = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * mask_curr_deltas_4d, axis=1)
         probs_sum_over_curr_delta_neg = np.sum(probs[:, :, None, None] * mask_prev_deltas_4d * (~mask_curr_deltas_4d), axis=1)
         
@@ -832,6 +863,9 @@ class NestedHMM_full():
     
     def _update_face_transition_params(self, stats):
         """使用数值优化更新面部转移参数"""
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            face_trans_stat = list(executor.map(self.preprocess_face_trans_stat, ((self.face_configs_arr, item) for item in stats['face_transition_counts'].items())))
+
         def objective_face_transition(params):
             A_F_diags = params.reshape((self.n_actors, 2))  # shape: (n_actors, 2)
             A_F_diags = np.clip(A_F_diags, 1e-8, 1-1e-8)
@@ -841,7 +875,7 @@ class NestedHMM_full():
             A_F_[:, 1, 1] = A_F_diags[:, 1]
             A_F_[:, 1, 0] = 1 -  A_F_[:, 1, 1]
             
-            args_iter = ((A_F_, self.face_configs_arr[list(k)], self.face_configs_arr[v[0]], v[1]) for k, v in stats['face_transition_counts'].items())
+            args_iter = ((A_F_, data) for data in face_trans_stat)
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 loss_and_grad = list(executor.map(self.face_transition_probs_weighted_sum, args_iter))
 
@@ -852,6 +886,7 @@ class NestedHMM_full():
         # 初始参数
         x0 =  np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2). diagonal elements in A_F_\rho
         # 优化
+        print("num_workers for face transition params optimization:", max_workers)
         result = minimize(objective_face_transition, x0, method='L-BFGS-B', jac=True,
                         bounds=[(1e-6, 1-1e-6)]*self.n_actors*2,
                         options={'maxiter': 10, 'ftol': 1e-3})
@@ -873,27 +908,53 @@ class NestedHMM_full():
 
     def _update_speaker_initial_params(self, stats):
         """使用数值优化更新说话人初始参数"""
+        # 预先计算非零权重及其索引
+        weights = np.transpose(stats['speaker_initial_counts'], axes=(0, 2, 1))   # [f_init, x_onehot_init, s_init]
+        # 找出所有非零元素的索引
+        nonzero_indices = np.nonzero(weights.sum(axis=(2)))  # 返回两个数组: (f_indices, x_indices)
+        f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
+        x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
+        
+        # 根据非零索引提取对应的 weights 子集
+        weights = weights[f_indices, x_indices, :]  # shape: (n_nonzero, n_actors)
+        masks = (weights > 0)
+        # 对 weights 在 F_configs&X_configs or speaker_initial 维度上求和，便于后续梯度计算
+        weights_sum_over_fx = weights.sum(axis=0)   # shape: (n_actors)
+        weights_sum_over_sinit = weights.sum(axis=1)  # shape: (n_nonzero)
+
+        # 根据索引提取对应的配置
+        F_configs = self.face_configs_arr[f_indices]  # shape: (n_nonzero, n_actors)
+        X_configs = self.X_arr[x_indices]  # shape: (n_nonzero, n_actors)
+
         def objective_speaker_initial(params):
             beta, gamma1, eta1 = np.concatenate(([0.0], params[:-2])), params[-2], params[-1]
-            weights = np.transpose(stats['speaker_initial_counts'], axes=(0, 2, 1))   # [f_init, x_onehot_init, s_init]
-            masks = (weights > 0)
-            logits = beta[None, None, :] + gamma1*self.face_configs_arr[:, None, :] + eta1*self.X_arr[None, :, :]
-            log_probs = logits - logsumexp(logits, axis=2, keepdims=True)   # log-softmax
+
+            # Calculate loss
+            ## [n_nonzero, n_actors(initial speaker/face)]
+            logits = beta[None, :] + gamma1*F_configs + eta1*X_configs
+            log_probs = logits - logsumexp(logits, axis=1, keepdims=True)   # log-softmax
             loss = - np.sum(weights[masks] * log_probs[masks])
             
-            return loss
+            # Calculate gradient
+            probs = np.exp(log_probs)  # shape: (n_nonzero, n_actors_init)
+            ## For beta
+            grad_beta = -weights_sum_over_fx + (probs*weights_sum_over_sinit[:, None]).sum(axis=0)  # shape: (n_actors)
+            ## For gamma1
+            grad_gamma1 = -np.sum(weights * F_configs) + np.sum(weights_sum_over_sinit*(probs * F_configs).sum(axis=1))
+            ## For eta1
+            grad_eta1 = -np.sum(weights * X_configs) + np.sum(weights_sum_over_sinit*(probs * X_configs).sum(axis=1))
+            ## Combine gradients
+            grad_flat = np.concatenate([grad_beta[1:], np.array([grad_gamma1, grad_eta1])])
+
+            return loss, grad_flat
         
         # 初始参数
         x0 = np.concatenate([self.beta_[1:], np.array([self.gamma1_, self.eta1_])])
-        # print(f"Initial parameters for speaker initial params: {x0}")
-        # print(sum(stats['speaker_initial_counts']>0))
-        # print(stats['speaker_initial_counts'])
-
             
         # 优化
-        result = minimize(objective_speaker_initial, x0, method='L-BFGS-B')
-        obj_init = objective_speaker_initial(x0)
-        obj_final = objective_speaker_initial(result.x)
+        result = minimize(objective_speaker_initial, x0, method='L-BFGS-B', jac=True)
+        obj_init, _ = objective_speaker_initial(x0)
+        obj_final, _ = objective_speaker_initial(result.x)
         
         if result.success or obj_final < obj_init:
             self.beta_ = np.concatenate(([0.0], result.x[:-2]))
@@ -908,9 +969,8 @@ class NestedHMM_full():
         mask_offdiag = ~np.eye(self.n_actors, dtype=bool)
         # 预先计算非零权重及其索引
         weights = np.transpose(stats['speaker_transition_counts'], axes=(0, 3, 1, 2)) # [f_curr, x_onehot_curr, s_prev, s_curr]
-        weights_sum = weights.sum(axis=(2, 3))  # shape: (n_face_states, n_actors+1)
         # 找出所有非零元素的索引
-        nonzero_indices = np.nonzero(weights_sum)  # 返回两个数组: (f_indices, x_indices)
+        nonzero_indices = np.nonzero(weights.sum(axis=(2, 3)))  # 返回两个数组: (f_indices, x_indices)
         f_indices = nonzero_indices[0]  # shape: (n_nonzero,)
         x_indices = nonzero_indices[1]  # shape: (n_nonzero,)
 
