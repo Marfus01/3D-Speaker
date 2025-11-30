@@ -3,6 +3,7 @@ import os, time, copy, itertools, pickle
 from scipy.special import logsumexp
 from scipy.optimize import minimize
 from sklearn.utils import check_random_state
+from joblib import Parallel, delayed
 from concurrent.futures import ProcessPoolExecutor
 from .monitor import ConvergenceMonitor
 
@@ -1198,7 +1199,7 @@ class NestedHMM_full():
             'joint_states': joint_posteriors
         }
 
-    def predict(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, lengths=None):
+    def predict(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, lengths=None, n_jobs=1):
         """
         使用Viterbi算法，预测最可能的隐藏状态序列(面部状态和说话人状态)
         
@@ -1237,29 +1238,42 @@ class NestedHMM_full():
         face_states = np.zeros_like(F_hat, dtype=int)
         speaker_states = np.zeros(S_hat_onehot.shape[0], dtype=int)
         
+        # 准备每个序列的数据
+        seq_args = []
         start_idx = 0
         for seq_len in lengths:
             end_idx = start_idx + seq_len
-            
             # 提取当前序列
             seq_S_hat_onehot = S_hat_onehot[start_idx:end_idx]
             seq_F_hat = F_hat[start_idx:end_idx]
             seq_X_onehot = X_onehot[start_idx:end_idx]
             seq_F_potential_idxs = F_potential_states_idxs[start_idx:end_idx]
             seq_audio_dur_grps_onehot = audio_dur_grps_onehot[start_idx:end_idx] if audio_dur_grps_onehot is not None else None
-
-            # 使用维特比算法预测
-            seq_face_states, seq_speaker_states = self._viterbi(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
-            
-            # 存储结果
-            face_states[start_idx:end_idx] = seq_face_states
-            speaker_states[start_idx:end_idx] = seq_speaker_states
-            
+            seq_data = (seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
+            seq_args.append((start_idx, end_idx, seq_data))
             start_idx = end_idx
+        
+        # 使用维特比算法预测
+        if n_jobs == 1:
+            # 串行处理(保持原有逻辑)
+            for start_idx, end_idx, seq_data in seq_args:
+                seq_face_states, seq_speaker_states = self._viterbi(seq_data)
+                face_states[start_idx:end_idx] = seq_face_states
+                speaker_states[start_idx:end_idx] = seq_speaker_states
+        else:
+            # 并行处理
+            results = Parallel(n_jobs=n_jobs, backend='loky')(
+                delayed(self._viterbi)(seq_data) for _, _, seq_data in seq_args
+            )
             
+            # 汇总结果
+            for (start_idx, end_idx, _), (seq_face_states, seq_speaker_states) in zip(seq_args, results):
+                face_states[start_idx:end_idx] = seq_face_states
+                speaker_states[start_idx:end_idx] = seq_speaker_states
+        
         return face_states, speaker_states
 
-    def _viterbi(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+    def _viterbi(self, seq_data):
         """
         对单个序列使用维特比算法进行解码
         
@@ -1283,6 +1297,7 @@ class NestedHMM_full():
         speaker_states : array, shape (n_frames,)
             预测的说话人状态序列
         """
+        S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot = seq_data
         n_frames = S_hat_onehot.shape[0]
         
         # 初始化维特比表格 $\delta_{t}(f,s)$ 与回溯路径 $\psi_{t}(f,s)$
@@ -1321,19 +1336,21 @@ class NestedHMM_full():
             log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[t], S_hat_onehot[t], F_idxs_curr, l_config_t)
 
             # 计算每个当前状态对应的 $\delta_{t}(f,s)$
+            prev_viterbi = viterbi[t-1, F_idxs_prev, :]  # (f_prev, s_prev)         
             for i, f_idx in enumerate(F_idxs_curr):
-                for j, speaker in enumerate(range(self.n_actors)):
-                    # 遍历所有可能的前一状态 (f_prev, s_prev)，确定最佳前一状态
-                    total_prob_prev_no_obs = copy.deepcopy(viterbi[t-1, :, :])   # 对应i_{t-1}。绝大多数行均为 -inf, 这是因为在t-1时刻，这些行对应的f_prev不在可能状态列表中
-                    total_prob_prev_no_obs[F_idxs_prev, :] += log_trans_face_filtered[:, i][:, None] + log_trans_speaker_filtered[:, j, i][None, :] # 未更新的行仍为 -inf
-                    best_prev_flat = np.argmax(total_prob_prev_no_obs)
-                    best_prev_f, best_prev_s = np.unravel_index(best_prev_flat, total_prob_prev_no_obs.shape)
-
-                    # 确定 $\delta_{t}(f,s)$
-                    viterbi[t, f_idx, speaker] = total_prob_prev_no_obs[best_prev_f, best_prev_s] + log_face_emissions_filtered[i] + log_speaker_emissions[speaker]
-                    # 确定 $\psi_{t}(f,s)$
-                    path_face[t, f_idx, speaker] = best_prev_f
-                    path_speaker[t, f_idx, speaker] = best_prev_s
+                # 对当前面部配置,计算所有说话人的得分 (f_prev, s_prev, s_curr)
+                scores = (prev_viterbi[:, :, None] + log_trans_face_filtered[:, i][:, None, None] + log_trans_speaker_filtered[:, :, i][None, :, :])
+                
+                # 遍历所有可能的前一状态 (f_prev, s_prev)，确定最佳前一状态
+                best_indices = np.argmax(scores.reshape(-1, self.n_actors), axis=0) # shape: (n_actors,)
+                best_prev_f_idx, best_prev_s = best_indices // self.n_actors, best_indices % self.n_actors
+                best_scores = np.max(scores.reshape(-1, self.n_actors), axis=0)
+                # 更新viterbi和路径
+                ## 确定 $\delta_{t}(f,s)$
+                viterbi[t, f_idx, :] = best_scores + log_face_emissions_filtered[i] + log_speaker_emissions
+                ## 确定 $\psi_{t}(f,s)$
+                path_face[t, f_idx, :] = np.array([F_idxs_prev[idx] for idx in best_prev_f_idx])  # 映射回原始索引
+                path_speaker[t, f_idx, :] = best_prev_s
 
         # 找到最优路径的结束状态 $i_T^\ast$: best_end_f, best_end_s
         last_viterbi = viterbi[n_frames-1, :, :]  # shape (n_face_states, n_actors)
