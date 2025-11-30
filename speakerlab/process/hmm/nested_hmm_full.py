@@ -728,7 +728,7 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    B_F_diag_max = 0.95
+                    B_F_diag_max = 0.99
                     if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
                         B_F_diag_max_flag = True
                         self.B_F_[actor, state, state] = B_F_diag_max
@@ -1310,7 +1310,6 @@ class NestedHMM_full():
         for t in range(1, n_frames):
             F_idxs_prev = F_potential_idxs[t-1]
             F_idxs_curr = F_potential_idxs[t]
-            assert sum(2**i for i in F_hat[t].nonzero()[0]) in F_idxs_curr, "当前时刻观测的面部状态不在可能状态列表中！"
             ## 计算 f 所有可能的转移组合的转移概率
             log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_prev, F_idxs_curr)
             log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化

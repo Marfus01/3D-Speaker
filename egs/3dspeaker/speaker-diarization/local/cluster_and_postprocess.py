@@ -254,9 +254,14 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
 
     # # 使用训练好的模型解码隐藏状态
     # model.load_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+    start_time = time.time()
+    print("解码开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
     face_states_viterbi, speaker_states_viterbi = model.predict(S_hat_onehot, F_hat, X_onehot,
                                                                 F_potential_list, audio_dur_grps_onehot, lengths) # viterbi 解码结果
     np.save(os.path.join(result_dir, f'cluster_results_face_states_viterbi_nested_hmm_full{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.npy'), face_states_viterbi)
+    end_time = time.time()
+    print("解码结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print("解码耗时:", end_time - start_time, "秒")
 
     if flag_has_neg1:  # 将说话人的-1标签还原回来
         speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
@@ -350,7 +355,8 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
         new_vlabels_mf_aligned = np.full(len(vlabels_mf_aligned), -1, dtype=int)  # Default all vlabels_mf_aligned to -1
         
     # Retain only the top 2 * main_actors_num clusters
-    top_clusters = sorted_uniq_a[:2 * main_actors_num]
+    # top_clusters = sorted_uniq_a[:2 * main_actors_num]
+    top_clusters = sorted_uniq_a[:min(2 * main_actors_num, len(sorted_uniq_a), 12)]
     for new_id, old_id in enumerate(top_clusters):
         new_alabels[alabels == old_id] = new_id
         new_vlabels_vad_aligned[vlabels_vad_aligned == old_id] = new_id
