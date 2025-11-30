@@ -1003,9 +1003,9 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
     ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
     alabels_potential_list = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
-                                                        candi_align_cluster_num=3) # of the same length as alabels_processed
+                                                        candi_align_cluster_num=2) # of the same length as alabels_processed
     vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed), visual_embeddings_mf[aligned_mask_mf],
-                                                            candi_align_cluster_num=3) # of the same length as vlabels_mf_processed
+                                                            candi_align_cluster_num=2) # of the same length as vlabels_mf_processed
     del audio_embeddings, visual_embeddings_mf
 
     ## 转换观测及avd协变量为 binary 编码矩阵

@@ -688,30 +688,22 @@ class NestedHMM_full():
         """M步：更新参数"""
         # 更新面部初始概率
         if 'a' in self.params:
-            start_time = time.time()
             self._update_face_initial_params(stats)
             self.alpha_ = np.clip(self.alpha_, 1e-6, 1-1e-6)
-            print(f"面部初始参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新面部转移矩阵
         if 'b' in self.params:
-            start_time = time.time()
             self._update_face_transition_params(stats)
             self.A_F_ = np.clip(self.A_F_, 1e-6, 1-1e-6)
             self.A_F_ /= self.A_F_.sum(axis=2, keepdims=True)  # row normalization
-            print(f"面部转移参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人初始概率参数 (beta, gamma1, eta1)
         if 'c' in self.params or 'd' in self.params or 'i' in self.params:
-            start_time = time.time()
             self._update_speaker_initial_params(stats)
-            print(f"说话人初始参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新说话人转移概率参数 (A_S, gamma2, eta2)
         if 'e' in self.params or 'f' in self.params or 'j' in self.params:
-            start_time = time.time()
             self._update_speaker_transition_params(stats)
-            print(f"说话人转移参数更新耗时: {time.time() - start_time:.4f}秒")
         
         # 更新面部发射矩阵
         if 'g' in self.params:
@@ -741,9 +733,7 @@ class NestedHMM_full():
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
-            start_time = time.time()
             self._update_speaker_emission_params(stats, B_S_diag_min)
-            print(f"说话人发射参数更新耗时: {time.time() - start_time:.4f}秒")
 
 
     def _update_face_initial_params(self, stats):
@@ -886,7 +876,6 @@ class NestedHMM_full():
         # 初始参数
         x0 =  np.diagonal(self.A_F_, axis1=1, axis2=2).flatten()  # shape: (n_actors,2). diagonal elements in A_F_\rho
         # 优化
-        print("num_workers for face transition params optimization:", max_workers)
         result = minimize(objective_face_transition, x0, method='L-BFGS-B', jac=True,
                         bounds=[(1e-6, 1-1e-6)]*self.n_actors*2,
                         options={'maxiter': 10, 'ftol': 1e-3})
