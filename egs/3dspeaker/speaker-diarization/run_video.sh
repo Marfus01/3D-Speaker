@@ -23,6 +23,20 @@ nj=1  # 并行任务数
 master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
+# HMM平滑相关参数
+use_hmm_smoothing=true  # 在"audio_vision"聚类之后，是否做 HMM 平滑
+fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
+hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
+unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
+hmm_flag=""
+if [ "$use_hmm_smoothing" = true ]; then
+  hmm_flag="--use_hmm_smoothing"
+fi
+fix_mf_flag=""
+if [ "$fix_mf" = true ]; then
+  fix_mf_flag="--fix_mf"
+fi
+
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
 
 conf_file="conf/$tv_name/diar_video.yaml"
@@ -102,12 +116,13 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
     torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
             --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-            --audio_embs_dir "$exp/embs" --result_dir "$result_dir"
+            --audio_embs_dir "$exp/embs" --result_dir "$result_dir" $hmm_flag
   else
     echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
     torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
             --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-            --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir"
+            --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
+            $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
   fi
 fi
 
