@@ -50,6 +50,8 @@ class NestedHMM_full():
 
         # 创建监控器
         self.monitor_ = ConvergenceMonitor(tol, n_iter, verbose)
+        # 初始化参数
+        self._init_params()
 
     def _check_and_set_n_features(self, S_hat_onehot, F_hat, X_onehot, F_potential_states_idxs, audio_dur_grps_onehot=None):
         """
@@ -321,8 +323,6 @@ class NestedHMM_full():
         self._check_and_set_n_features(S_hat_onehot, F_hat, X_onehot,F_potential_states_idxs, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
         
-        # 初始化参数
-        self._init_params()
         # 重置收敛监控器
         self.monitor_._reset()
         
