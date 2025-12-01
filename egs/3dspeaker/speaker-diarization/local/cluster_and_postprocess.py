@@ -26,17 +26,29 @@ from speakerlab.process.cluster import summary_cluster_results, reset_cluster_id
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
-from speakerlab.process.hmm.nested_hmm import NestedHMM
 from speakerlab.process.hmm.nested_hmm_full import NestedHMM_full
 
 parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm files')
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--wavs', default=None, help='Wav list file')
 parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clustering type, support "audio_only" and "audio_vision"')
-parser.add_argument('--visual_info_type', default='vad+key_frame', type=str, help='Visual information type, support "vad", "key_frame", "vad+key_frame"')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding dir')
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
+parser.add_argument('--use_hmm_smoothing', action='store_true', help='Use HMM smoothing in iterations')
+parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
+parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
+parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
+
+# used to ignore the warning of hmmlearn
+class SuppressMultinomialHMMWarning:
+    def __enter__(self):
+        self._original_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stderr.close()
+        sys.stderr = self._original_stderr
 
 def make_rttms(seg_list, out_rttm, rec_id):
     """
@@ -144,16 +156,64 @@ def count_consecutive_ones(arr, seg_lengths=None):
 
     return lengths   
 
-def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_dir, flag_has_neg1=False,
-                        selective_change=False, duration_dat= None):
+def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
+    n_states_obs = len(np.unique(alabels))
+    n_states_hid = n_states_obs    
+    speaker_obs = alabels.reshape(-1, 1)
+
+    # define initial probs in hmm
+    audio_startprob_init = np.ones(n_states_hid) / n_states_hid  # uniform distribution, of shape (n_stn_states_hidates,)
+    audio_transitionprob_init = np.ones((n_states_hid, n_states_hid)) * (1 - 0.4) / n_states_hid
+    audio_emissionprob_init = np.ones((n_states_hid, n_states_obs)) * 0.4 / n_states_obs
+    # round these probs to 5 decimal places
+    audio_startprob_init = np.round(audio_startprob_init, 5)
+    audio_transitionprob_init = np.round(audio_transitionprob_init, 5)
+    audio_emissionprob_init = np.round(audio_emissionprob_init, 5)
+    # make sure the sum of each row is 1
+    audio_startprob_init[0] = 1 - np.sum(audio_startprob_init[1:])
+    for i in range(n_states_hid):
+        audio_transitionprob_init[i, i] = 1 - np.sum(audio_transitionprob_init[i]) + audio_transitionprob_init[i, i]
+        audio_emissionprob_init[i, i] = 1 - np.sum(audio_emissionprob_init[i]) + audio_emissionprob_init[i, i]    
+    with SuppressMultinomialHMMWarning():
+        audio_hmm_model = hmm.CategoricalHMM(n_components=n_states_hid, 
+                                    n_iter=1000, tol=0.00001,
+                                    init_params='')  # don't use default initial parameters
+
+    audio_hmm_model.n_features = n_states_obs
+    audio_hmm_model.startprob_ = audio_startprob_init
+    audio_hmm_model.transmat_ = audio_transitionprob_init
+    audio_hmm_model.emissionprob_ = audio_emissionprob_init
+
+    audio_hmm_model.fit(speaker_obs, lengths)
+    speaker_states_viterbi = audio_hmm_model.predict(speaker_obs, lengths)  # predicted hidden labels
+    alabels_smoothed = speaker_states_viterbi
+    
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_hmm.json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
+
+def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
+                        flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, B_S_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
+    print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
+    print(f"Count of each actor in F_hat: {np.sum(F_hat, axis=0)}")
+    print(f"Count of each actor in X_onehot: {np.sum(X_onehot, axis=0)}")
+
+    if audio_dur_grps_onehot is not None:
+        print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
+    if B_S_diag_min is not None:
+        print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
+
+    if audio_dur_grps_onehot is None:
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
+    else:
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     
-    print("\n=== 训练模型 ===")
+    print(f"\n=== 训练模型(covariate_mode = {model.covariate_mode}) ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True)
-    model.fit(S_hat_onehot, X_onehot, lengths)
+    model.fit(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, B_S_diag_min, lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
@@ -161,54 +221,42 @@ def alabels_hmmX_smooth(S_hat_onehot, X_onehot, lengths, audio_seg_ids, result_d
     print("\n=== 模型参数 ===")
     print("说话人初始概率 β 的logits：\n", model.beta_)
     print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
-    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
-    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+    if audio_dur_grps_onehot is None:
+        print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
+    else:
+        print("说话人识别混淆矩阵 B_S 的logits:\n", model.B_S_)
+        print("语音时长分组对说话人识别混淆矩阵的影响 iota_ :\n", model.iota_)        
+    
+    if model.covariate_mode in ['X_only', 'both']:
+        print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
+        print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
+    if model.covariate_mode in ['F_only', 'both']:
+        print("中间帧出现某个角色的人脸对说话人初始状态的影响 γ₁_ :\n", model.gamma1_)
+        print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", model.gamma2_)
 
-    # 使用训练好的模型解码隐藏状态及其后验概率
-    pred_probs = model.predict_proba(S_hat_onehot, X_onehot, lengths)['speaker_states'] # 计算后验概率  (n_samples, n_states_hid)
-    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, lengths) # viterbi 解码结果
-    speaker_states_viterbi_prob = np.array([pred_probs[i, state] for i, state in enumerate(speaker_states_viterbi)])
-    if flag_has_neg1:  # 将-1标签还原回来
+    # 使用训练好的模型解码隐藏状态
+    speaker_states_viterbi = model.predict(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot, lengths) # viterbi 解码结果
+    
+    if flag_has_neg1:  # 将说话人的-1标签还原回来
         speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
         alabels[alabels == n_actors - 1] = -1
 
-    print("解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
+    if unreliable_pp >= 100.0:
+        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    else:
+        assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+        alabels_smoothed = copy.deepcopy(alabels)
+        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+    
     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, 'cluster_results_audio_vision_vad_hmmx.json'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
 
-    if selective_change == True:
-        change_flags = alabels != speaker_states_viterbi
-        uniq_lengths_change, lengths_counts_change = np.unique(count_consecutive_ones(change_flags, lengths), return_counts=True)
-        print("解码序列相较观测连续改变次数统计:", dict(zip(uniq_lengths_change, lengths_counts_change)))
-        change_lengths = count_consecutive_segment_lengths(change_flags, lengths)
-        change_flags = np.repeat(change_lengths, change_lengths) * change_flags # 将与原始观测相同位置处的取值设为0
-        selected_indices = np.where(change_flags == 1)[0]
-
-        prop_keep=0.25
-        pp_keep =int(prop_keep*100)
-        num_keep = int(len(selected_indices) * prop_keep)
-        selected_indices_keeped = selected_indices[np.argsort(speaker_states_viterbi_prob[selected_indices])[-num_keep:]]
-
-        assert duration_dat is not None, "duration_dat should be provided when selective_change is True."
-        bins = [0, 1, 2, 3, 4, float('inf')]
-        duration_dat_groups = np.digitize(duration_dat[selected_indices_keeped], bins) - 1
-        uniq_dur, dur_counts = np.unique(duration_dat_groups, return_counts=True)
-        print(f"duration statistics for changed segments(under cond2, keep: {pp_keep}%):", dict(zip(uniq_dur, dur_counts)))
-        selected_indices_keeped = [i for i in selected_indices_keeped if duration_dat[i] <= 1]
-
-        alabels_smoothed = copy.deepcopy(alabels)
-        alabels_smoothed[selected_indices_keeped] = speaker_states_viterbi[selected_indices_keeped]
-        print(f"解码结果相较观测改变数量(cond2约束下, 选取top-{pp_keep}%): ", num_keep)
-
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_hmmx_cond(top-{pp_keep}%).json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
-
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, lengths, 
-                                  audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, 
+                                  audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
                                   audio_dur_grps_onehot=None, B_S_diag_min=None, B_F_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
@@ -216,12 +264,12 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     print(f"Count of each actor in F_hat: {np.sum(F_hat, axis=0)}")
     print(f"Count of each actor in X_onehot: {np.sum(X_onehot, axis=0)}")
     
-    model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     if audio_dur_grps_onehot is not None:
         print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
     if B_S_diag_min is not None:
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
+    model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     print("\n=== 训练模型 ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
@@ -268,19 +316,18 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    if unreliable_pp >= 100.0:
+        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    else:
+        assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+        alabels_smoothed = copy.deepcopy(alabels)
+        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+
     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_nested_hmm_full{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.json'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
-    if alabels_unreliable_metrics is not None:
-        for unreliable_pp in [2, 5, 10, 15, 20, 35, 50, 75, 100]:
-            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-            alabels_smoothed = copy.deepcopy(alabels)
-            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-            smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-            with open(os.path.join(result_dir, f'cluster_results_audio_vision_vad_nested_hmm_full{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-                json.dump(smoothed_cluster_dic, f, indent=2)
     
     return face_states_viterbi, speaker_states_viterbi
 
@@ -727,12 +774,14 @@ def save_cluster_results_vision_mf(labels, audio_seg_ids_mf, face_idxs_mf, out_j
     with open(out_json, 'w') as f:
         json.dump(cluster_results, f, indent=2)
 
-def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
+def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, hmm_flag):
     """
     仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
     """
     embeddings = np.array([], dtype=np.float32)
-    audio_seg_ids = np.array([], dtype='<U50')   
+    audio_seg_ids = np.array([], dtype='<U50')
+    lengths = []  # list of int, number of audio segments for each audio file
+
     # 对每一个音频文件
     for file_idx, wav_file in enumerate(local_wav_list):
         # 加载前序步骤从当前wav中提取的所有speaker embeddings
@@ -744,6 +793,7 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
             continue
         with open(embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
+            lengths.append(len(stat_obj['subseg_ids']))
             if file_idx == 0:                
                 embeddings = stat_obj['embeddings']
                 audio_seg_ids = stat_obj['subseg_ids']
@@ -758,107 +808,31 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config):
     summary_cluster_results(labels, modal_type='audio')
     out_json = os.path.join(result_dir, f'cluster_results_audio.json')
     save_cluster_results_audio(labels, audio_seg_ids, out_json)
+    if not hmm_flag:
+        out_json = os.path.join(result_dir, f'pseudo_labels_audio.json')
+        save_cluster_results_audio(labels, audio_seg_ids, out_json)
+    else:
+        alabels_hmm_smooth(labels, lengths, audio_seg_ids, result_dir)
 
 
-def audio_vision_func_vad(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
-    # NOTE: length of audio_embeddings and visual_embeddings may be different
-    audio_embeddings = np.array([], dtype=np.float32)
-    visual_embeddings = np.array([], dtype=np.float32)
-    audio_times = np.array([], dtype=np.float32)
-    visual_times = np.array([], dtype=np.float32)
-    audio_seg_ids = np.array([], dtype='<U50')
-    alengths = []  # list of int, number of audio segments for each audio file
-    # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
-
-    # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
-    for file_idx, wav_file in enumerate(local_wav_list):
-        wav_name = os.path.basename(wav_file)
-        rec_id = wav_name.rsplit('.', 1)[0]
-        audio_embs_file = os.path.join(audio_embs_dir, rec_id + '.pkl')
-        visual_embs_file = os.path.join(visual_embs_dir, rec_id + '_vad.pkl')
-        if not os.path.exists(audio_embs_file) or not os.path.exists(visual_embs_file):
-            print("[WARNING]: %s or %s does not exist, it is possible that vad model did not detect valid speech or face in file %s, please check it."%(audio_embs_file, visual_embs_file, wav_file))
-            continue
-        
-        time_begin_crt = 0 if file_idx == 0 else np.max(audio_times) + 120
-        ## load embeddings
-        with open(audio_embs_file, 'rb') as f:
-            stat_obj = pickle.load(f)
-            alengths.append(len(stat_obj['subseg_ids']))
-            if file_idx == 0:
-                audio_embeddings = stat_obj['embeddings']
-                audio_times = stat_obj['times']
-                audio_seg_ids = stat_obj['subseg_ids']
-            else:
-                audio_embeddings = np.vstack((audio_embeddings, stat_obj['embeddings']))
-                audio_times = np.vstack((audio_times, stat_obj['times']+time_begin_crt))
-                audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
-
-        with open(visual_embs_file, 'rb') as f:
-            stat_obj = pickle.load(f)
-            # visual_infos.append((rec_id, time_begin_crt, len(stat_obj['embeddings'])))
-            if file_idx == 0:
-                visual_embeddings = stat_obj['embeddings']
-                visual_times = stat_obj['times']
-            else:
-                visual_embeddings = np.vstack((visual_embeddings, stat_obj['embeddings']))
-                visual_times = np.hstack((visual_times, stat_obj['times']+time_begin_crt))
-
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings)} active face embeddings.")
-    cluster = build('cluster', config)
-    # visual-only clustering
-    ## 聚类流程
-    ## 1. 通过AHCluster(根据余弦相似度定义距离，根据提前定义的距离阈值，做层次聚类)
-    ## 2. 将极小簇就近合并到较大簇
-    ## 3. 根据聚类中心余弦相似度合并相似簇
-    vlabels = cluster.vision_cluster(visual_embeddings)
-    vlabels = reset_cluster_ids(vlabels)
-    summary_cluster_results(vlabels, modal_type='visual_vad')
-    save_cluster_results_vision_vad(audio_times, visual_times, audio_seg_ids, vlabels, os.path.join(result_dir, f'cluster_results_vision_vad.json'))
-    
-    # audio-only clustering
-    ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
-    alabels = cluster.audio_cluster(audio_embeddings)
-    alabels = reset_cluster_ids(alabels)
-    summary_cluster_results(alabels, modal_type='audio')
-    save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
-
-    # modify audio clustering results with visual information
-    ## 具体流程
-    ## 1. 计算每个audio segment与每个visual segment的overlap
-    ## 2. 设置visual簇从max_audio_spk_id开始编号，筛选出至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心）
-    ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID      
-    labels, vlabels_arrange_dic = cluster(audio_embeddings, visual_embeddings, audio_times, visual_times, config, alabels, vlabels)
-    del audio_embeddings, visual_embeddings
-    labels_save = reset_cluster_ids(copy.deepcopy(labels))
-    summary_cluster_results(labels_save, modal_type='audio_vision_vad')
-    save_cluster_results_audio(labels_save, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
-
-    # Apply HMM_X smoothing to the labels
-    ## 筛选出视觉簇与语音簇有所对应的视觉时间段和簇id
-    vlabels_dic_aligned = {k: v for k, v in vlabels_arrange_dic.items() if v in np.unique(labels)}  # key: old id in vlabels, value: new id aligned with labels(new alabels)
-    ## 提取与alabels存在对应的视觉簇id及其出现时间
-    vlabels_aligned, visual_times_aligned, _ = extract_aligned_vlabels_results(vlabels, vlabels_dic_aligned, visual_times)
-    ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1。将视觉簇相应重命名
-    labels_processed, vlabels_processed, _ = process_top_cluster_ids_together(copy.deepcopy(labels), vlabels_aligned, vlabels_mf_aligned = None, main_actors_num = config.main_actors_num)
-    S_hat_onehot, X_onehot, _, _ = convert201_together(audio_seg_ids, labels_processed, audio_times, visual_times_aligned, vlabels_processed)
-    alabels_hmmX_smooth(S_hat_onehot, X_onehot, alengths, audio_seg_ids, result_dir, flag_has_neg1=(-1 in labels_processed),
-                        selective_change=config.selective_change, duration_dat=audio_times[:,1] - audio_times[:,0])
-
-
-def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
+def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config,
+                             hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp):
+    if not fix_mf_flag:
+        assert 'mid_frame' in hmm_visual_info_type, "When fix_mf_flag is False, 'mid_frame' must be included in hmm_visual_info_type."
     # NOTE: length of audio_embeddings and visual_embeddings_vad, visual_embeddings_mf may be different
     audio_embeddings = np.array([], dtype=np.float32)
-    visual_embeddings_vad = np.array([], dtype=np.float32)
-    visual_embeddings_mf = np.array([], dtype=np.float32)
     audio_times = np.array([], dtype=np.float32)
-    visual_times_vad = np.array([], dtype=np.float32)
     audio_seg_ids = np.array([], dtype='<U50')  # of the same length as audio_embeddings
-    audio_seg_ids_mf = np.array([], dtype='<U50')  # of the same length as visual_embeddings_mf
-    face_idxs_mf = np.array([], dtype=np.int32)  # of the same length as visual_embeddings_mf
     alengths = []  # list of int, number of audio segments for each audio file
-    # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
+
+    visual_embeddings_vad = np.array([], dtype=np.float32)
+    visual_times_vad = np.array([], dtype=np.float32)
+
+    if 'mid_frame' in hmm_visual_info_type:
+        visual_embeddings_mf = np.array([], dtype=np.float32)
+        audio_seg_ids_mf = np.array([], dtype='<U50')  # of the same length as visual_embeddings_mf
+        face_idxs_mf = np.array([], dtype=np.int32)  # of the same length as visual_embeddings_mf
+        # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
 
     # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
     for file_idx, wav_file in enumerate(local_wav_list):
@@ -895,28 +869,31 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
                 visual_embeddings_vad = np.vstack((visual_embeddings_vad, stat_obj['embeddings']))
                 visual_times_vad = np.hstack((visual_times_vad, stat_obj['times']+time_begin_crt))
 
-        with open(visual_embs_file_mf, 'rb') as f:
-            stat_obj = pickle.load(f)
-            if file_idx == 0:
-                visual_embeddings_mf = stat_obj['feat']
-                audio_seg_ids_mf = stat_obj['audio_seg_id'] # np.ndarray, (N, )
-                face_idxs_mf = stat_obj['face_idx'] # np.ndarray, (N, )
-            else:
-                visual_embeddings_mf = np.vstack((visual_embeddings_mf, stat_obj['feat']))
-                audio_seg_ids_mf = np.hstack((audio_seg_ids_mf, stat_obj['audio_seg_id']))
-                face_idxs_mf = np.hstack((face_idxs_mf, stat_obj['face_idx']))
+        if 'mid_frame' in hmm_visual_info_type:
+            with open(visual_embs_file_mf, 'rb') as f:
+                stat_obj = pickle.load(f)
+                if file_idx == 0:
+                    visual_embeddings_mf = stat_obj['feat']
+                    audio_seg_ids_mf = stat_obj['audio_seg_id'] # np.ndarray, (N, )
+                    face_idxs_mf = stat_obj['face_idx'] # np.ndarray, (N, )
+                else:
+                    visual_embeddings_mf = np.vstack((visual_embeddings_mf, stat_obj['feat']))
+                    audio_seg_ids_mf = np.hstack((audio_seg_ids_mf, stat_obj['audio_seg_id']))
+                    face_idxs_mf = np.hstack((face_idxs_mf, stat_obj['face_idx']))
 
 
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings, and {len(visual_embeddings_mf)} mid-frame face embeddings.")
+    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings.")
+    if 'mid_frame' in hmm_visual_info_type:
+        print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_mf)} mid-frame face embeddings.")
 
     # create cluster object for audio-visual(vad) joint clustering and visual(mid-frame) clustering
-    config_mf = copy.deepcopy(config)
-    config_mf.vision_cluster['args']['fix_cos_thr'] = config_mf.fix_cos_thr_mf
-    del config_mf.audio_cluster, config_mf.cluster
-
+    if 'mid_frame' in hmm_visual_info_type: # must before create cluster, otherwise raise error
+        config_mf = copy.deepcopy(config)
+        config_mf.vision_cluster['args']['fix_cos_thr'] = config_mf.fix_cos_thr_mf
+        del config_mf.audio_cluster, config_mf.cluster
+        cluster_mf = build('vision_cluster', config_mf)
     cluster = build('cluster', config)
-    cluster_mf = build('vision_cluster', config_mf)
 
     # visual-only clustering
     ## 聚类流程
@@ -929,19 +906,21 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     vlabels_vad = reset_cluster_ids(vlabels_vad)
     summary_cluster_results(vlabels_vad, modal_type='visual_vad')
     save_cluster_results_vision_vad(audio_times, visual_times_vad, audio_seg_ids, vlabels_vad, os.path.join(result_dir, f'cluster_results_vision_vad.json'))
-    ## mid-frame face clustering
-    vlabels_mf = cluster_mf(visual_embeddings_mf)
-    vlabels_mf = reset_cluster_ids(vlabels_mf)
-    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_before_vision_align')
-    save_cluster_results_vision_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_before_vision_align.json'))
 
-    ## align mid-frame face clustering results with active speaker face clustering results
-    ### 根据两种视觉聚类结果的聚类中心余弦相似度进行对齐
-    align_cos_thr=0.5
-    print(f"[INFO] Set cos-similarity threshold  to {align_cos_thr} during aligning mid-frame faces clustering and active speaker face clustering.")
-    vlabels_mf = align_clusters2clusters(copy.deepcopy(vlabels_mf), copy.deepcopy(vlabels_vad), visual_embeddings_mf, visual_embeddings_vad, align_cos_thr=align_cos_thr)
-    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_vision_aligned')
-    save_cluster_results_vision_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision_aligned.json'))
+    if 'mid_frame' in hmm_visual_info_type:
+        ## mid-frame face clustering
+        vlabels_mf = cluster_mf(visual_embeddings_mf)
+        vlabels_mf = reset_cluster_ids(vlabels_mf)
+        summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_before_vision_align')
+        save_cluster_results_vision_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_before_vision_align.json'))
+
+        ## align mid-frame face clustering results with active speaker face clustering results
+        ### 根据两种视觉聚类结果的聚类中心余弦相似度进行对齐
+        align_cos_thr=0.5
+        print(f"[INFO] Set cos-similarity threshold  to {align_cos_thr} during aligning mid-frame faces clustering and active speaker face clustering.")
+        vlabels_mf = align_clusters2clusters(copy.deepcopy(vlabels_mf), copy.deepcopy(vlabels_vad), visual_embeddings_mf, visual_embeddings_vad, align_cos_thr=align_cos_thr)
+        summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_vision_aligned')
+        save_cluster_results_vision_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision_aligned.json'))
     
 
     # audio-only clustering
@@ -961,41 +940,48 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     alabels_save = reset_cluster_ids(copy.deepcopy(alabels))
     summary_cluster_results(alabels_save, modal_type='audio_vision_vad')
     save_cluster_results_audio(alabels_save, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
+    if not hmm_flag:
+        out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad.json')
+        save_cluster_results_audio(alabels_save, audio_seg_ids, out_json)
+        return 
 
-
-    # Apply HMM_nested_X smoothing to the alabels and vlabels_mf
-    ## 将 mid-frame 视觉簇、 active speaker face 视觉簇与语音簇的id对齐
-    ### 从 active speaker face 视觉簇中，筛选与语音簇有所对应的的部分，获取其簇id以及其中每一个样本的视觉出现时间
+    ## 从 active speaker face 视觉簇中，筛选与语音簇有所对应的的部分，获取其簇id以及其中每一个样本的视觉出现时间
     vlabels_vad_dic_aligned = {k: v for k, v in vlabels_vad_arrange_dic.items() if v in np.unique(alabels)}  # key: old id in vlabels, value: new id aligned with labels(new alabels)
     vlabels_vad_aligned, visual_times_vad_aligned, _ = extract_aligned_vlabels_results(vlabels_vad, vlabels_vad_dic_aligned, visual_times_vad)
     summary_cluster_results(vlabels_vad_aligned, modal_type='visual_vad_vision-audio_aligned')
     save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_aligned, 
                                     os.path.join(result_dir, f'cluster_results_vision_vad_vision-audio_aligned.json'))
+    
+    # Apply HMM_nested_X smoothing to the alabels and vlabels_mf
+    ## 将 mid-frame 视觉簇、 active speaker face 视觉簇与语音簇的id对齐
     ### 由于前面已经对齐了 mid-frame 视觉簇与 active speaker face 视觉簇，因此可以直接利用 active speaker face 视觉簇与语音簇的对应关系，来对齐 mid-frame 视觉簇与语音簇
-    vlabels_mf_aligned, _, aligned_mask_mf = extract_aligned_vlabels_results(vlabels_mf, vlabels_vad_dic_aligned, None) # only keep aligned mf labels, which is indicated by aligned_mask_mf
-    audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-    summary_cluster_results(vlabels_mf_aligned, modal_type='visual_mid_frame_vision-audio_aligned')
-    save_cluster_results_vision_mf(vlabels_mf_aligned, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision-audio_aligned.json'))
+    audio_seg_ids_mf_aligned, vlabels_mf_aligned = None, None   # 默认为None，在不使用中间帧信息时发挥作用
+    if 'mid_frame' in hmm_visual_info_type:
+        vlabels_mf_aligned, _, aligned_mask_mf = extract_aligned_vlabels_results(vlabels_mf, vlabels_vad_dic_aligned, None) # only keep aligned mf labels, which is indicated by aligned_mask_mf
+        audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
+        summary_cluster_results(vlabels_mf_aligned, modal_type='visual_mid_frame_vision-audio_aligned')
+        save_cluster_results_vision_mf(vlabels_mf_aligned, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+                                    os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision-audio_aligned.json'))
 
     ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
     alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
     ## 将之前未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm还是只用完全对齐的版本）
-    vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
-    vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed # of the same length as original vlabels_mf
-    vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
+    if 'mid_frame' in hmm_visual_info_type:
+        vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
+        vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed # of the same length as original vlabels_mf
+        vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
 
-    summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
-    summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
-    summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
-    summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_processed_all_for_HMM_nested_X')
-    # save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
-    # save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
-    #                                os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
-    # save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-    #                                os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
-    save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'))
+        summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
+        summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
+        summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
+        summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_processed_all_for_HMM_nested_X')
+        # save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
+        # save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
+        #                                os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
+        # save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
+        #                                os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
+        save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, 
+                                    os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'))
 
     ## 获取audio samples cluster result的unreliable metrics
     alabels_unreliable_metrics = get_unreliable_metrics(copy.deepcopy(alabels_processed), audio_embeddings)
@@ -1004,9 +990,12 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
     alabels_potential_list = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
                                                         candi_align_cluster_num=2) # of the same length as alabels_processed
-    vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed), visual_embeddings_mf[aligned_mask_mf],
-                                                            candi_align_cluster_num=2) # of the same length as vlabels_mf_processed
-    del audio_embeddings, visual_embeddings_mf
+    vlabels_mf_potential_list = None
+    if 'mid_frame' in hmm_visual_info_type:
+        vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed), visual_embeddings_mf[aligned_mask_mf],
+                                                                candi_align_cluster_num=2) # of the same length as vlabels_mf_processed
+        del visual_embeddings_mf
+    del audio_embeddings
 
     ## 转换观测及avd协变量为 binary 编码矩阵
     S_hat_onehot, X_onehot, F_hat, flag_has_neg1 = convert201_together(audio_seg_ids, alabels_processed, 
@@ -1025,16 +1014,21 @@ def audio_vision_func_vad_mf(local_wav_list, audio_embs_dir, visual_embs_dir, re
     
     # np.save(os.path.join(result_dir, 'cluster_results_face_states_obs.npy'), F_hat)
     ## HMM_nested_X 平滑
-    F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, audio_dur_grps_onehot=audio_dur_grps_onehot)
+    if fix_mf_flag:
+        params_dic = {"": "ceh", 'vad': "cehij", 'mid_frame': "cehdf", 'vad+mid_frame':"cehdfij"}
+        params = params_dic[hmm_visual_info_type]
+        alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot)
+    else:
+        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot)
 
-    vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
-    vlabels_mf_corrected_all = np.ones_like(vlabels_mf, dtype=np.int32)
-    vlabels_mf_corrected_all[aligned_mask_mf] = vlabels_mf_corrected  # of the same length as original vlabels_mf
-    vlabels_mf_corrected_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
-    summary_cluster_results(vlabels_mf_corrected, modal_type='visual_mid_frame_corrected_by_HMM_nested_X')
-    summary_cluster_results(vlabels_mf_corrected_all, modal_type='visual_mid_frame_corrected_all_by_HMM_nested_X')
-    save_cluster_results_vision_mf(vlabels_mf_corrected_all, audio_seg_ids_mf, face_idxs_mf, 
-                                   os.path.join(result_dir, f'cluster_results_faces_mid_frame_corrected_all_by_HMM_nested_X.json'))
+        vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
+        vlabels_mf_corrected_all = np.ones_like(vlabels_mf, dtype=np.int32)
+        vlabels_mf_corrected_all[aligned_mask_mf] = vlabels_mf_corrected  # of the same length as original vlabels_mf
+        vlabels_mf_corrected_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
+        summary_cluster_results(vlabels_mf_corrected, modal_type='visual_mid_frame_corrected_by_HMM_nested_X')
+        summary_cluster_results(vlabels_mf_corrected_all, modal_type='visual_mid_frame_corrected_all_by_HMM_nested_X')
+        save_cluster_results_vision_mf(vlabels_mf_corrected_all, audio_seg_ids_mf, face_idxs_mf, 
+                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame.json'))
 
 def main():
     args = parser.parse_args()
@@ -1052,16 +1046,12 @@ def main():
         if hasattr(config, 'audio_cluster') and hasattr(config, 'vision_cluster'):
             config.cluster = config.audio_cluster
             del config.audio_cluster, config.vision_cluster
-        audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config)
+        audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config, args.use_hmm_smoothing)
     else:
         assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
-        assert args.visual_info_type in ['vad', 'key_frame', 'vad+key_frame'], f'--visual_info_type should be either "vad", "key_frame" or "vad+key_frame", but got {args.visual_info_type}'
-        if args.visual_info_type == 'vad':
-            audio_vision_func_vad(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
-        elif args.visual_info_type == 'key_frame':
-            raise NotImplementedError("Not implemented yet.")
-        else:
-            audio_vision_func_vad_mf(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config)
+        assert args.hmm_visual_info_type in ['', 'vad', 'mid_frame', 'vad+mid_frame'], f'--hmm_visual_info_type should be either "", "vad", "mid_frame" or "vad+mid_frame", but got {args.hmm_visual_info_type}'
+        audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config,
+                          args.use_hmm_smoothing, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp)
 
 
 if __name__ == "__main__":
