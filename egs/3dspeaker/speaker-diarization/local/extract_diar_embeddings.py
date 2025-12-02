@@ -114,6 +114,41 @@ supports = {
     },
 }    
 
+def update_conf(conf, model_id, pretrained_model, rank):
+    """根据 model_id 或 pretrained_model 更新 conf 中的 model 和 pretrained_model 字段"""
+    # !!! please set the correct feature extractor and model architecture !!! 
+    conf['feature_extractor'] = FEATURE_COMMON
+    # download the pretrained model(if necessary) and set the model config
+    if model_id is not None:
+        # obtain config of the selected model
+        assert isinstance(model_id, str) and \
+        is_official_hub_path(model_id), "Invalid modelscope model id."
+        assert model_id in supports, "Model id not currently supported."
+        model_config = supports[model_id]
+        conf['embedding_model'] = model_config['model']
+        if pretrained_model is None:
+            # Check whether model files exist in local cache. If not, download from modelscope.
+            if rank == 0:
+                cache_dir = snapshot_download(
+                            model_id,
+                            revision=model_config['revision'],
+                            )
+                obj_list = [cache_dir]
+            else:
+                obj_list = [None]
+            dist.broadcast_object_list(obj_list, 0)
+            # set complete config according to the downloaded model
+            cache_dir = obj_list[0]
+            pretrained_model = os.path.join(cache_dir, model_config['model_pt'])
+        conf['pretrained_model'] = pretrained_model
+    else:
+        assert pretrained_model is not None, \
+            "[ERROR] One of the params `model_id` and `pretrained_model` must be set."
+        # use the local pretrained model
+        print("[INFO]: Use the local pretrained model %s" % pretrained_model)
+        conf['pretrained_model'] = pretrained_model
+        conf['embedding_model'] = CAMPPLUS_COMMON
+
 def main():
     # 初始化分布式计算环境
     args = parser.parse_args()
@@ -121,39 +156,8 @@ def main():
     rank = int(os.environ['LOCAL_RANK'])  # 当前进程id
     threads_num = int(os.environ['WORLD_SIZE']) # 总进程数
     dist.init_process_group(backend='gloo')
-
-    # download the pretrained model(if necessary) and set the model config
-    if args.model_id is not None:
-        # obtain config of the selected model
-        assert isinstance(args.model_id, str) and \
-        is_official_hub_path(args.model_id), "Invalid modelscope model id."
-        assert args.model_id in supports, "Model id not currently supported."
-        model_config = supports[args.model_id]
-        # download models from modelscope given model_id
-        if rank == 0:
-            cache_dir = snapshot_download(
-                        args.model_id,
-                        revision=model_config['revision'],
-                        )
-            obj_list = [cache_dir]
-        else:
-            obj_list = [None]
-        dist.broadcast_object_list(obj_list, 0)
-        # set complete config according to the downloaded model
-        cache_dir = obj_list[0]
-        pretrained_model = os.path.join(cache_dir, model_config['model_pt'])
-        conf['embedding_model'] = model_config['model']
-        conf['pretrained_model'] = pretrained_model
-        conf['feature_extractor'] = FEATURE_COMMON
-    else:
-        assert args.pretrained_model is not None, \
-            "[ERROR] One of the params `model_id` and `pretrained_model` must be set."
-        # use the local pretrained model
-        print("[INFO]: Use the local pretrained model %s" % args.pretrained_model)
-        conf['pretrained_model'] = args.pretrained_model
-        # !!! please set the correct feature extractor and model architecture !!! 
-        conf['feature_extractor'] = FEATURE_COMMON
-        conf['embedding_model'] = CAMPPLUS_COMMON
+    # 根据 model_id 或 pretrained_model 更新 conf 中的 model 和 pretrained_model 字段
+    conf = update_conf(conf, args.model_id, args.pretrained_model, rank)
     
     # 将 subseg.json 的内容按录音文件分组，整理为 dict 格式的 metadata，key(str) 是录音文件名，value(dict) 是从该录音文件中提取的所有sub-segment info(包含 id, start, stop, filepath)
     with open(args.subseg_json, "r") as f:

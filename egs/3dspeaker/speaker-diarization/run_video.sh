@@ -9,7 +9,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 . ./path.sh || exit 1 # 加载 path.sh 文件以设置必要的环境变量，并在加载失败时退出脚本。
 
 stage=1 # 标识每个处理步骤的index
-stop_stage=6  # 共6步
+stop_stage=7  # 共7步
 cluster_type="audio_vision" # 聚类方式，支持 "audio_only" 和 "audio_vision"
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
@@ -37,6 +37,16 @@ if [ "$fix_mf" = true ]; then
   fix_mf_flag="--fix_mf"
 fi
 
+# Self-supervised learning parameters
+max_rounds=10  # 自监督学习的最大迭代轮数
+finetune_lr=0.001  # 微调学习率
+finetune_batch_size=64  # 微调batch size
+warmup_epochs_num=2  # 分类器warmup轮数
+finetune_epochs_num=5  # 每次微调的epoch数
+unfrozen_layers_num=2  # 未冻结层的数量
+early_stop_patience=5  # 早停patience
+
+
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
 
 conf_file="conf/$tv_name/diar_video.yaml"
@@ -52,6 +62,17 @@ if [[ "$cluster_type" != "audio_only" && "$cluster_type" != "audio_vision" ]]; t
   echo "Error: cluster_type must be either 'audio_only' or 'audio_vision'."
   exit 1
 fi
+
+# Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
+if [ "$language" = "en" ]; then
+  speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
+elif [ "$language" = "zh-cn" ]; then
+  speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
+else
+  echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
+  exit 1
+fi
+
 
 if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_stage>=1 时执行
   if [ ! -f "$video_list" ]; then
@@ -98,7 +119,7 @@ cat "$video_list" | while read video_file; do filename=$(basename "$video_file")
 # use run_audio.sh to save audio speaker embeddings
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   echo "$(basename "$0") Stage3: Extract audio speaker embeddings..."
-  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --language $language --examples "$raw_data_dir" --exp "$exp" --master_port $master_port --conf_file "$conf_file" --gpus $gpus --nj $nj
+  bash run_audio.sh --stage 2 --stop_stage 4 --from_subtitle $from_subtitle --speaker_model_id $speaker_model_id --examples "$raw_data_dir" --exp "$exp" --master_port $master_port --conf_file "$conf_file" --gpus $gpus --nj $nj
 fi
 
 # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
@@ -142,6 +163,34 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
   else
     echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
   fi
+fi
+
+if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+  echo "$(basename $0) Stage7: Self-supervised fine-tuning..."
+  speaker_anno_file=$examples/annotation/text_annotated.xlsx
+  if [ ! -f "$speaker_anno_file" ]; then
+    echo "Error: Speaker annotation file $speaker_anno_file not found. Self-supervised learning requires annotations for evaluation."
+    exit 1
+  fi
+  
+  # Run self-supervised fine-tuning
+  torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
+    --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+    --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
+    $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
+    --speaker_anno_file "$speaker_anno_file" \
+    --speaker_model_id "$speaker_model_id" \
+    --subseg_json "$exp/json/subseg.json" \
+    --max_rounds $max_rounds --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size \
+    --warmup_epochs_num $warmup_epochs_num --finetune_epochs_num $finetune_epochs_num \
+    --unfrozen_layers_num $unfrozen_layers_num --early_stop_patience $early_stop_patience \
+    --use_gpu --gpu $gpus \
+    --seed 1234 \
+  
+  echo "$(basename $0) Stage7: Self-supervised fine-tuning completed!"
+  echo "Results saved in $result_dir/self_supervised/"
+  echo "Best model saved as $result_dir/self_supervised/best_model.pth"
+  echo "Accuracy history saved in $result_dir/self_supervised/accuracy_history.json"
 fi
 
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then

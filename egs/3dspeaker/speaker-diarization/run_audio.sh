@@ -17,6 +17,15 @@ nj=1  # 对应说话人嵌入提取和聚类时的threads_num。应当是gpus_nu
 master_port=29567
 
 language="en" # 语言类型，支持 "en" 和 "zh-cn"
+# Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
+if [ "$language" = "en" ]; then
+  speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
+elif [ "$language" = "zh-cn" ]; then
+  speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
+else
+  echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
+  exit 1
+fi
 from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
 include_overlap=false
 hf_access_token=
@@ -82,16 +91,6 @@ fi
 # 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract speaker embeddings..."
-  # Set speaker_model_id to damo/speech_eres2net_sv_zh-cn_16k-common when using eres2net
-  if [ "$language" = "en" ]; then
-    speaker_model_id=iic/speech_campplus_sv_en_voxceleb_16k
-  elif [ "$language" = "zh-cn" ]; then
-    speaker_model_id=iic/speech_campplus_sv_zh-cn_3dspeaker_16k
-  else
-    echo "Only support 'en' and 'zh-cn' for language now. Exit with error."
-    exit 1
-  fi
-
   # Copy conf_file to $exp/conf
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"

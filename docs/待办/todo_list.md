@@ -327,6 +327,12 @@ b. 高置信度样本，逐步扩展比例，类似于curriculum learning
 1. 在每一轮微调后，均删除上一次的cehckpoint，保存当前模型的checkpoint、微调后产生的embedding，避免占用过多存储空间。
 2. 如果eer达到最优，保存模型checkpoint为 best；如果连续5个epoch没有提升，则提前终止训练。
 
+### 人脸部分
+1. cluster.py中，保存avd, 关键帧人脸聚类为pseudo label faces，在微调时均使用。（因为后面要将两者align，不能只微调一个）
+2. 人脸部分每次都微调更新，但是hmm中使用的永远是best epoch的模型提取的结果。是否停止主要取决于语音。如果人脸的acc在patient_epochs内没有提升，则停止人脸模型的微调。
+> 可训练文件路径：https://github.com/HuangYG123/CurricularFace?tab=readme-ov-file
+> 训练过程参考https://github.com/HuangYG123/CurricularFace/blob/master/backbone/model_irse.py。可能需要把它放在一个单独的文件夹，修改数据集加载，随后调用训练
+
 ### 评估
 提前从标注数据中拆分20%作为验证集，用于每轮微调后的模型eer评估（人脸，语音都计算），确定最佳模型。
 
