@@ -4,7 +4,7 @@ from scipy.optimize import minimize
 from sklearn.utils import check_random_state
 
 from .monitor import ConvergenceMonitor
-import time, copy
+import time, copy, pickle
 
 class HMM_X():
     """
@@ -43,7 +43,9 @@ class HMM_X():
 
         # 创建监控器
         self.monitor_ = ConvergenceMonitor(tol, n_iter, verbose)
-        
+        # 初始化参数
+        self._init_params()
+
         # 确定协变量模式
         self.covariate_mode = self._determine_covariate_mode()
 
@@ -195,6 +197,60 @@ class HMM_X():
             self.iota_ = random_state.uniform(0, 1, self.n_audio_dur_grps)
             self.iota_ -= self.iota_[0]  # 固定第一个分组的logit为0，作为基准
 
+
+    def save_params(self, path):
+        """
+        保存 HMM 参数到指定路径的文件中。
+        
+        Parameters
+        ----------
+        path : str
+            保存参数的文件路径
+        """
+        params = {}
+
+        if 'c' in self.params:
+            # β: 说话人初始概率的logits,不要求和为1
+            params['beta_'] = self.beta_        
+        if 'd' in self.params:
+            # γ₁: 面部对说话人初始状态的影响
+            params['gamma1_'] = self.gamma1_        
+        if 'e' in self.params:
+            # A_S: 说话人状态转移矩阵的logits (n_actors, n_actors),不要求和为1
+            params['A_S_'] = self.A_S_        
+        if 'f' in self.params:
+            # γ₂: 面部对说话人转移的影响
+            params['gamma2_'] = self.gamma2_        
+        if 'h' in self.params:
+            # B_S: 说话人识别混淆矩阵 (n_actors, n_actors), 每行和为1
+            params['B_S_'] = self.B_S_
+        if 'i' in self.params:
+            # η1: 协变量X取值为1对说话人初始状态的影响
+            params['eta1_'] = self.eta1_
+        if 'j' in self.params:
+            # η2: 协变量X取值为1对说话人转移的影响
+            params['eta2_'] = self.eta2_
+        if 'l' in self.params:
+            # ι: 语音时长分组对说话人识别混淆矩阵的影响
+            params['iota_'] = self.iota_
+
+        with open(path, 'wb') as f:
+            pickle.dump(params, f)
+
+    def load_params(self, path):
+        """
+        从指定路径的文件中加载 HMM 参数。
+        
+        Parameters
+        ----------
+        path : str
+            加载参数的文件路径
+        """
+        with open(path, 'rb') as f:
+            params = pickle.load(f)
+        for key, value in params.items():
+            setattr(self, key, value)
+
     def X2index(self, x_onehot):
         """
         将协变量的one-hot编码转换为索引
@@ -230,8 +286,6 @@ class HMM_X():
         self._check_and_set_n_features(S_hat_onehot, X_onehot, F_hat, audio_dur_grps_onehot)
         lengths = self._validate_lengths(S_hat_onehot, lengths)
         
-        # 初始化参数
-        self._init_params()
         # 重置收敛监控器
         self.monitor_._reset()
         

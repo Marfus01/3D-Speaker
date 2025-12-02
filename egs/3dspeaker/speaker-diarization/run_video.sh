@@ -9,7 +9,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 . ./path.sh || exit 1 # 加载 path.sh 文件以设置必要的环境变量，并在加载失败时退出脚本。
 
 stage=1 # 标识每个处理步骤的index
-stop_stage=7  # 共7步
+stop_stage=6  # 共6步
 cluster_type="audio_vision" # 聚类方式，支持 "audio_only" 和 "audio_vision"
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
@@ -38,6 +38,7 @@ if [ "$fix_mf" = true ]; then
 fi
 
 # Self-supervised learning parameters
+ft_flag=true  # 是否进行自监督微调
 max_rounds=10  # 自监督学习的最大迭代轮数
 finetune_lr=0.001  # 微调学习率
 finetune_batch_size=64  # 微调batch size
@@ -132,65 +133,71 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$cluster_type" == "audio_
     --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --midframe_face_out "$examples/midframe_faces" --gpu $gpus --use_gpu
 fi
 
-if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-  if [ "$cluster_type" == "audio_only" ]; then
-    echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
-    torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
-            --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-            --audio_embs_dir "$exp/embs" --result_dir "$result_dir" $hmm_flag
-  else
-    echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-    torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
-            --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-            --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
-            $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
-  fi
-fi
 
-if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
-  echo "$(basename $0) Stage6: Get the final metrics..."
-  speaker_anno_file=$examples/annotation/text_annotated.xlsx
-  if [ -f "$speaker_anno_file" ]; then
-    echo "Computing speaker recognition accuracy..."
-    python local/compute_acc_spk.py --result_dir "$result_dir" --ref_xlsx "$speaker_anno_file"
-  else
-    echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
+if [ "$ft_flag" = false ]; then
+  if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+    if [ "$cluster_type" == "audio_only" ]; then
+      echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
+      torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+              --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+              --audio_embs_dir "$exp/embs" --result_dir "$result_dir" $hmm_flag
+    else
+      echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+      torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+              --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+              --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
+              $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
+    fi
   fi
-  face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
-  if [ -f "$face_anno_file" ]; then
-    echo "Computing face recognition accuracy..."
-    python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
-  else
-    echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
-  fi
-fi
 
-if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
-  echo "$(basename $0) Stage7: Self-supervised fine-tuning..."
-  speaker_anno_file=$examples/annotation/text_annotated.xlsx
-  if [ ! -f "$speaker_anno_file" ]; then
-    echo "Error: Speaker annotation file $speaker_anno_file not found. Self-supervised learning requires annotations for evaluation."
-    exit 1
+  if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
+    echo "$(basename $0) Stage6: Get the final metrics..."
+    speaker_anno_file=$examples/annotation/text_annotated.xlsx
+    if [ -f "$speaker_anno_file" ]; then
+      echo "Computing speaker recognition accuracy..."
+      python local/compute_acc_spk.py --result_dir "$result_dir" --ref_xlsx "$speaker_anno_file"
+    else
+      echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
+    fi
+    face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
+    if [ -f "$face_anno_file" ]; then
+      echo "Computing face recognition accuracy..."
+      python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
+    else
+      echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
+    fi
   fi
-  
-  # Run self-supervised fine-tuning
-  torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
-    --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-    --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
-    $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
-    --speaker_anno_file "$speaker_anno_file" \
-    --speaker_model_id "$speaker_model_id" \
-    --subseg_json "$exp/json/subseg.json" \
-    --max_rounds $max_rounds --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size \
-    --warmup_epochs_num $warmup_epochs_num --finetune_epochs_num $finetune_epochs_num \
-    --unfrozen_layers_num $unfrozen_layers_num --early_stop_patience $early_stop_patience \
-    --use_gpu --gpu $gpus \
-    --seed 1234 \
-  
-  echo "$(basename $0) Stage7: Self-supervised fine-tuning completed!"
-  echo "Results saved in $result_dir/self_supervised/"
-  echo "Best model saved as $result_dir/self_supervised/best_model.pth"
-  echo "Accuracy history saved in $result_dir/self_supervised/accuracy_history.json"
+else
+  if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+    echo "$(basename $0) Stage5: Self-supervised fine-tuning..."
+    speaker_anno_file=$examples/annotation/text_annotated.xlsx
+    if [ ! -f "$speaker_anno_file" ]; then
+      echo "Error: Speaker annotation file $speaker_anno_file not found. Self-supervised learning requires annotations for evaluation."
+      exit 1
+    fi
+    
+    # Run self-supervised fine-tuning
+    torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
+      --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+      --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
+      $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
+      --speaker_anno_file "$speaker_anno_file" \
+      --speaker_model_id "$speaker_model_id" \
+      --subseg_json "$exp/json/subseg.json" \
+      --max_rounds $max_rounds --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size \
+      --warmup_epochs_num $warmup_epochs_num --finetune_epochs_num $finetune_epochs_num \
+      --unfrozen_layers_num $unfrozen_layers_num --early_stop_patience $early_stop_patience \
+      --use_gpu --gpu $gpus \
+      --seed 1234 \
+    
+    echo "$(basename $0) Stage5: Self-supervised fine-tuning completed!"
+    echo "Results saved in $result_dir/self_supervised/"
+    echo "Best model saved as $result_dir/self_supervised/best_model.pth"
+    echo "Accuracy history saved in $result_dir/self_supervised/accuracy_history.json"
+  fi
+  if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
+    echo "$(basename $0) Stage6: Visualize fine-tuning results..."
+  fi
 fi
 
 # if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then

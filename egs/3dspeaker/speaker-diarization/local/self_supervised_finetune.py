@@ -14,11 +14,11 @@ Pipeline:
 """
 
 import os, sys, time, shutil, subprocess
-import json, argparse
+import json, argparse, random
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Sampler
 
 # Add parent directory to path
 current_file_path = os.path.abspath(__file__)
@@ -105,7 +105,16 @@ class PseudoLabelDataset(Dataset):
         self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}
         self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.valid_samples}    # each elements is (1, num_samples_i))
         del self.wav_paths, self.wav_dat_dic
-        
+
+        # 预先提取特征并记录每个sample的特征帧数
+        self.subseg_feat_dic = {}
+        self.sample_lengths = {}
+        for sid in self.valid_samples:
+            waveform = self.subseg_wav_dic[sid]
+            feat = torch.vmap(self.feature_extractor)(waveform.unsqueeze(0)).squeeze(0)
+            self.subseg_feat_dic[sid] = feat
+            self.sample_lengths[sid] = feat.shape[0]  # 记录特征帧数而非音频采样点数
+
         # Create label encoder (map cluster IDs to continuous class indices)
         unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.valid_samples])))
         self.label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}
@@ -118,16 +127,39 @@ class PseudoLabelDataset(Dataset):
     
     def __getitem__(self, index):
         subseg_id = self.valid_samples[index]
-        # Load audio and extract mel feature
-        waveform = self.subseg_wav_dic[subseg_id]   # don't need to add batch dim here
-        feat = torch.vmap(self.feature_extractor)(waveform.unsqueeze(0)).squeeze(0) # convert segment to mel feature, [num_frames, n_mels]
+        
+        # 直接使用预先提取的特征
+        feat = self.subseg_feat_dic[subseg_id]
         
         # Get pseudo-label
         cluster_label = self.pseudo_labels[subseg_id]
         class_idx = self.label_to_idx[cluster_label]
+        length = self.sample_lengths[subseg_id]
         
-        return feat, class_idx
+        return feat, class_idx, length
 
+class LengthAwareBatchSampler(Sampler):
+    """
+    自定义 BatchSampler，根据样本长度对数据进行分组，并支持每个 epoch 随机打乱 batch 顺序。
+    """
+    def __init__(self, dataset, batch_size, shuffle=True):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.indices = list(range(len(dataset)))
+        self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.valid_samples[idx]])  # 按长度排序
+
+    def __iter__(self):
+        # 按 batch_size 分组
+        batches = [self.indices[i:i + self.batch_size] for i in range(0, len(self.indices), self.batch_size)]
+        if self.shuffle:
+            random.seed(torch.initial_seed())  # 使用全局随机数种子
+            random.shuffle(batches)  # 打乱 batch 顺序
+        for batch in batches:
+            yield batch
+
+    def __len__(self):
+        return (len(self.indices) + self.batch_size - 1) // self.batch_size
 
 class MLPClassifier(nn.Module):
     """
@@ -147,6 +179,38 @@ class MLPClassifier(nn.Module):
         x = self.fc2(x)
         return x
 
+def collate_fn(batch):
+    """
+    自定义 collate_fn，用于对 batch 内的样本进行中心裁剪。
+    Args:
+        batch: List of tuples (feat, label, length)
+    Returns:
+        padded_feats: 裁剪后的特征张量
+        labels: 标签张量
+    """
+    # 按样本长度排序（从大到小）
+    batch = sorted(batch, key=lambda x: x[2], reverse=True)
+    feats, labels, lengths = zip(*batch)
+
+    # 计算裁剪后的目标长度（取 batch 内最短样本长度）
+    target_length = min(lengths)
+
+    # 对每个样本进行中心裁剪
+    cropped_feats = []
+    for feat in feats:
+        if feat.shape[0] == target_length:
+            cropped_feats.append(feat)
+        else:
+            start_idx = (feat.shape[0] - target_length) // 2
+            end_idx = start_idx + target_length
+            # 防止由于奇偶数导致裁剪长度不一致
+            cropped_feats.append(feat[start_idx:end_idx])
+    assert all(f.shape[0] == target_length for f in cropped_feats), "裁剪后长度不一致"
+
+    # 将裁剪后的特征和标签打包成张量
+    padded_feats = torch.stack(cropped_feats)
+    labels = torch.tensor(labels)
+    return padded_feats, labels
 
 def unfrozen_model_layers(model, unfrozen_layers_num=0):
     """
@@ -158,11 +222,11 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0):
     """
     # Get all modules
     all_modules = list(model.named_modules())
-    print(f"[INFO] Total layers in model: {len(all_modules)}")
-    print(f"[INFO] All layers:")
-    for idx, (name, module) in enumerate(all_modules):
-        print(f"  [{idx}] {name}")
-        print(f"    {module}")
+    # print(f"[INFO] Total layers in model: {len(all_modules)}")
+    # print(f"[INFO] All layers:")
+    # for idx, (name, module) in enumerate(all_modules):
+    #     print(f"  [{idx}] {name}")
+    #     print(f"    {module}")
     
     # Unfreeze top layers
     if unfrozen_layers_num > 0:
@@ -173,14 +237,14 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0):
                 print(f"[INFO] Unfroze layer [{idx}] {name}")
 
 
-def train_one_epoch(train_loader, bs, model, classifier, criterion, optimizer, epoch, logger, device):
+def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device):
     """
-    Train for one epoch with gradient accumulation.
+    Train for one epoch without gradient accumulation.
     """
     train_stats = AverageMeters()
     train_stats.add('Time', ':6.3f')
     train_stats.add('Loss', ':.4e')
-    train_stats.add('Acc@1', ':6.2f')
+    train_stats.add('Acc pseudo', ':6.2f')
     train_stats.add('Lr', ':.3e')
     
     progress = ProgressMeter(
@@ -198,24 +262,19 @@ def train_one_epoch(train_loader, bs, model, classifier, criterion, optimizer, e
         feat = feat.to(device)
         label = label.to(device)
         
-        # Forward
         embedding = model(feat)
         output = classifier(embedding)
-        loss = criterion(output, label) / bs  # Scale loss by accumulation steps
-        acc1 = accuracy(output, label)
-        # Backward
+        loss = criterion(output, label)
+        acc = accuracy(output, label)
+        optimizer.zero_grad()
         loss.backward()
+        optimizer.step()
         
-        # Update gradients every `bs` steps
-        if (i + 1) % bs == 0 or (i + 1) == len(train_loader):
-            optimizer.step()
-            optimizer.zero_grad()
-        
-        # Record
-        train_stats.update('Loss', loss.item() * bs, feat.size(0))  # Scale back loss for logging
-        train_stats.update('Acc pseudo', acc1.item(), feat.size(0))
-        train_stats.update('Lr', optimizer.param_groups[0]["lr"])
+        # Record statistics
         train_stats.update('Time', time.time() - end)
+        train_stats.update('Loss', loss.item(), feat.size(0))
+        train_stats.update('Acc pseudo', acc.item(), feat.size(0))
+        train_stats.update('Lr', optimizer.param_groups[0]["lr"])
         
         if i % 50 == 0:
             logger.info(progress.display(i))
@@ -224,12 +283,12 @@ def train_one_epoch(train_loader, bs, model, classifier, criterion, optimizer, e
     
     return {
         'loss': train_stats.avg('Loss'),
-        'acc': train_stats.avg('Acc@1'),
+        'acc': train_stats.avg('Acc pseudo'),
         'lr': train_stats.val('Lr')
     }
 
 
-def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_file, subseg_json, audio_embs_out_dir, gpu, use_gpu):
+def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_file, subseg_json, audio_embs_out_dir, use_gpu=False, gpu=None):
     """
     通过命令行调用 extract_diar_embeddings.py，提取所有语音的 embedding 并保存到指定目录。
 
@@ -238,8 +297,8 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         speaker_model_path: 微调后的说话人模型路径
         subseg_json: 子片段信息json
         audio_embs_out_dir: 输出embedding目录
-        gpu: GPU id 列表（如 [0] 或 [0,1]）
         use_gpu: 是否使用GPU（bool）
+        gpu: GPU id 列表（如 [0] 或 [0,1]）
     """
 
     cmd = [
@@ -254,12 +313,14 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         cmd.extend(['--pretrained_model', speaker_model_path])
     if use_gpu:
         cmd.append('--use_gpu')
-        if gpu:
+        if gpu is not None:
             if isinstance(gpu, (list, tuple)):
-                gpu_str = ' '.join(str(g) for g in gpu)
-            else:
-                gpu_str = str(gpu)
-            cmd.extend(['--gpu'] + gpu_str.split())
+                gpu_ids = [str(g) for g in gpu if not isinstance(g, bool)]
+                if gpu_ids:
+                    cmd.extend(['--gpu'] + gpu_ids)
+            # 单个 int 或 str（但排除 bool）直接添加
+            elif isinstance(gpu, (int, str)) and not isinstance(gpu, bool):
+                cmd.extend(['--gpu', str(gpu)])
 
     print(f"[INFO] Running embedding extraction with command: {' '.join(cmd)}")
     try:
@@ -319,7 +380,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file):
     return 0.0
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -360,6 +421,8 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         cmd.extend(['--hmm_visual_info_type', hmm_visual_info_type])
         cmd.extend(['--unreliable_pp', str(unreliable_pp)])
     
+    if hmm_model_path is not None:
+        cmd.extend(['--hmm_model_path', hmm_model_path])
     # Run clustering
     print(f"[INFO] Running clustering with command: {' '.join(cmd)}")
     try:
@@ -385,6 +448,9 @@ def main():
     
     # Set random seed
     set_seed(args.seed)
+    torch.manual_seed(args.seed)  # 设置 PyTorch 的随机数种子
+    if args.use_gpu:
+        torch.cuda.manual_seed_all(args.seed)  # 设置所有 GPU 的随机数种子
     
     # Setup distributed training
     if torch.distributed.is_available() and torch.distributed.is_initialized():
@@ -407,29 +473,42 @@ def main():
         device = torch.device('cpu')
     
     # Create directories
-    os.makedirs(args.result_dir, exist_ok=True)
+    ## Create directory for self-supervised fine-tuning
     finetune_dir = os.path.join(args.result_dir, 'self_supervised')
     os.makedirs(finetune_dir, exist_ok=True)
+    ## Create dictory for current experiment
+    existing_exp_dirs = [d for d in os.listdir(finetune_dir) if os.path.isdir(os.path.join(finetune_dir, d)) and d.startswith("exp") and d[3:].isdigit()]
+    if existing_exp_dirs:
+        existing_exp_dirs.sort(key=lambda x: int(x[3:]))  # Sort directories by their numeric suffix
+        exp_name = f"exp{int(existing_exp_dirs[-1][3:]) + 1}"
+    else:
+        exp_name = "exp0"
+    exp_dir = os.path.join(finetune_dir, exp_name)
+    os.makedirs(exp_dir, exist_ok=True)
+    ## Paths for best model and info
+    best_model_path = os.path.join(exp_dir, 'best_model.pth')
+    best_model_info_path = os.path.join(exp_dir, 'best_model_info.txt')
+    
+    # Setup logger
+    logger = get_logger(os.path.join(exp_dir, 'self_supervised_train.log'))
+    logger.info(f"Starting self-supervised fine-tuning pipeline")
+    logger.info(f"Device: {device}")
+
     # Save args to a dictionary and write to a JSON file
-    args_json_path = os.path.join(finetune_dir, 'args.json')
+    args_json_path = os.path.join(exp_dir, 'args.json')
     with open(args_json_path, 'w') as f:
         json.dump(vars(args), f, indent=4)
     logger.info(f"Saved arguments to {args_json_path}")
-    
-    # Setup logger
-    logger = get_logger(os.path.join(finetune_dir, 'self_supervised_train.log'))
-    logger.info(f"Starting self-supervised fine-tuning pipeline")
-    logger.info(f"Device: {device}")
     
     # ============================
     # Round 0 Part 0: Initial clustering
     # ============================
     logger.info("="*20)
-    logger.info("Round 0 Part 0: Initial clustering with HMM correction")
+    logger.info("Initialization: Initial clustering with HMM correction")
     logger.info("="*20)
     
-    round0_part0_dir = os.path.join(finetune_dir, 'round0_part0')
-    pseudo_label_dir = os.path.join(round0_part0_dir, 'pseudo_label')
+    initial_dir = os.path.join(exp_dir, 'initial')
+    pseudo_label_dir = os.path.join(initial_dir, 'pseudo_label')
     os.makedirs(pseudo_label_dir, exist_ok=True)
     
     initial_acc = run_clustering_and_evaluation(
@@ -446,7 +525,7 @@ def main():
         args.speaker_anno_file
     )
     
-    logger.info(f"Round 0 Part 0 - Initial accuracy: {initial_acc:.4f}")
+    logger.info(f"Initial accuracy: {initial_acc:.4f}")
     
     # Record best accuracy
     best_acc = initial_acc
@@ -454,7 +533,7 @@ def main():
     patience_counter = 0
     
     # Accuracy history
-    acc_history = [{'round': 0, 'part': 'part0', 'acc': initial_acc}]
+    acc_history = [{'round': 0, 'part': 'Initial', 'acc': initial_acc}]
     
     # ============================
     # Iterative fine-tuning
@@ -464,7 +543,7 @@ def main():
         logger.info(f"Round {round}: Fine-tuning iteration")
         logger.info("="*20)
         
-        round_dir = os.path.join(finetune_dir, f'round{round}')
+        round_dir = os.path.join(exp_dir, f'round{round}')
         os.makedirs(round_dir, exist_ok=True)
         
         # ============================
@@ -488,7 +567,7 @@ def main():
             embedding_model = build('embedding_model', config_model)
             
             # load pretrained model
-            pretrained_state = torch.load(conf_model.pretrained_model, map_location='cpu')
+            pretrained_state = torch.load(config_model.pretrained_model, map_location='cpu')
             embedding_model.load_state_dict(pretrained_state)
             embedding_model.to(device)
             # Check if the device is GPU
@@ -496,19 +575,31 @@ def main():
                 print(f"[INFO]: Using GPU: {torch.cuda.get_device_name(device)}")
             else:
                 print("[INFO]: Using CPU")
-        
+
+            # Save config_model as JSON
+            config_model_json_path = os.path.join(round_dir, 'config_model.json')
+            with open(config_model_json_path, 'w') as f:
+              json.dump(conf_model, f, indent=4)  # Assuming conf_model is serializable
+            logger.info(f"Saved config_model to {config_model_json_path}")
+            
+            # Copy pretrained model to local round dir for record
+            torch.save(embedding_model.state_dict(), best_model_path)
+            # Write best model info to file
+            with open(best_model_info_path, 'a') as f:
+              f.write(f"Initial accuracy: {initial_acc:.4f}\n")
+
         # Create dataset and dataloader
         train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
         if len(train_dataset) == 0:
             logger.error("No valid training samples found!")
             break
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if world_size > 1 else None
-        train_loader = DataLoader(train_dataset, batch_size=1, sampler=train_sampler, num_workers=4, pin_memory=True, drop_last=True )
-        
+        batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
+
         # Create classifier with the dynamically obtained embedding size
         sample_feat, _ = next(iter(train_loader))
         with torch.no_grad():
-            sample_embedding = embedding_model(sample_feat.to(device))
+            sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat, sample_feat], dim=0).to(device))
         embedding_dim = sample_embedding.shape[-1]
         logger.info(f"Embedding dimension: {embedding_dim}")
         classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
@@ -524,13 +615,14 @@ def main():
         ## Warmup training
         logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
         for warmup_epoch in range(args.warmup_epochs_num):
-            if train_sampler:
-                train_sampler.set_epoch(warmup_epoch)
+            torch.manual_seed(args.seed + warmup_epoch)
+            if args.use_gpu:
+                torch.cuda.manual_seed_all(args.seed + warmup_epoch)
             train_stats = train_one_epoch(
-                train_loader, args.finetune_batch_size, embedding_model, classifier, criterion,
+                train_loader,  embedding_model, classifier, criterion,
                 optimizer, warmup_epoch, logger, device
             )
-            logger.info(f"Warmup Epoch {warmup_epoch}: Loss={train_stats['loss']:.4f}, Acc={train_stats['acc']:.2f}%")
+            logger.info(f"Warmup Epoch {warmup_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
         optimizer.zero_grad()
 
         # Unfreeze last few layers
@@ -545,13 +637,14 @@ def main():
         # Fine-tuning
         logger.info(f"Fine-tuning embedding model for {args.finetune_epochs_num} epochs...")
         for ft_epoch in range(args.finetune_epochs_num):
-            if train_sampler:
-                train_sampler.set_epoch(ft_epoch + args.warmup_epochs_num)
+            torch.manual_seed(args.seed + ft_epoch)
+            if args.use_gpu:
+                torch.cuda.manual_seed_all(args.seed + ft_epoch)
             train_stats = train_one_epoch(
-                train_loader, args.finetune_batch_size, embedding_model, classifier, criterion,
+                train_loader,  embedding_model, classifier, criterion,
                 optimizer, ft_epoch, logger, device
             )
-            logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc={train_stats['acc']:.2f}%")
+            logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
         optimizer.zero_grad()
         
         # Save fine-tuned model
@@ -580,6 +673,11 @@ def main():
             dist.barrier()
         
         # Run clustering and evaluation
+        hmm_model_path = os.path.join(pseudo_label_dir, 'hmm_params.pkl') # get HMM model from previous round
+        if not os.path.exists(hmm_model_path):
+            hmm_model_path = None
+        else:
+            logger.info(f"Using HMM model from previous round: {hmm_model_path}")
         pseudo_label_dir = os.path.join(round_dir, 'pseudo_label')
         os.makedirs(pseudo_label_dir, exist_ok=True)
         
@@ -587,7 +685,7 @@ def main():
             current_acc = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs,embs_dir, args.visual_embs_dir, 
                                                         pseudo_label_dir, args.use_hmm_smoothing, args.fix_mf,
                                                         args.hmm_visual_info_type,  args.unreliable_pp,
-                                                        args.speaker_anno_file)
+                                                        args.speaker_anno_file, hmm_model_path)
 
             logger.info(f"Round {round} Part 3 - Accuracy: {current_acc:.4f}")
             acc_history.append({'round': round, 'part': 'part3', 'acc': current_acc})
@@ -599,15 +697,17 @@ def main():
                 patience_counter = 0
                 
                 # Save best model
-                best_model_path = os.path.join(finetune_dir, 'best_model.pth')
                 shutil.copy(os.path.join(round_dir, 'finetuned_model.pth'), best_model_path)
+                # Write best model info to file
+                with open(best_model_info_path, 'a') as f:
+                  f.write(f"New best accuracy: {best_acc:.4f} at round {best_round}\n")
                 logger.info(f"New best accuracy: {best_acc:.4f} at round {best_round}")
             else:
                 patience_counter += 1
                 logger.info(f"No improvement. Patience: {patience_counter}/{args.early_stop_patience}")
             
             # Save accuracy history
-            with open(os.path.join(finetune_dir, 'accuracy_history.json'), 'w') as f:
+            with open(os.path.join(exp_dir, 'accuracy_history.json'), 'w') as f:
                 json.dump(acc_history, f, indent=2)
             
             # Early stopping
@@ -617,7 +717,7 @@ def main():
             
             # # Clean up previous checkpoint to save space
             # if round > 0:
-            #     prev_round_dir = os.path.join(finetune_dir, f'round{round-1}')
+            #     prev_round_dir = os.path.join(exp_dir, f'round{round-1}')
             #     prev_model = os.path.join(prev_round_dir, 'finetuned_model.pth')
             #     if os.path.exists(prev_model):
             #         os.remove(prev_model)

@@ -136,7 +136,8 @@ def update_conf(conf, model_id, pretrained_model, rank):
                 obj_list = [cache_dir]
             else:
                 obj_list = [None]
-            dist.broadcast_object_list(obj_list, 0)
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                dist.broadcast_object_list(obj_list, 0)
             # set complete config according to the downloaded model
             cache_dir = obj_list[0]
             pretrained_model = os.path.join(cache_dir, model_config['model_pt'])
@@ -148,6 +149,7 @@ def update_conf(conf, model_id, pretrained_model, rank):
         print("[INFO]: Use the local pretrained model %s" % pretrained_model)
         conf['pretrained_model'] = pretrained_model
         conf['embedding_model'] = CAMPPLUS_COMMON
+    return conf
 
 def main():
     # 初始化分布式计算环境

@@ -39,6 +39,7 @@ parser.add_argument('--use_hmm_smoothing', action='store_true', help='Use HMM sm
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
+parser.add_argument('--hmm_model_path', default=None, type=str, help='Path to pre-trained HMM model parameters')
 
 # used to ignore the warning of hmmlearn
 class SuppressMultinomialHMMWarning:
@@ -193,7 +194,8 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
         json.dump(smoothed_cluster_dic, f, indent=2)
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
-                        flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, B_S_diag_min=None):
+                        flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
+                        hmm_model_path=None, B_S_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -209,7 +211,10 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
         model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
     else:
         model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
-    
+    if hmm_model_path is not None:
+        model.load_params(hmm_model_path)
+        print(f"Loaded HMM model parameters from {hmm_model_path}")
+
     print(f"\n=== 训练模型(covariate_mode = {model.covariate_mode}) ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
@@ -217,6 +222,7 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
+    model.save_params(os.path.join(result_dir, 'hmm_params.pkl'))
 
     print("\n=== 模型参数 ===")
     print("说话人初始概率 β 的logits：\n", model.beta_)
@@ -257,7 +263,7 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, B_S_diag_min=None, B_F_diag_min=None):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -270,6 +276,10 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
     model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
+    if hmm_model_path is not None:
+        model.load_params(hmm_model_path)
+        print(f"Loaded HMM model parameters from {hmm_model_path}")
+    
     print("\n=== 训练模型 ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
@@ -298,7 +308,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     save_name_part_adur_grps = f'_adur_grps' if audio_dur_grps_onehot is not None else ''
     save_name_part_B_S = f'_B_S_diagmin={B_S_diag_min}' if B_S_diag_min is not None else ''
     save_name_part_B_F = f'_B_F_diagmin={B_F_diag_min}' if B_F_diag_min is not None else ''
-    model.save_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+    model.save_params(os.path.join(result_dir, 'hmm_params.pkl'))
 
     # # 使用训练好的模型解码隐藏状态
     # model.load_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
@@ -816,7 +826,7 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, hmm_flag
 
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config,
-                             hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp):
+                             hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, hmm_model_path=None):
     if not fix_mf_flag:
         assert 'mid_frame' in hmm_visual_info_type, "When fix_mf_flag is False, 'mid_frame' must be included in hmm_visual_info_type."
     # NOTE: length of audio_embeddings and visual_embeddings_vad, visual_embeddings_mf may be different
@@ -1017,9 +1027,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
     if fix_mf_flag:
         params_dic = {"": "ceh", 'vad': "cehij", 'mid_frame': "cehdf", 'vad+mid_frame':"cehdfij"}
         params = params_dic[hmm_visual_info_type]
-        alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot)
+        alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, 
+                            alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
     else:
-        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot)
+        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
 
         vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
         vlabels_mf_corrected_all = np.ones_like(vlabels_mf, dtype=np.int32)
@@ -1051,7 +1062,7 @@ def main():
         assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
         assert args.hmm_visual_info_type in ['', 'vad', 'mid_frame', 'vad+mid_frame'], f'--hmm_visual_info_type should be either "", "vad", "mid_frame" or "vad+mid_frame", but got {args.hmm_visual_info_type}'
         audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config,
-                          args.use_hmm_smoothing, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp)
+                          args.use_hmm_smoothing, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp, args.hmm_model_path)
 
 
 if __name__ == "__main__":
