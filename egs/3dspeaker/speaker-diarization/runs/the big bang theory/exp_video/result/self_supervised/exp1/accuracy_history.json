@@ -1,0 +1,27 @@
+[
+  {
+    "round": 0,
+    "part": "Initial",
+    "acc": 0.913
+  },
+  {
+    "round": 0,
+    "part": "part3",
+    "acc": 0.8735
+  },
+  {
+    "round": 1,
+    "part": "part3",
+    "acc": 0.8695
+  },
+  {
+    "round": 2,
+    "part": "part3",
+    "acc": 0.8645
+  },
+  {
+    "round": 3,
+    "part": "part3",
+    "acc": 0.868
+  }
+]
