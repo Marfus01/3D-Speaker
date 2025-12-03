@@ -1,0 +1,56 @@
+2025-12-03 17:09:04,161 - INFO: Starting self-supervised fine-tuning pipeline
+2025-12-03 17:09:04,162 - INFO: Device: cuda:0
+2025-12-03 17:09:04,165 - INFO: Saved arguments to runs/the big bang theory/exp_video/result/self_supervised/exp2/args.json
+2025-12-03 17:09:04,165 - INFO: ====================
+2025-12-03 17:09:04,165 - INFO: Initialization: Initial clustering with HMM correction
+2025-12-03 17:09:04,165 - INFO: ====================
+2025-12-03 17:09:04,710 - INFO: Initial pseudo-label directory runs/the big bang theory/exp_video/result/self_supervised/exp2/initial/pseudo_label already exists, skipping initial clustering.
+2025-12-03 17:09:10,300 - INFO: Initial accuracy: 0.9130
+2025-12-03 17:09:10,301 - INFO: ====================
+2025-12-03 17:09:10,301 - INFO: Round 0: Fine-tuning iteration
+2025-12-03 17:09:10,301 - INFO: ====================
+2025-12-03 17:09:10,307 - INFO: Round 0 Part 1: Fine-tuning embedding model
+2025-12-03 17:09:10,308 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video/result/self_supervised/exp2/initial/pseudo_label/pseudo_labels_audio_nested_hmm_full(unreliable_pp=5.0).json
+2025-12-03 17:09:16,551 - INFO: Saved config_model to runs/the big bang theory/exp_video/result/self_supervised/exp2/round0/config_model.json
+2025-12-03 17:10:46,026 - INFO: Embedding dimension: 512
+2025-12-03 17:10:46,031 - INFO: Warmup training classifier for 2 epochs...
+2025-12-03 17:10:46,849 - INFO: Epoch: [0][  0/107]	Time  0.813 ( 0.813)	Loss 2.5371e+00 (2.5371e+00)	Acc pseudo  10.94 ( 10.94)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:10:52,868 - INFO: Epoch: [0][ 50/107]	Time  0.115 ( 0.134)	Loss 6.2098e-01 (9.6554e-01)	Acc pseudo  81.25 ( 76.19)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:10:58,061 - INFO: Epoch: [0][100/107]	Time  0.102 ( 0.119)	Loss 6.7439e-01 (7.2723e-01)	Acc pseudo  81.25 ( 81.33)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:10:58,809 - INFO: Warmup Epoch 0: Loss=0.7254, Acc(pseudo)=81.21%
+2025-12-03 17:10:59,148 - INFO: Epoch: [1][  0/107]	Time  0.336 ( 0.336)	Loss 3.1491e-01 (3.1491e-01)	Acc pseudo  92.19 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:01,996 - INFO: Epoch: [1][ 50/107]	Time  0.057 ( 0.061)	Loss 1.5654e-01 (3.8644e-01)	Acc pseudo  95.31 ( 88.35)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:04,881 - INFO: Epoch: [1][100/107]	Time  0.054 ( 0.059)	Loss 5.3351e-01 (3.6255e-01)	Acc pseudo  85.94 ( 89.59)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:05,279 - INFO: Warmup Epoch 1: Loss=0.3547, Acc(pseudo)=89.84%
+2025-12-03 17:11:05,284 - INFO: Fine-tuning embedding model for 5 epochs...
+2025-12-03 17:11:05,623 - INFO: Epoch: [0][  0/107]	Time  0.336 ( 0.336)	Loss 4.4445e-01 (4.4445e-01)	Acc pseudo  87.50 ( 87.50)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:08,475 - INFO: Epoch: [0][ 50/107]	Time  0.059 ( 0.062)	Loss 3.3920e-01 (2.3944e-01)	Acc pseudo  85.94 ( 93.23)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:11,385 - INFO: Epoch: [0][100/107]	Time  0.053 ( 0.059)	Loss 3.6955e-01 (2.4832e-01)	Acc pseudo  89.06 ( 92.86)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:11,781 - INFO: Fine-tune Epoch 0: Loss=0.2622, Acc(pseudo)=92.40%
+2025-12-03 17:11:12,115 - INFO: Epoch: [1][  0/107]	Time  0.330 ( 0.330)	Loss 1.2965e-01 (1.2965e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:14,931 - INFO: Epoch: [1][ 50/107]	Time  0.056 ( 0.060)	Loss 2.9433e-02 (2.3675e-01)	Acc pseudo 100.00 ( 92.76)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:17,759 - INFO: Epoch: [1][100/107]	Time  0.053 ( 0.058)	Loss 4.1727e-01 (2.3063e-01)	Acc pseudo  85.94 ( 93.11)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:18,183 - INFO: Fine-tune Epoch 1: Loss=0.2276, Acc(pseudo)=93.22%
+2025-12-03 17:11:18,517 - INFO: Epoch: [2][  0/107]	Time  0.331 ( 0.331)	Loss 2.3833e-01 (2.3833e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:21,326 - INFO: Epoch: [2][ 50/107]	Time  0.057 ( 0.061)	Loss 2.7438e-01 (2.2807e-01)	Acc pseudo  95.31 ( 93.50)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:24,240 - INFO: Epoch: [2][100/107]	Time  0.054 ( 0.059)	Loss 3.1135e-02 (2.4499e-01)	Acc pseudo 100.00 ( 92.75)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:24,719 - INFO: Fine-tune Epoch 2: Loss=0.2414, Acc(pseudo)=92.82%
+2025-12-03 17:11:25,055 - INFO: Epoch: [3][  0/107]	Time  0.332 ( 0.332)	Loss 1.5569e-01 (1.5569e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:27,909 - INFO: Epoch: [3][ 50/107]	Time  0.056 ( 0.061)	Loss 5.9837e-01 (2.7113e-01)	Acc pseudo  87.50 ( 91.70)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:30,778 - INFO: Epoch: [3][100/107]	Time  0.053 ( 0.058)	Loss 1.6104e-01 (2.2012e-01)	Acc pseudo  93.75 ( 93.20)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:31,199 - INFO: Fine-tune Epoch 3: Loss=0.2178, Acc(pseudo)=93.26%
+2025-12-03 17:11:31,562 - INFO: Epoch: [4][  0/107]	Time  0.359 ( 0.359)	Loss 4.0794e-02 (4.0794e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:34,456 - INFO: Epoch: [4][ 50/107]	Time  0.058 ( 0.062)	Loss 1.2651e-01 (2.1487e-01)	Acc pseudo  95.31 ( 93.28)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:37,312 - INFO: Epoch: [4][100/107]	Time  0.054 ( 0.059)	Loss 7.4802e-02 (2.0828e-01)	Acc pseudo  98.44 ( 93.37)	Lr 1.000e-03 (1.000e-03)
+2025-12-03 17:11:37,727 - INFO: Fine-tune Epoch 4: Loss=0.2117, Acc(pseudo)=93.31%
+2025-12-03 17:11:37,852 - INFO: Saved fine-tuned model to runs/the big bang theory/exp_video/result/self_supervised/exp2/round0/finetuned_model.pth
+2025-12-03 17:11:37,852 - INFO: Round 0 Part 3: Extracting embeddings and evaluating
+2025-12-03 17:16:07,403 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video/result/self_supervised/exp2/initial/pseudo_label/hmm_params.pkl
+2025-12-03 17:17:17,945 - INFO: Round 0 Part 3 - Accuracy: 0.8675
+2025-12-03 17:17:17,945 - INFO: No improvement. Patience: 1/5
+2025-12-03 17:17:17,949 - INFO: ====================
+2025-12-03 17:17:17,949 - INFO: Self-supervised fine-tuning completed!
+2025-12-03 17:17:17,949 - INFO: Initial accuracy: 0.9130
+2025-12-03 17:17:17,949 - INFO: Best accuracy: 0.9130 at round 0
+2025-12-03 17:17:17,949 - INFO: Improvement: 0.0000 (0.00%)
+2025-12-03 17:17:17,949 - INFO: ====================
