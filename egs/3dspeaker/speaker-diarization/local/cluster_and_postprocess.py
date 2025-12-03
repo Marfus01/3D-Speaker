@@ -937,6 +937,16 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
     ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
     alabels = cluster.audio_cluster(audio_embeddings)
     alabels = reset_cluster_ids(alabels)
+    if os.path.exists(os.path.join(result_dir, 'embeddings.pkl')):
+        with open(os.path.join(result_dir, 'embeddings.pkl'), 'rb') as f:
+            embeddings_dic = pickle.load(f)
+        audio_embeddings = np.array([embeddings_dic[seg_id] for seg_id in audio_seg_ids])
+        del embeddings_dic
+        assert os.path.exists(os.path.join(result_dir, 'preds.pkl'))
+        with open(os.path.join(result_dir, 'preds.pkl'), 'rb') as f:
+            preds_dic = pickle.load(f)
+        alabels = np.array([preds_dic[seg_id] for seg_id in audio_seg_ids])
+        del preds_dic
     summary_cluster_results(alabels, modal_type='audio')
     save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
 
@@ -995,6 +1005,11 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
 
     ## 获取audio samples cluster result的unreliable metrics
     alabels_unreliable_metrics = get_unreliable_metrics(copy.deepcopy(alabels_processed), audio_embeddings)
+    if os.path.exists(os.path.join(result_dir, 'uncertainty.pkl')):
+        with open(os.path.join(result_dir, 'uncertainty.pkl'), 'rb') as f:
+            uncertainty_dic = pickle.load(f)
+        alabels_unreliable_metrics = np.array([uncertainty_dic[seg_id] for seg_id in audio_seg_ids])
+        del uncertainty_dic
     ## 获取所有audio samples和前述对齐和重命名处理后，剩余的所有关键帧人脸 samples，并据此创建每个sample潜在对应的聚类簇候选集
     ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
     ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理

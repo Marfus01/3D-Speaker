@@ -14,7 +14,7 @@ Pipeline:
 """
 
 import os, sys, time, shutil, subprocess
-import json, argparse, random
+import json, argparse, random, pickle
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -93,11 +93,8 @@ class PseudoLabelDataset(Dataset):
         assert set(self.subseg_info.keys()) == set(self.pseudo_labels.keys()), \
             "Keys in subseg_info and pseudo_labels do not match!"
         
-        # Filter valid samples (those with pseudo-labels and not labeled as -1)
-        self.valid_samples = []
-        for subseg_id, _ in self.subseg_info.items():
-            if self.pseudo_labels[subseg_id] >= 0:  # Exclude noise class (-1)
-                self.valid_samples.append(subseg_id)
+        # 不再过滤-1标签，将所有样本都用于训练
+        self.valid_samples = list(self.subseg_info.keys())
         
         # Get all wav data to speed up loading
         obj_fs = self.feature_extractor.sample_rate
@@ -135,8 +132,7 @@ class PseudoLabelDataset(Dataset):
         cluster_label = self.pseudo_labels[subseg_id]
         class_idx = self.label_to_idx[cluster_label]
         length = self.sample_lengths[subseg_id]
-        
-        return feat, class_idx, length
+        return feat, class_idx, length, subseg_id
 
 class LengthAwareBatchSampler(Sampler):
     """
@@ -511,22 +507,25 @@ def main():
     
     initial_dir = os.path.join(exp_dir, 'initial')
     pseudo_label_dir = os.path.join(initial_dir, 'pseudo_label')
-    os.makedirs(pseudo_label_dir, exist_ok=True)
+    # os.makedirs(pseudo_label_dir, exist_ok=True)
     
-    initial_acc = run_clustering_and_evaluation(
-        args.conf,
-        args.cluster_type,
-        args.wavs,
-        args.audio_embs_dir,    # 预先提取的音频embedding所在目录
-        args.visual_embs_dir,
-        pseudo_label_dir,
-        args.use_hmm_smoothing,
-        args.fix_mf,
-        args.hmm_visual_info_type,
-        args.unreliable_pp,
-        args.speaker_anno_file
-    )
-    
+    # initial_acc = run_clustering_and_evaluation(
+    #     args.conf,
+    #     args.cluster_type,
+    #     args.wavs,
+    #     args.audio_embs_dir,    # 预先提取的音频embedding所在目录
+    #     args.visual_embs_dir,
+    #     pseudo_label_dir,
+    #     args.use_hmm_smoothing,
+    #     args.fix_mf,
+    #     args.hmm_visual_info_type,
+    #     args.unreliable_pp,
+    #     args.speaker_anno_file
+    # )
+
+    shutil.copytree(os.path.join(finetune_dir, "exp1", 'initial'), initial_dir, dirs_exist_ok=True)
+    logger.info(f"Initial pseudo-label directory {pseudo_label_dir} already exists, skipping initial clustering.")
+    initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file)
     logger.info(f"Initial accuracy: {initial_acc:.4f}")
     
     # Record best accuracy
@@ -596,10 +595,16 @@ def main():
             logger.error("No valid training samples found!")
             break
         batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
+        def custom_collate(batch):
+            # 适配多返回值
+            feats, labels, lengths, subseg_ids = zip(*batch)
+            # 复用原有collate_fn逻辑
+            padded_feats, labels = collate_fn([(f, l, le) for f, l, le in zip(feats, labels, lengths)])
+            return padded_feats, labels, subseg_ids
+        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=custom_collate)
 
         # Create classifier with the dynamically obtained embedding size
-        sample_feat, _ = next(iter(train_loader))
+        sample_feat, _, _ = next(iter(train_loader))
         with torch.no_grad():
             sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat, sample_feat], dim=0).to(device))
         embedding_dim = sample_embedding.shape[-1]
@@ -647,6 +652,45 @@ def main():
                 optimizer, ft_epoch, logger, device
             )
             logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
+
+            # === 新增：每个epoch后，计算所有训练样本的分类标签、概率和不确定度 ===
+            embedding_model.eval()
+            classifier.eval()
+            # === 新实现：不使用dataloader，直接遍历所有subseg_id，取原始特征 ===
+            embedding_model.eval()
+            classifier.eval()
+            embeddings_dic = {}
+            preds_dic = {}
+            uncertainty_dic = {}
+            with torch.no_grad():
+                for sid in train_dataset.valid_samples:
+                    feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
+                    feat = feat.unsqueeze(0).to(device)  # [1, T, D]
+                    emb = embedding_model(feat)  # [1, emb_dim]
+                    logits = classifier(emb)
+                    probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
+                    top2_probs, _ = torch.topk(probs, 2)
+                    uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                    pred_label = torch.argmax(probs).item()
+                    embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
+                    preds_dic[sid] = int(pred_label)
+                    uncertainty_dic[sid] = float(uncertainty)
+            # 保存到对应epoch子文件夹
+            epoch_dir = os.path.join(round_dir, f'ft_epoch_{ft_epoch}')
+            os.makedirs(epoch_dir, exist_ok=True)
+            with open(os.path.join(epoch_dir, 'embeddings.pkl'), 'wb') as f:
+                pickle.dump(embeddings_dic, f)
+            with open(os.path.join(epoch_dir, 'preds.pkl'), 'wb') as f:
+                pickle.dump(preds_dic, f)
+            with open(os.path.join(epoch_dir, 'uncertainty.pkl'), 'wb') as f:
+                pickle.dump(uncertainty_dic, f)
+
+            current_acc = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, args.audio_embs_dir, args.visual_embs_dir, 
+                                                        epoch_dir, args.use_hmm_smoothing, args.fix_mf,
+                                                        args.hmm_visual_info_type,  args.unreliable_pp,
+                                                        args.speaker_anno_file, hmm_model_path)
+
+            logger.info(f"Round {round} Part 3 - Accuracy: {current_acc:.4f}")
         optimizer.zero_grad()
         
         # Save fine-tuned model
