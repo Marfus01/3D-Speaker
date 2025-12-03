@@ -259,6 +259,8 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
     end = time.time()
     
     for i, (feat, label) in enumerate(train_loader):
+        if feat.dim() == 2 or feat.size(0) == 1:
+            continue
         feat = feat.to(device)
         label = label.to(device)
         
