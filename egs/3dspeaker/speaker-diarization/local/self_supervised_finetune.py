@@ -93,11 +93,8 @@ class PseudoLabelDataset(Dataset):
         assert set(self.subseg_info.keys()) == set(self.pseudo_labels.keys()), \
             "Keys in subseg_info and pseudo_labels do not match!"
         
-        # Filter valid samples (those with pseudo-labels and not labeled as -1)
-        self.valid_samples = []
-        for subseg_id, _ in self.subseg_info.items():
-            if self.pseudo_labels[subseg_id] >= 0:  # Exclude noise class (-1)
-                self.valid_samples.append(subseg_id)
+        # 不再过滤-1标签，将所有样本都用于训练
+        self.valid_samples = list(self.subseg_info.keys())
         
         # Get all wav data to speed up loading
         obj_fs = self.feature_extractor.sample_rate
@@ -511,22 +508,25 @@ def main():
     
     initial_dir = os.path.join(exp_dir, 'initial')
     pseudo_label_dir = os.path.join(initial_dir, 'pseudo_label')
-    os.makedirs(pseudo_label_dir, exist_ok=True)
+    # os.makedirs(pseudo_label_dir, exist_ok=True)
     
-    initial_acc = run_clustering_and_evaluation(
-        args.conf,
-        args.cluster_type,
-        args.wavs,
-        args.audio_embs_dir,    # 预先提取的音频embedding所在目录
-        args.visual_embs_dir,
-        pseudo_label_dir,
-        args.use_hmm_smoothing,
-        args.fix_mf,
-        args.hmm_visual_info_type,
-        args.unreliable_pp,
-        args.speaker_anno_file
-    )
-    
+    # initial_acc = run_clustering_and_evaluation(
+    #     args.conf,
+    #     args.cluster_type,
+    #     args.wavs,
+    #     args.audio_embs_dir,    # 预先提取的音频embedding所在目录
+    #     args.visual_embs_dir,
+    #     pseudo_label_dir,
+    #     args.use_hmm_smoothing,
+    #     args.fix_mf,
+    #     args.hmm_visual_info_type,
+    #     args.unreliable_pp,
+    #     args.speaker_anno_file
+    # )
+
+    shutil.copytree(os.path.join(finetune_dir, "exp1", 'initial'), initial_dir, dirs_exist_ok=True)
+    logger.info(f"Initial pseudo-label directory {pseudo_label_dir} already exists, skipping initial clustering.")
+    initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file)
     logger.info(f"Initial accuracy: {initial_acc:.4f}")
     
     # Record best accuracy
