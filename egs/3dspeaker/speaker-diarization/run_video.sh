@@ -39,13 +39,20 @@ fi
 
 # Self-supervised learning parameters
 ft_flag=true  # 是否进行自监督微调
-max_rounds=1  # 自监督学习的最大迭代轮数
 finetune_lr=0.001  # 微调学习率
 finetune_batch_size=64  # 微调batch size
-warmup_epochs_num=2  # 分类器warmup轮数
-finetune_epochs_num=20  # 每次微调的epoch数
 unfrozen_layers_num=2  # 未冻结层的数量
-early_stop_patience=5  # 早停patience
+warmup_epochs_num=2  # 分类器warmup轮数
+max_rounds=2  # 自监督学习的最大迭代轮数
+max_finetune_epochs=20  # 每次微调的最大epoch数
+early_stop_patience_round=5  # 早停patience(for round)
+early_stop_patience_epoch=5  # 早停patience(for epoch)
+from_preds=false  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
+
+from_preds_flag=""
+if [ "$from_preds" = true ]; then
+  from_preds_flag="--from_preds"
+fi
 
 
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
@@ -184,11 +191,10 @@ else
       --speaker_anno_file "$speaker_anno_file" \
       --speaker_model_id "$speaker_model_id" \
       --subseg_json "$exp/json/subseg.json" \
-      --max_rounds $max_rounds --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size \
-      --warmup_epochs_num $warmup_epochs_num --finetune_epochs_num $finetune_epochs_num \
-      --unfrozen_layers_num $unfrozen_layers_num --early_stop_patience $early_stop_patience \
-      --use_gpu --gpu $gpus \
-      --seed 1234 \
+      --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
+      --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
+      --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \
+      $from_preds_flag  --use_gpu --gpu $gpus --seed 1234 \
     
     echo "$(basename $0) Stage5: Self-supervised fine-tuning completed!"
     echo "Results saved in $result_dir/self_supervised/"
