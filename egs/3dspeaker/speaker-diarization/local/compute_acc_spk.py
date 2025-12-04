@@ -4,9 +4,20 @@ import json
 import argparse
 import numpy as np
 import pandas as pd
+from collections import Counter
 from acc_utils import *
 
 def main(args):
+    assert os.path.isfile(args.ref_xlsx), f"Reference xlsx file {args.ref_xlsx} does not exist."
+    valid_keys_path = os.path.join(os.path.dirname(args.ref_xlsx), 'valid_part_keys.npy')
+    if os.path.isfile(valid_keys_path):
+        valid_keys_list = np.load(valid_keys_path, allow_pickle=True).tolist()
+    else:
+        # 拆分 val/test 集合
+        valid_keys_list = eval_test_split(args.ref_xlsx)
+        np.save(valid_keys_path, np.array(valid_keys_list))
+        print(f"Saved {len(valid_keys_list)} valid keys to {valid_keys_path}")
+
     os.makedirs(args.result_dir, exist_ok=True)
     json_files = [os.path.join(args.result_dir, f) for f in os.listdir(args.result_dir) if f.endswith('.json') and os.path.isfile(os.path.join(args.result_dir, f))]  # all cluster json files for evaluation
     json_files = [f for f in json_files if 'faces' not in os.path.basename(f)]  # only evaluate speaker clustering results based on audio or audio+vision
@@ -22,10 +33,21 @@ def main(args):
         df = pd.read_excel(args.ref_xlsx) # Text Index列从 0 开始
         df = df[df['whether annotate speaker'] == 'Yes']
         keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 与聚类结果中的 segment ID 完全对应
+        ## 根据 mode 筛选数据
+        if args.mode == 'val':
+            df = df[keys.isin(valid_keys_list)]  # 筛选 keys 在 valid_keys_list 中的行
+        elif args.mode == 'test':
+            df = df[~keys.isin(valid_keys_list)]  # 筛选 keys 不在 valid_keys_list 中的行
+        else:
+            raise ValueError("Invalid mode. Choose from 'val' or 'test'.")
+        keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 重新提取 keys
+        ## 提取对应的segment id，说话人和时长
         speaker_labels = df['speaker'].tolist()
         speaker_others_set = set([speaker for speaker in speaker_labels if speaker not in main_character_list])
         print("Non-main character labels in the reference xlsx:", speaker_others_set)
         speaker_labels = ['Others' if speaker not in main_character_list else speaker for speaker in speaker_labels] # Replace all non-main characters with 'Others'
+        print(f"Count of speaker labels in the reference xlsx ({args.mode} set):")
+        print(Counter(speaker_labels))
         durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
 
         # 3. 获取所有有标注数据的聚类标签
@@ -126,5 +148,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--ref_xlsx', type=str, required=True, help="filepath of reference xlsx")
     parser.add_argument('--result_dir', type=str, default='./result', help="directory containing clustering result json files")
+    parser.add_argument('--mode', type=str, default='test', help="mode: val or test")
     args = parser.parse_args()
     main(args)

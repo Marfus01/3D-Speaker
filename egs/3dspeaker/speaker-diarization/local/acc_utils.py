@@ -1,13 +1,24 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
+from sklearn.model_selection import train_test_split
 
 main_character_list_IL = ['傅老', '和平', '志新', '志国', '圆圆', '小凡', '小张', '燕红']
 main_character_list_BB = ['Sheldon', 'Leonard', 'Penny', 'Howard', 'Raj']
 main_character_list = main_character_list_IL + main_character_list_BB
 
 def eval_test_split(xlsx_path):
-   pass
+    # 根据 speaker分层抽样,获取 20% 的 keys
+    ## 筛选有标注的数据
+    df = pd.read_excel(xlsx_path)
+    df = df[df['whether annotate speaker'] == 'Yes']
+    ## 提取 keys 和 speakers
+    keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)
+    speakers = df['speaker']
+    speaker_labels = ['Others' if speaker not in main_character_list else speaker for speaker in speakers] # Replace all non-main characters with 'Others'
+    _, valid_keys = train_test_split(keys, test_size=0.2, stratify=speaker_labels, random_state=100)
+    valid_keys_list = valid_keys.tolist()
+    return valid_keys_list
 
 def time_to_seconds(time_str):
     h, m, s = map(float, time_str.split(':'))

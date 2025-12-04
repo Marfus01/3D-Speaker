@@ -56,13 +56,15 @@ parser.add_argument('--speaker_pretrained_model', default=None, type=str, help='
 parser.add_argument('--subseg_json', required=True, type=str, help='Sub-segments json file')
 
 # Self-supervised learning parameters
-parser.add_argument('--max_rounds', default=10, type=int, help='Maximum fine-tuning epochs')
-parser.add_argument('--early_stop_patience', default=5, type=int, help='Early stopping patience')
 parser.add_argument('--finetune_lr', default=0.001, type=float, help='Fine-tuning learning rate')
 parser.add_argument('--finetune_batch_size', default=64, type=int, help='Fine-tuning batch size')
-parser.add_argument('--warmup_epochs_num', default=2, type=int, help='Warmup epochs for classifier head')
-parser.add_argument('--finetune_epochs_num', default=5, type=int, help='Number of epochs for each fine-tuning stage')
 parser.add_argument('--unfrozen_layers_num', default=2, type=int, help='Number of layers to unfreeze (from top) during fine-tuning')
+parser.add_argument('--warmup_epochs_num', default=2, type=int, help='Warmup epochs for classifier head')
+parser.add_argument('--max_rounds', default=10, type=int, help='Maximum self-supervised learning rounds')
+parser.add_argument('--max_finetune_epochs', default=5, type=int, help='Number of max epochs for each fine-tuning stage')
+parser.add_argument('--early_stop_patience_round', default=5, type=int, help='Early stopping patience for rounds')
+parser.add_argument('--early_stop_patience_epoch', default=5, type=int, help='Early stopping patience for epochs')
+parser.add_argument('--from_preds', action='store_true', help='Use local predictions from classifier model instead of clustering to generate pseudo labels')
 
 # Distributed training
 parser.add_argument('--use_gpu', action='store_true', help='Use GPU for training')
@@ -96,44 +98,46 @@ class PseudoLabelDataset(Dataset):
             "Keys in subseg_info and pseudo_labels do not match!"
         
         # 不再过滤-1标签，将所有样本都用于训练
-        self.valid_samples = list(self.subseg_info.keys())
+        self.sample_ids = list(self.subseg_info.keys())
         
         # Get all wav data to speed up loading
         obj_fs = self.feature_extractor.sample_rate
-        self.wav_paths = list(set([self.subseg_info[sid]['file'] for sid in self.valid_samples]))
+        self.wav_paths = list(set([self.subseg_info[sid]['file'] for sid in self.sample_ids]))
         self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}
-        self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.valid_samples}    # each elements is (1, num_samples_i))
+        self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.sample_ids}    # each elements is (1, num_samples_i))
         del self.wav_paths, self.wav_dat_dic
 
         # 预先提取特征并记录每个sample的特征帧数
         self.subseg_feat_dic = {}
         self.sample_lengths = {}
-        for sid in self.valid_samples:
+        for sid in self.sample_ids:
             waveform = self.subseg_wav_dic[sid]
             feat = torch.vmap(self.feature_extractor)(waveform.unsqueeze(0)).squeeze(0)
             self.subseg_feat_dic[sid] = feat
             self.sample_lengths[sid] = feat.shape[0]  # 记录特征帧数而非音频采样点数
 
         # Create label encoder (map cluster IDs to continuous class indices)
-        unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.valid_samples])))
-        self.label_to_idx = {label: idx for idx, label in enumerate(unique_labels)}
+        unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.sample_ids])))
+        self.label2idx = {label: idx for idx, label in enumerate(unique_labels)}
+        self.idx2label = {idx: label for label, idx in self.label2idx.items()}
         self.num_classes = len(unique_labels)
         
-        print(f"[INFO] Created dataset with {len(self.valid_samples)} samples and {self.num_classes} classes")
+        print(f"[INFO] Created dataset with {len(self.sample_ids)} samples and {self.num_classes} classes")
     
     def __len__(self):
-        return len(self.valid_samples)
+        return len(self.sample_ids)
     
     def __getitem__(self, index):
-        subseg_id = self.valid_samples[index]
+        subseg_id = self.sample_ids[index]
         
         # 直接使用预先提取的特征
         feat = self.subseg_feat_dic[subseg_id]
         
         # Get pseudo-label
         cluster_label = self.pseudo_labels[subseg_id]
-        class_idx = self.label_to_idx[cluster_label]
+        class_idx = self.label2idx[cluster_label]
         length = self.sample_lengths[subseg_id]
+
         return feat, class_idx, length
 
 class LengthAwareBatchSampler(Sampler):
@@ -145,7 +149,7 @@ class LengthAwareBatchSampler(Sampler):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.indices = list(range(len(dataset)))
-        self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.valid_samples[idx]])  # 按长度排序
+        self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.sample_ids[idx]])  # 按长度排序
 
     def __iter__(self):
         # 按 batch_size 分组
@@ -335,7 +339,7 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         raise e
 
 
-def compute_speaker_accuracy(result_dir, speaker_anno_file):
+def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
     """
     Compute speaker recognition accuracy from pseudo labels.
     This is a simplified version that calls compute_acc_spk.py
@@ -349,7 +353,8 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file):
         sys.executable,
         'local/compute_acc_spk.py',
         '--result_dir', result_dir,
-        '--ref_xlsx', speaker_anno_file
+        '--ref_xlsx', speaker_anno_file,
+        '--mode', mode
     ]
     
     try:
@@ -360,7 +365,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file):
     
     # Parse accuracy from the output file
     # Find the accuracy file that contains "corrected_all_by_HMM"
-    acc_files = [f for f in os.listdir(result_dir) if f.endswith('_accuracy.txt') and 'pseudo_labels_audio_vision_vad' in f]
+    acc_files = [f for f in os.listdir(result_dir) if f.endswith('_accuracy.txt') and 'pseudo_labels_audio' in f]
     assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
     assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
     
@@ -380,7 +385,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file):
     return 0.0
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None, from_preds=False, mode='test'):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -396,6 +401,9 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         hmm_visual_info_type: Visual information type for HMM
         unreliable_pp: Percentage of unreliable segments to be smoothed
         speaker_anno_file: Speaker annotation xlsx file
+        hmm_model_path: Path to HMM model (optional)
+        from_preds: Whether to use local predictions from classifier model instead of clustering (optional)
+        mode: Mode for accuracy computation ('valid' or 'test')
     
     Returns:
         accuracy: Speaker recognition accuracy
@@ -423,6 +431,8 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
     
     if hmm_model_path is not None:
         cmd.extend(['--hmm_model_path', hmm_model_path])
+    if from_preds:
+        cmd.append('--from_preds')
     # Run clustering
     print(f"[INFO] Running clustering with command: {' '.join(cmd)}")
     try:
@@ -438,7 +448,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
     
     # Compute accuracy
     assert os.path.exists(speaker_anno_file), f"Speaker annotation file {speaker_anno_file} does not exist!"
-    acc = compute_speaker_accuracy(result_dir, speaker_anno_file)
+    acc = compute_speaker_accuracy(result_dir, speaker_anno_file, mode)
     
     return acc
 
@@ -483,7 +493,6 @@ def main():
         exp_name = f"exp{int(existing_exp_dirs[-1][3:]) + 1}"
     else:
         exp_name = "exp0"
-    exp_name = "exp3"  # For debug purpose
     exp_dir = os.path.join(finetune_dir, exp_name)
     os.makedirs(exp_dir, exist_ok=True)
     ## Paths for best model and info
@@ -502,7 +511,7 @@ def main():
     logger.info(f"Saved arguments to {args_json_path}")
     
     # ============================
-    # Round 0 Part 0: Initial clustering
+    # Initial clustering
     # ============================
     logger.info("="*20)
     logger.info("Initialization: Initial clustering with HMM correction")
@@ -510,34 +519,42 @@ def main():
     
     initial_dir = os.path.join(exp_dir, 'initial')
     pseudo_label_dir = os.path.join(initial_dir, 'pseudo_label')
-    # os.makedirs(pseudo_label_dir, exist_ok=True)
+    os.makedirs(pseudo_label_dir, exist_ok=True)
+    # Check if pseudo_label_dir is an empty folder
+    if os.path.exists(os.path.join(finetune_dir, 'initial')):
+        logger.info(f"Skipping initial clustering, using existing results.")
+        shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
+        initial_acc_test = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='test')
+    else:
+        initial_acc_test = run_clustering_and_evaluation(
+            args.conf,
+            args.cluster_type,
+            args.wavs,
+            args.audio_embs_dir,    # 预先提取的音频embedding所在目录
+            args.visual_embs_dir,
+            pseudo_label_dir,
+            args.use_hmm_smoothing,
+            args.fix_mf,
+            args.hmm_visual_info_type,
+            args.unreliable_pp,
+            args.speaker_anno_file,
+            hmm_model_path=None,
+            from_preds=False,
+            mode='test'
+        )
+        shutil.copytree(initial_dir, os.path.join(finetune_dir, 'initial'), dirs_exist_ok=True)
+        logger.info(f"Saved initial clustering results to {initial_dir}")
     
-    # initial_acc = run_clustering_and_evaluation(
-    #     args.conf,
-    #     args.cluster_type,
-    #     args.wavs,
-    #     args.audio_embs_dir,    # 预先提取的音频embedding所在目录
-    #     args.visual_embs_dir,
-    #     pseudo_label_dir,
-    #     args.use_hmm_smoothing,
-    #     args.fix_mf,
-    #     args.hmm_visual_info_type,
-    #     args.unreliable_pp,
-    #     args.speaker_anno_file
-    # )
+    initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
+    logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
+    # Accuracy history
+    acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
 
-    # shutil.copytree(os.path.join(finetune_dir, "exp1", 'initial'), initial_dir, dirs_exist_ok=True)
-    # logger.info(f"Initial pseudo-label directory {pseudo_label_dir} already exists, skipping initial clustering.")
-    # initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file)
-    # logger.info(f"Initial accuracy: {initial_acc:.4f}")
-    
-    # # Record best accuracy
-    # best_acc = initial_acc
-    # best_round = 0
-    # patience_counter = 0
-    
-    # # Accuracy history
-    # acc_history = [{'round': 0, 'part': 'Initial', 'acc': initial_acc}]
+    # Record best accuracy
+    best_acc_valid_r = initial_acc_valid
+    best_round = 0
+    acc_test_at_best_valid = initial_acc_test
+    patience_counter_round = 0
     
     # ============================
     # Iterative fine-tuning
@@ -586,11 +603,11 @@ def main():
               json.dump(conf_model, f, indent=4)  # Assuming conf_model is serializable
             logger.info(f"Saved config_model to {config_model_json_path}")
             
-            # # Copy pretrained model to local round dir for record
-            # torch.save(embedding_model.state_dict(), best_model_path)
-            # # Write best model info to file
-            # with open(best_model_info_path, 'a') as f:
-            #   f.write(f"Initial accuracy: {initial_acc:.4f}\n")
+            # Copy pretrained model to local round dir for record
+            torch.save(embedding_model.state_dict(), best_model_path)
+            # Write best model info to file
+            with open(best_model_info_path, 'a') as f:
+              f.write(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}\n")
 
         # Create dataset and dataloader
         train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
@@ -600,38 +617,39 @@ def main():
         batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True)
         train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
 
-        # Create classifier with the dynamically obtained embedding size
-        sample_feat, _ = next(iter(train_loader))
-        with torch.no_grad():
-            sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat, sample_feat], dim=0).to(device))
-        embedding_dim = sample_embedding.shape[-1]
-        logger.info(f"Embedding dimension: {embedding_dim}")
-        classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
-        
-        # Warmup: train classifier only
-        ## Freeze embedding model initially (warmup classifier)
+        # Freeze embedding model initially
         for param in embedding_model.parameters():
             param.requires_grad = False
-        ## Optimizer for warmup (only classifier).
-        optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
-        criterion = nn.CrossEntropyLoss()
         
-        ## Warmup training
-        logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
-        for warmup_epoch in range(args.warmup_epochs_num):
-            torch.manual_seed(args.seed + warmup_epoch)
-            if args.use_gpu:
-                torch.cuda.manual_seed_all(args.seed + warmup_epoch)
-            train_stats = train_one_epoch(
-                train_loader,  embedding_model, classifier, criterion,
-                optimizer, warmup_epoch, logger, device
-            )
-            logger.info(f"Warmup Epoch {warmup_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
-        optimizer.zero_grad()
+        # Create classifier and warm up
+        if round == 0 or not args.from_preds: # 当根据分类结果获取伪标签时，每个round伪标签都与之前类似
+            # Create classifier
+            sample_feat, _ = next(iter(train_loader))
+            with torch.no_grad():
+                sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat], dim=0).to(device))
+            embedding_dim = sample_embedding.shape[-1]
+            logger.info(f"Embedding dimension: {embedding_dim}")
+            classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
+        
+            # Warmup: train classifier only when round == 0
+            ## Optimizer for warmup (only classifier).
+            optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
+            criterion = nn.CrossEntropyLoss()
+            ## Warmup training
+            logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
+            for warmup_epoch in range(args.warmup_epochs_num):
+                torch.manual_seed(args.seed + warmup_epoch)
+                if args.use_gpu:
+                    torch.cuda.manual_seed_all(args.seed + warmup_epoch)
+                train_stats = train_one_epoch(
+                    train_loader,  embedding_model, classifier, criterion,
+                    optimizer, warmup_epoch, logger, device
+                )
+                logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
+            optimizer.zero_grad()
 
-        # Unfreeze last few layers
+        # Unfreeze last few layers in embedding model
         unfrozen_model_layers(embedding_model, args.unfrozen_layers_num)
-        
         # Optimizer for fine-tuning (both embedding and classifier)
         optimizer = torch.optim.Adam(
             list(embedding_model.parameters()) + list(classifier.parameters()),
@@ -639,125 +657,150 @@ def main():
         )
         
         # Fine-tuning
-        logger.info(f"Fine-tuning embedding model for {args.finetune_epochs_num} epochs...")
-        for ft_epoch in range(args.finetune_epochs_num):
-            # torch.manual_seed(args.seed + ft_epoch)
-            # if args.use_gpu:
-            #     torch.cuda.manual_seed_all(args.seed + ft_epoch)
-            # train_stats = train_one_epoch(
-            #     train_loader,  embedding_model, classifier, criterion,
-            #     optimizer, ft_epoch, logger, device
-            # )
-            # logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
-
-            # # === 新增：每个epoch后，计算所有训练样本的分类标签、概率和不确定度 ===
-            # embedding_model.eval()
-            # classifier.eval()
-            # # === 新实现：不使用dataloader，直接遍历所有subseg_id，取原始特征 ===
-            # embedding_model.eval()
-            # classifier.eval()
-            # embeddings_dic = {}
-            # preds_dic = {}
-            # uncertainty_dic = {}
-            # with torch.no_grad():
-            #     for sid in train_dataset.valid_samples:
-            #         feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
-            #         feat = feat.unsqueeze(0).to(device)  # [1, T, D]
-            #         emb = embedding_model(feat)  # [1, emb_dim]
-            #         logits = classifier(emb)
-            #         probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
-            #         top2_probs, _ = torch.topk(probs, 2)
-            #         uncertainty = (top2_probs[0] - top2_probs[1]).item()
-            #         pred_label = torch.argmax(probs).item()
-            #         embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
-            #         preds_dic[sid] = int(pred_label)
-            #         uncertainty_dic[sid] = float(uncertainty)
-            # 保存到对应epoch子文件夹
+        round_model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
+        round_classifier_save_path = os.path.join(round_dir, 'finetuned_classifier.pth')
+        best_acc_valid_e, best_epoch, patience_counter_epoch = 0.0, 0, 0
+        logger.info(f"Fine-tuning embedding model for {args.max_finetune_epochs} epochs...")
+        for ft_epoch in range(args.max_finetune_epochs):
+            torch.manual_seed(args.seed + ft_epoch)
+            if args.use_gpu:
+                torch.cuda.manual_seed_all(args.seed + ft_epoch)
+            train_stats = train_one_epoch(
+                train_loader,  embedding_model, classifier, criterion,
+                optimizer, ft_epoch, logger, device
+            )
+            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
+            
+            # === 每个epoch后，直接遍历所有subseg_id，取原始特征，计算所有训练样本的分类标签、概率和不确定度 ===
+            embedding_model.eval()
+            classifier.eval()
+            preds_dic = {}
+            if args.from_preds:
+                potential_list_dic, uncertainty_dic = {}, {}
+            # else:
+            #     embeddings_dic = {}
+                
+            with torch.no_grad():
+                for sid in train_dataset.sample_ids:
+                    # get probs of all classes
+                    feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
+                    feat = feat.unsqueeze(0).to(device)  # [1, T, D]
+                    emb = embedding_model(feat)  # [1, emb_dim]
+                    logits = classifier(emb)
+                    probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
+                    # get predicted label and save to dict
+                    pred_label = torch.argmax(probs).item()
+                    pred_label = int(train_dataset.idx2label[pred_label])
+                    preds_dic[sid] = pred_label
+                    # get potential labels and uncertainty and save to dict
+                    if args.from_preds:
+                        top2_probs, top2_indices = torch.topk(probs, 2)
+                        uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                        uncertainty_dic[sid] = float(uncertainty)
+                        potential_list = top2_indices.cpu().numpy().tolist()
+                        potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
+                        potential_list_dic[sid] = potential_list
+                    # else:
+                    #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
+            
+            # 计算在验证集上的准确率
             epoch_dir = os.path.join(round_dir, f'ft_epoch_{ft_epoch}')
             os.makedirs(epoch_dir, exist_ok=True)
-            # with open(os.path.join(epoch_dir, 'embeddings.pkl'), 'wb') as f:
-            #     pickle.dump(embeddings_dic, f)
-            # with open(os.path.join(epoch_dir, 'preds.pkl'), 'wb') as f:
-            #     pickle.dump(preds_dic, f)
-            # with open(os.path.join(epoch_dir, 'uncertainty.pkl'), 'wb') as f:
-            #     pickle.dump(uncertainty_dic, f)
-
-            current_acc = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, args.audio_embs_dir, args.visual_embs_dir, 
-                                                        epoch_dir, args.use_hmm_smoothing, args.fix_mf,
-                                                        args.hmm_visual_info_type,  args.unreliable_pp,
-                                                        args.speaker_anno_file, None)
-            # save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.valid_samples]), np.array(train_dataset.valid_samples), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
-            # current_acc = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file)
-            logger.info(f"Round {round} Part 3 - Accuracy: {current_acc:.4f}")
+            save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
+            crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
+            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid): {crt_acc_valid_e:.4f}")
+            if crt_acc_valid_e > best_acc_valid_e:
+                best_acc_valid_e = crt_acc_valid_e
+                best_epoch = ft_epoch
+                patience_counter_epoch = 0
+                # Save best model of this round, and preds, uncertainty, potential_list dicts
+                if rank == 0:
+                    torch.save(embedding_model.state_dict(), round_model_save_path)
+                    torch.save(classifier.state_dict(), round_classifier_save_path)
+                    if args.from_preds:
+                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_pred_dic.pkl'), 'wb') as f:
+                            pickle.dump(preds_dic, f)
+                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_potential_dic.pkl'), 'wb') as f:
+                            pickle.dump(potential_list_dic, f)
+                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_unreliable_dic.pkl'), 'wb') as f:
+                            pickle.dump(uncertainty_dic, f)
+                    # else:
+                    #     with open(os.path.join(round_dir, 'pseudo_label', 'embeddings.pkl'), 'wb') as f:
+                    #         pickle.dump(embeddings_dic, f)
+                if world_size > 1:
+                    dist.barrier()
+            else:
+                patience_counter_epoch += 1
+                logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
+                if patience_counter_epoch >= args.early_stop_patience_epoch:
+                    logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
+                    break
         optimizer.zero_grad()
-        break
+        logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid)={best_acc_valid_e:.4f}")
         
-        # Save fine-tuned model
-        if rank == 0:
-            model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
-            torch.save(embedding_model.state_dict(), model_save_path)
-            logger.info(f"Saved fine-tuned model to {model_save_path}")
-        
-        if world_size > 1:
-            dist.barrier()
         
         # ============================
-        # Part 3: Extract embeddings, cluster, evaluate
+        # Part 2: Extract embeddings(if use clustering to get pseudo labels)
         # ============================
-        logger.info(f"Round {round} Part 3: Extracting embeddings and evaluating")
-        
-        # Extract embeddings
-        embs_dir = os.path.join(round_dir, 'embeddings')
-        os.makedirs(embs_dir, exist_ok=True)
-        
-        if rank == 0:
-            extract_embeddings_with_model(args.speaker_model_id, model_save_path, args.conf, args.subseg_json,
-                                          embs_dir, args.use_gpu, args.gpu)
-        
-        if world_size > 1:
-            dist.barrier()
-        
-        # Run clustering and evaluation
-        hmm_model_path = os.path.join(pseudo_label_dir, 'hmm_params.pkl') # get HMM model from previous round
+        if not args.from_preds:
+            logger.info(f"Round {round}: Extracting embeddings")
+            embs_dir = os.path.join(round_dir, 'embeddings')
+            os.makedirs(embs_dir, exist_ok=True)
+            if rank == 0:
+                extract_embeddings_with_model(args.speaker_model_id, round_model_save_path, args.conf, args.subseg_json,
+                                              embs_dir, args.use_gpu, args.gpu)
+            if world_size > 1:
+                dist.barrier()
+        else:
+            shutil.copy(os.path.join(os.path.join(initial_dir, 'pseudo_label', 'useful_var_dic.pkl')), os.path.join(round_dir, 'pseudo_label', 'useful_var_dic.pkl'))
+            embs_dir = None
+
+        # ============================
+        # Part 3: Generate pseudo labels and evaluate
+        # ============================
+        # get HMM model from previous round
+        hmm_model_path = os.path.join(pseudo_label_dir, 'hmm_params.pkl')
         if not os.path.exists(hmm_model_path):
             hmm_model_path = None
         else:
             logger.info(f"Using HMM model from previous round: {hmm_model_path}")
+        # update pseudo_label_dir for current round to save results
         pseudo_label_dir = os.path.join(round_dir, 'pseudo_label')
         os.makedirs(pseudo_label_dir, exist_ok=True)
         
         if rank == 0:
-            current_acc = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs,embs_dir, args.visual_embs_dir, 
+            crt_acc_test_r = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
                                                         pseudo_label_dir, args.use_hmm_smoothing, args.fix_mf,
                                                         args.hmm_visual_info_type,  args.unreliable_pp,
-                                                        args.speaker_anno_file, hmm_model_path)
-
-            logger.info(f"Round {round} Part 3 - Accuracy: {current_acc:.4f}")
-            acc_history.append({'round': round, 'part': 'part3', 'acc': current_acc})
+                                                        args.speaker_anno_file, hmm_model_path, args.from_preds, mode='test')
+            crt_acc_valid_r = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
+            logger.info(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}")
+            # Record accuracy
+            acc_history.append({'round': round, 'acc(valid)': crt_acc_valid_r, 'acc(test)': crt_acc_test_r})
             
             # Check if best
-            if current_acc > best_acc:
-                best_acc = current_acc
+            if crt_acc_valid_r > best_acc_valid_r:
+                # Update best accuracy
+                best_acc_valid_r = crt_acc_valid_r
                 best_round = round
-                patience_counter = 0
-                
+                acc_test_at_best_valid = crt_acc_test_r
+                patience_counter_round = 0
                 # Save best model
-                shutil.copy(os.path.join(round_dir, 'finetuned_model.pth'), best_model_path)
+                shutil.copy(round_model_save_path, best_model_path)
                 # Write best model info to file
                 with open(best_model_info_path, 'a') as f:
-                  f.write(f"New best accuracy: {best_acc:.4f} at round {best_round}\n")
-                logger.info(f"New best accuracy: {best_acc:.4f} at round {best_round}")
+                  f.write(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}\n") 
+                logger.info(f"New best acc(valid) at round {best_round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}") 
             else:
-                patience_counter += 1
-                logger.info(f"No improvement. Patience: {patience_counter}/{args.early_stop_patience}")
+                patience_counter_round += 1
+                logger.info(f"No improvement. Patience(round): {patience_counter_round}/{args.early_stop_patience_round}")
             
             # Save accuracy history
             with open(os.path.join(exp_dir, 'accuracy_history.json'), 'w') as f:
                 json.dump(acc_history, f, indent=2)
-            
             # Early stopping
-            if patience_counter >= args.early_stop_patience:
-                logger.info(f"Early stopping triggered. Best accuracy: {best_acc:.4f} at round {best_round}")
+            if patience_counter_round >= args.early_stop_patience_round:
+                logger.info(f"Early stopping triggered at round {best_round}.")
                 break
             
             # # Clean up previous checkpoint to save space
@@ -768,17 +811,18 @@ def main():
             #         os.remove(prev_model)
             #         logger.info(f"Removed previous checkpoint: {prev_model}")
         
-    #     if world_size > 1:
-    #         dist.barrier()
+        if world_size > 1:
+            dist.barrier()
     
-    # # Final summary
-    # if rank == 0:
-    #     logger.info("="*20)
-    #     logger.info("Self-supervised fine-tuning completed!")
-    #     logger.info(f"Initial accuracy: {initial_acc:.4f}")
-    #     logger.info(f"Best accuracy: {best_acc:.4f} at round {best_round}")
-    #     logger.info(f"Improvement: {(best_acc - initial_acc):.4f} ({(best_acc - initial_acc) / initial_acc * 100:.2f}%)")
-    #     logger.info("="*20)
+    # Final summary
+    if rank == 0:
+        logger.info("="*20)
+        logger.info("Self-supervised fine-tuning completed!")
+        logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
+        logger.info(f"Best acc(valid) at round {best_round}: acc(valid)={best_acc_valid_r:.4f}, acc(test)={acc_test_at_best_valid:.4f}")
+        logger.info(f"Improvement for acc(valid): {(best_acc_valid_r - initial_acc_valid):.4f} ({(best_acc_valid_r - initial_acc_valid) / initial_acc_valid * 100:.2f}%)")
+        logger.info(f"Improvement for acc(test): {(acc_test_at_best_valid - initial_acc_test):.4f} ({(acc_test_at_best_valid - initial_acc_test) / initial_acc_test * 100:.2f}%)")
+        logger.info("="*20)
 
 
 if __name__ == "__main__":
