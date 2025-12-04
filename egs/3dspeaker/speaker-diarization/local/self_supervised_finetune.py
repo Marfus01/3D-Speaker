@@ -15,6 +15,7 @@ Pipeline:
 
 import os, sys, time, shutil, subprocess
 import json, argparse, random, pickle
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -31,6 +32,7 @@ from speakerlab.utils.fileio import load_audio
 from speakerlab.utils.config import yaml_config_loader, Config
 from speakerlab.utils.utils import set_seed, get_logger, AverageMeters, ProgressMeter, accuracy
 from extract_diar_embeddings import update_conf
+from cluster_and_postprocess import save_cluster_results_audio
 
 
 parser = argparse.ArgumentParser(description='Self-supervised fine-tuning for speaker diarization')
@@ -132,7 +134,7 @@ class PseudoLabelDataset(Dataset):
         cluster_label = self.pseudo_labels[subseg_id]
         class_idx = self.label_to_idx[cluster_label]
         length = self.sample_lengths[subseg_id]
-        return feat, class_idx, length, subseg_id
+        return feat, class_idx, length
 
 class LengthAwareBatchSampler(Sampler):
     """
@@ -358,7 +360,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file):
     
     # Parse accuracy from the output file
     # Find the accuracy file that contains "corrected_all_by_HMM"
-    acc_files = [f for f in os.listdir(result_dir) if f.endswith('_accuracy.txt') and 'pseudo_labels_audio' in f]
+    acc_files = [f for f in os.listdir(result_dir) if f.endswith('_accuracy.txt') and 'pseudo_labels_audio_vision_vad' in f]
     assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
     assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
     
@@ -481,6 +483,7 @@ def main():
         exp_name = f"exp{int(existing_exp_dirs[-1][3:]) + 1}"
     else:
         exp_name = "exp0"
+    exp_name = "exp3"  # For debug purpose
     exp_dir = os.path.join(finetune_dir, exp_name)
     os.makedirs(exp_dir, exist_ok=True)
     ## Paths for best model and info
@@ -523,18 +526,18 @@ def main():
     #     args.speaker_anno_file
     # )
 
-    shutil.copytree(os.path.join(finetune_dir, "exp1", 'initial'), initial_dir, dirs_exist_ok=True)
-    logger.info(f"Initial pseudo-label directory {pseudo_label_dir} already exists, skipping initial clustering.")
-    initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file)
-    logger.info(f"Initial accuracy: {initial_acc:.4f}")
+    # shutil.copytree(os.path.join(finetune_dir, "exp1", 'initial'), initial_dir, dirs_exist_ok=True)
+    # logger.info(f"Initial pseudo-label directory {pseudo_label_dir} already exists, skipping initial clustering.")
+    # initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file)
+    # logger.info(f"Initial accuracy: {initial_acc:.4f}")
     
-    # Record best accuracy
-    best_acc = initial_acc
-    best_round = 0
-    patience_counter = 0
+    # # Record best accuracy
+    # best_acc = initial_acc
+    # best_round = 0
+    # patience_counter = 0
     
-    # Accuracy history
-    acc_history = [{'round': 0, 'part': 'Initial', 'acc': initial_acc}]
+    # # Accuracy history
+    # acc_history = [{'round': 0, 'part': 'Initial', 'acc': initial_acc}]
     
     # ============================
     # Iterative fine-tuning
@@ -583,11 +586,11 @@ def main():
               json.dump(conf_model, f, indent=4)  # Assuming conf_model is serializable
             logger.info(f"Saved config_model to {config_model_json_path}")
             
-            # Copy pretrained model to local round dir for record
-            torch.save(embedding_model.state_dict(), best_model_path)
-            # Write best model info to file
-            with open(best_model_info_path, 'a') as f:
-              f.write(f"Initial accuracy: {initial_acc:.4f}\n")
+            # # Copy pretrained model to local round dir for record
+            # torch.save(embedding_model.state_dict(), best_model_path)
+            # # Write best model info to file
+            # with open(best_model_info_path, 'a') as f:
+            #   f.write(f"Initial accuracy: {initial_acc:.4f}\n")
 
         # Create dataset and dataloader
         train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
@@ -595,16 +598,10 @@ def main():
             logger.error("No valid training samples found!")
             break
         batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True)
-        def custom_collate(batch):
-            # 适配多返回值
-            feats, labels, lengths, subseg_ids = zip(*batch)
-            # 复用原有collate_fn逻辑
-            padded_feats, labels = collate_fn([(f, l, le) for f, l, le in zip(feats, labels, lengths)])
-            return padded_feats, labels, subseg_ids
-        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=custom_collate)
+        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
 
         # Create classifier with the dynamically obtained embedding size
-        sample_feat, _, _ = next(iter(train_loader))
+        sample_feat, _ = next(iter(train_loader))
         with torch.no_grad():
             sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat, sample_feat], dim=0).to(device))
         embedding_dim = sample_embedding.shape[-1]
@@ -644,54 +641,56 @@ def main():
         # Fine-tuning
         logger.info(f"Fine-tuning embedding model for {args.finetune_epochs_num} epochs...")
         for ft_epoch in range(args.finetune_epochs_num):
-            torch.manual_seed(args.seed + ft_epoch)
-            if args.use_gpu:
-                torch.cuda.manual_seed_all(args.seed + ft_epoch)
-            train_stats = train_one_epoch(
-                train_loader,  embedding_model, classifier, criterion,
-                optimizer, ft_epoch, logger, device
-            )
-            logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
+            # torch.manual_seed(args.seed + ft_epoch)
+            # if args.use_gpu:
+            #     torch.cuda.manual_seed_all(args.seed + ft_epoch)
+            # train_stats = train_one_epoch(
+            #     train_loader,  embedding_model, classifier, criterion,
+            #     optimizer, ft_epoch, logger, device
+            # )
+            # logger.info(f"Fine-tune Epoch {ft_epoch}: Loss={train_stats['loss']:.4f}, Acc(pseudo)={train_stats['acc']:.2f}%")
 
-            # === 新增：每个epoch后，计算所有训练样本的分类标签、概率和不确定度 ===
-            embedding_model.eval()
-            classifier.eval()
-            # === 新实现：不使用dataloader，直接遍历所有subseg_id，取原始特征 ===
-            embedding_model.eval()
-            classifier.eval()
-            embeddings_dic = {}
-            preds_dic = {}
-            uncertainty_dic = {}
-            with torch.no_grad():
-                for sid in train_dataset.valid_samples:
-                    feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
-                    feat = feat.unsqueeze(0).to(device)  # [1, T, D]
-                    emb = embedding_model(feat)  # [1, emb_dim]
-                    logits = classifier(emb)
-                    probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
-                    top2_probs, _ = torch.topk(probs, 2)
-                    uncertainty = (top2_probs[0] - top2_probs[1]).item()
-                    pred_label = torch.argmax(probs).item()
-                    embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
-                    preds_dic[sid] = int(pred_label)
-                    uncertainty_dic[sid] = float(uncertainty)
+            # # === 新增：每个epoch后，计算所有训练样本的分类标签、概率和不确定度 ===
+            # embedding_model.eval()
+            # classifier.eval()
+            # # === 新实现：不使用dataloader，直接遍历所有subseg_id，取原始特征 ===
+            # embedding_model.eval()
+            # classifier.eval()
+            # embeddings_dic = {}
+            # preds_dic = {}
+            # uncertainty_dic = {}
+            # with torch.no_grad():
+            #     for sid in train_dataset.valid_samples:
+            #         feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
+            #         feat = feat.unsqueeze(0).to(device)  # [1, T, D]
+            #         emb = embedding_model(feat)  # [1, emb_dim]
+            #         logits = classifier(emb)
+            #         probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
+            #         top2_probs, _ = torch.topk(probs, 2)
+            #         uncertainty = (top2_probs[0] - top2_probs[1]).item()
+            #         pred_label = torch.argmax(probs).item()
+            #         embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
+            #         preds_dic[sid] = int(pred_label)
+            #         uncertainty_dic[sid] = float(uncertainty)
             # 保存到对应epoch子文件夹
             epoch_dir = os.path.join(round_dir, f'ft_epoch_{ft_epoch}')
             os.makedirs(epoch_dir, exist_ok=True)
-            with open(os.path.join(epoch_dir, 'embeddings.pkl'), 'wb') as f:
-                pickle.dump(embeddings_dic, f)
-            with open(os.path.join(epoch_dir, 'preds.pkl'), 'wb') as f:
-                pickle.dump(preds_dic, f)
-            with open(os.path.join(epoch_dir, 'uncertainty.pkl'), 'wb') as f:
-                pickle.dump(uncertainty_dic, f)
+            # with open(os.path.join(epoch_dir, 'embeddings.pkl'), 'wb') as f:
+            #     pickle.dump(embeddings_dic, f)
+            # with open(os.path.join(epoch_dir, 'preds.pkl'), 'wb') as f:
+            #     pickle.dump(preds_dic, f)
+            # with open(os.path.join(epoch_dir, 'uncertainty.pkl'), 'wb') as f:
+            #     pickle.dump(uncertainty_dic, f)
 
             current_acc = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, args.audio_embs_dir, args.visual_embs_dir, 
                                                         epoch_dir, args.use_hmm_smoothing, args.fix_mf,
                                                         args.hmm_visual_info_type,  args.unreliable_pp,
-                                                        args.speaker_anno_file, hmm_model_path)
-
+                                                        args.speaker_anno_file, None)
+            # save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.valid_samples]), np.array(train_dataset.valid_samples), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
+            # current_acc = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file)
             logger.info(f"Round {round} Part 3 - Accuracy: {current_acc:.4f}")
         optimizer.zero_grad()
+        break
         
         # Save fine-tuned model
         if rank == 0:
@@ -769,17 +768,17 @@ def main():
             #         os.remove(prev_model)
             #         logger.info(f"Removed previous checkpoint: {prev_model}")
         
-        if world_size > 1:
-            dist.barrier()
+    #     if world_size > 1:
+    #         dist.barrier()
     
-    # Final summary
-    if rank == 0:
-        logger.info("="*20)
-        logger.info("Self-supervised fine-tuning completed!")
-        logger.info(f"Initial accuracy: {initial_acc:.4f}")
-        logger.info(f"Best accuracy: {best_acc:.4f} at round {best_round}")
-        logger.info(f"Improvement: {(best_acc - initial_acc):.4f} ({(best_acc - initial_acc) / initial_acc * 100:.2f}%)")
-        logger.info("="*20)
+    # # Final summary
+    # if rank == 0:
+    #     logger.info("="*20)
+    #     logger.info("Self-supervised fine-tuning completed!")
+    #     logger.info(f"Initial accuracy: {initial_acc:.4f}")
+    #     logger.info(f"Best accuracy: {best_acc:.4f} at round {best_round}")
+    #     logger.info(f"Improvement: {(best_acc - initial_acc):.4f} ({(best_acc - initial_acc) / initial_acc * 100:.2f}%)")
+    #     logger.info("="*20)
 
 
 if __name__ == "__main__":
