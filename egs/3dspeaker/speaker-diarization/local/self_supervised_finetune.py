@@ -487,12 +487,13 @@ def main():
     os.makedirs(finetune_dir, exist_ok=True)
     ## Create dictory for current experiment
     existing_exp_dirs = [d for d in os.listdir(finetune_dir) if os.path.isdir(os.path.join(finetune_dir, d)) and d.startswith("exp") and d[3:].isdigit()]
-    if existing_exp_dirs:
+    if len(existing_exp_dirs) > 0:
         existing_exp_dirs.sort(key=lambda x: int(x[3:]))  # Sort directories by their numeric suffix
         exp_name = f"exp{int(existing_exp_dirs[-1][3:]) + 1}"
     else:
         exp_name = "exp0"
     exp_dir = os.path.join(finetune_dir, exp_name)
+    assert not os.path.exists(exp_dir), f"Experiment directory {exp_dir} already exists!"   # NOTE: 一次性跑多个实验时，需要等待前一个实验目录创建完成
     os.makedirs(exp_dir, exist_ok=True)
     ## Paths for best model and info
     best_model_path = os.path.join(exp_dir, 'best_model.pth')
@@ -665,6 +666,8 @@ def main():
         round_model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
         round_classifier_save_path = os.path.join(round_dir, 'finetuned_classifier.pth')
         best_acc_valid_e, best_epoch, patience_counter_epoch = 0.0, 0, 0
+        if args.from_preds:
+            best_preds_dic, best_uncertainty_dic, best_potential_list_dic = {}, {}, {}
         logger.info(f"Fine-tuning embedding model for {args.max_finetune_epochs} epochs...")
         for ft_epoch in range(args.max_finetune_epochs):
             torch.manual_seed(args.seed + ft_epoch)
@@ -715,20 +718,20 @@ def main():
             crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid): {crt_acc_valid_e:.4f}")
             if crt_acc_valid_e > best_acc_valid_e:  # epoch0 must be better
-                best_acc_valid_e = crt_acc_valid_e
-                best_epoch = ft_epoch
+                best_acc_valid_e, best_epoch  = crt_acc_valid_e, ft_epoch
                 patience_counter_epoch = 0
                 # Save best model of this round, and preds, uncertainty, potential_list dicts
                 if rank == 0:
                     torch.save(embedding_model.state_dict(), round_model_save_path)
                     torch.save(classifier.state_dict(), round_classifier_save_path)
                     if args.from_preds:
+                        best_preds_dic, best_uncertainty_dic, best_potential_list_dic = preds_dic, uncertainty_dic, potential_list_dic
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_pred_dic.pkl'), 'wb') as f:
-                            pickle.dump(preds_dic, f)
+                            pickle.dump(best_preds_dic, f)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_potential_dic.pkl'), 'wb') as f:
-                            pickle.dump(potential_list_dic, f)
+                            pickle.dump(best_uncertainty_dic, f)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_unreliable_dic.pkl'), 'wb') as f:
-                            pickle.dump(uncertainty_dic, f)
+                            pickle.dump(best_potential_list_dic, f)
                     # else:
                     #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
                     #         pickle.dump(embeddings_dic, f)
@@ -785,15 +788,13 @@ def main():
             # Check if best
             if crt_acc_valid_r > best_acc_valid_r:
                 # Update best accuracy
-                best_acc_valid_r = crt_acc_valid_r
-                best_round = round
-                acc_test_at_best_valid = crt_acc_test_r
+                best_acc_valid_r, best_round, acc_test_at_best_valid = crt_acc_valid_r, round, crt_acc_test_r
                 patience_counter_round = 0
                 # Save best model
                 shutil.copy(round_model_save_path, best_model_path)
                 # Write best model info to file
                 with open(best_model_info_path, 'a') as f:
-                  f.write(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}\n") 
+                    f.write(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}\n") 
                 logger.info(f"New best acc(valid) at round {best_round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}") 
             else:
                 patience_counter_round += 1
