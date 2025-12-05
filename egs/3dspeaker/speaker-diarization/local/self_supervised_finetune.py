@@ -214,7 +214,7 @@ def collate_fn(batch):
     labels = torch.tensor(labels)
     return padded_feats, labels
 
-def unfrozen_model_layers(model, unfrozen_layers_num=0):
+def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
     """
     Unfreeze the top layers of the model.
     
@@ -224,11 +224,12 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0):
     """
     # Get all modules
     all_modules = list(model.named_modules())
-    # print(f"[INFO] Total layers in model: {len(all_modules)}")
-    # print(f"[INFO] All layers:")
-    # for idx, (name, module) in enumerate(all_modules):
-    #     print(f"  [{idx}] {name}")
-    #     print(f"    {module}")
+    if print_mod_flag:
+        print(f"[INFO] Total layers in model: {len(all_modules)}")
+        print(f"[INFO] All layers:")
+        for idx, (name, module) in enumerate(all_modules):
+            print(f"  [{idx}] {name}")
+            print(f"    {module}")
     
     # Unfreeze top layers
     if unfrozen_layers_num > 0:
@@ -361,7 +362,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         print(f"[WARNING] Error computing accuracy: {e}")
-        return 0.0
+        raise e
     
     # Parse accuracy from the output file
     # Find the accuracy file that contains "corrected_all_by_HMM"
@@ -380,9 +381,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
                     return acc
     except Exception as e:
         print(f"[WARNING] Error parsing accuracy file: {e}")
-        return 0.0
-    
-    return 0.0
+        raise e
 
 
 def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None, from_preds=False, mode='test'):
@@ -444,7 +443,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         print(f"[ERROR] Clustering failed with error: {e}")
         print(f"[ERROR] Stdout: {e.stdout}")
         print(f"[ERROR] Stderr: {e.stderr}")
-        return 0.0
+        raise e
     
     # Compute accuracy
     assert os.path.exists(speaker_anno_file), f"Speaker annotation file {speaker_anno_file} does not exist!"
@@ -650,7 +649,10 @@ def main():
             optimizer.zero_grad()
 
         # Unfreeze last few layers in embedding model
-        unfrozen_model_layers(embedding_model, args.unfrozen_layers_num)
+        if round == 0:
+            unfrozen_model_layers(embedding_model, args.unfrozen_layers_num, print_mod_flag=True)
+        else:
+            unfrozen_model_layers(embedding_model, args.unfrozen_layers_num)
         # Optimizer for fine-tuning (both embedding and classifier)
         optimizer = torch.optim.Adam(
             list(embedding_model.parameters()) + list(classifier.parameters()),
@@ -756,7 +758,7 @@ def main():
                 dist.barrier()
         else:
             shutil.copy(os.path.join(os.path.join(initial_dir, 'pseudo_label', 'useful_var_dic.pkl')), os.path.join(round_dir, 'pseudo_label', 'useful_var_dic.pkl'))
-            embs_dir = None
+            embs_dir = ""
 
         # ============================
         # Part 3: Generate pseudo labels and evaluate
