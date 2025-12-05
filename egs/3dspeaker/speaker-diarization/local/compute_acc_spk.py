@@ -9,7 +9,7 @@ from acc_utils import *
 
 def main(args):
     assert os.path.isfile(args.ref_xlsx), f"Reference xlsx file {args.ref_xlsx} does not exist."
-    valid_keys_path = os.path.join(os.path.dirname(args.ref_xlsx), 'valid_part_keys.npy')
+    valid_keys_path = os.path.join(os.path.dirname(args.ref_xlsx), 'valid_part_keys_speaker.npy')
     if os.path.isfile(valid_keys_path):
         valid_keys_list = np.load(valid_keys_path, allow_pickle=True).tolist()
     else:
@@ -54,14 +54,14 @@ def main(args):
         cluster_labels = [cluster_dic.get(k, -2) for k in keys]
         valid_idx = [i for i, c in enumerate(cluster_labels) if c != -2]
         if len(valid_idx) < len(keys):
-          missing_keys = [keys[i] for i in range(len(keys)) if i not in valid_idx]
+          missing_keys = [keys.iloc[i] for i in range(len(keys)) if i not in valid_idx]
           missing_keys_num = len(missing_keys)
           total_keys_num = len(keys)
           print(f"Warning: {missing_keys_num} out of {total_keys_num} keys in the reference xlsx are missing in {json_file}.")
-          keys = [keys[i] for i in valid_idx]
+          keys = [keys.iloc[i] for i in valid_idx]
           speaker_labels = [speaker_labels[i] for i in valid_idx]
           cluster_labels = [cluster_labels[i] for i in valid_idx]
-          durations = [durations[i] for i in valid_idx]
+          durations = [durations.iloc[i] for i in valid_idx]
 
         # 4. 调整 cluster_labels，使其从 0 开始连续编号
         print('Original cluster ids and their counts on labeled data:', {label: cluster_labels.count(label) for label in set(cluster_labels)})
