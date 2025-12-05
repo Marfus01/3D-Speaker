@@ -435,11 +435,11 @@ def convert_alabels_to_onehot(audio_seg_ids, alabels, ncols):
       np.ndarray: A 2D one-hot encoded matrix of shape (N, K+2) or (N, K+1), where K is the maximum label in `alabels`. The last column corresponds to the -1 label if present.
     """
     assert len(audio_seg_ids) == len(alabels), f"audio_seg_ids and alabels must have the same length, but got {len(audio_seg_ids)} and {len(alabels)}."
-    n_major_clusters = np.max(alabels) + 1
+    # Don't assert alabels are consecutive, since some clusters may be removed during classification
     if -1 in alabels:
-        assert set(np.unique(alabels)) == set(range(-1, n_major_clusters)), "alabels contains non-consecutive integers starting from -1."
+        assert set(np.unique(alabels)).issubset(set(range(-1, np.max(alabels) + 1))), "alabels contains values not in the expected range starting from -1."
     else:
-        assert set(np.unique(alabels)) == set(range(0, n_major_clusters)), "alabels contains non-consecutive integers starting from 0."
+        assert set(np.unique(alabels)).issubset(set(range(0, np.max(alabels) + 1))), "alabels contains values not in the expected range starting from 0."
     S_hat_onehot = np.zeros((len(audio_seg_ids), ncols), dtype=int)  # last column for -1 label if present
 
     for idx, label in enumerate(alabels):
@@ -525,43 +525,43 @@ def convert_vlabels_mf_to_binary(audio_seg_ids, audio_seg_ids_mf, vlabels_mf, S_
     return F_hat
 
 def convert201_together(audio_seg_ids, alabels, audio_times=None, visual_times_vad=None, vlabels_vad=None, audio_seg_ids_mf=None, vlabels_mf=None):
-  """
-  Converts audio and visual labels into one-hot encoded matrices for further processing.
+    """
+    Converts audio and visual labels into one-hot encoded matrices for further processing.
 
-  Args:
-    audio_seg_ids (np.ndarray): A 1D array of shape (N,) containing unique identifiers for each audio segment.
-    alabels (np.ndarray): A 1D array of shape (N,) containing the labels for each audio segment. Labels are integers starting from -1 or 0, where -1 indicates 'others'.  
-    audio_times (np.ndarray, optional): A 2D array of shape (N, 2) where each row represents the start and end times of an audio segment.
-    visual_times_vad (np.ndarray, optional): A 1D array of shape (M1,) where each element represents the timestamp of a active speaker face.
-    vlabels_vad (np.ndarray, optional): A 1D array of shape (M1,) containing the labels for each active speaker face. Labels are integers starting from -1 or 0, where -1 indicates 'others'.
-    audio_seg_ids_mf (np.ndarray, optional): A 1D array of shape (M2,) containing unique identifiers for audio segments that correspond to each mid-frame face.
-    vlabels_mf (np.ndarray, optional): A 1D array of shape (M2,) containing the labels for each mid-frame face. Labels are integers starting from -1 or 0, where -1 indicates 'others'.
+    Args:
+        audio_seg_ids (np.ndarray): A 1D array of shape (N,) containing unique identifiers for each audio segment.
+        alabels (np.ndarray): A 1D array of shape (N,) containing the labels for each audio segment. Labels are integers starting from -1 or 0, where -1 indicates 'others'.  
+        audio_times (np.ndarray, optional): A 2D array of shape (N, 2) where each row represents the start and end times of an audio segment.
+        visual_times_vad (np.ndarray, optional): A 1D array of shape (M1,) where each element represents the timestamp of a active speaker face.
+        vlabels_vad (np.ndarray, optional): A 1D array of shape (M1,) containing the labels for each active speaker face. Labels are integers starting from -1 or 0, where -1 indicates 'others'.
+        audio_seg_ids_mf (np.ndarray, optional): A 1D array of shape (M2,) containing unique identifiers for audio segments that correspond to each mid-frame face.
+        vlabels_mf (np.ndarray, optional): A 1D array of shape (M2,) containing the labels for each mid-frame face. Labels are integers starting from -1 or 0, where -1 indicates 'others'.
 
-  Returns:
-    tuple:
-    - S_hat_onehot (np.ndarray): A 2D one-hot encoded matrix for audio labels.
-    - X_onehot (np.ndarray): A 2D one-hot encoded matrix for visual labels mapped to audio segments.
-    - F_hat(np.ndarray): A 2D binary matrix for mid-frame visual labels mapped to audio segments.
-  """
-  flag_has_neg1 = (-1 in alabels) or (vlabels_vad is not None and -1 in vlabels_vad) or (vlabels_mf is not None and -1 in vlabels_mf) # determine whether add extra column for -1 label
-  n_major_clusters = np.max(alabels) + 1
-  n_states = n_major_clusters + 1 if flag_has_neg1 else n_major_clusters
+    Returns:
+        tuple:
+        - S_hat_onehot (np.ndarray): A 2D one-hot encoded matrix for audio labels.
+        - X_onehot (np.ndarray): A 2D one-hot encoded matrix for visual labels mapped to audio segments.
+        - F_hat(np.ndarray): A 2D binary matrix for mid-frame visual labels mapped to audio segments.
+    """
+    flag_has_neg1 = (-1 in alabels) or (vlabels_vad is not None and -1 in vlabels_vad) or (vlabels_mf is not None and -1 in vlabels_mf) # determine whether add extra column for -1 label
+    n_major_clusters = np.max(alabels) + 1
+    n_states = n_major_clusters + 1 if flag_has_neg1 else n_major_clusters
 
-  # Convert labels to binary/one-hot matrices, and collect poyential sates for each time t
-  # audio part
-  S_hat_onehot = convert_alabels_to_onehot(audio_seg_ids, alabels, ncols=n_states)
-  # visual vad part
-  X_onehot = np.zeros_like(S_hat_onehot, dtype=int)
-  if audio_times is not None and visual_times_vad is not None and vlabels_vad is not None:
-      assert set(np.unique(vlabels_vad)).issubset(set(np.unique(alabels))), "vlabels_vad contains labels not present in alabels."
-      X_onehot = convert_vlabels_vad_to_onehot(audio_times, visual_times_vad, audio_seg_ids, vlabels_vad, S_hat_onehot)
-  # visual mid frame part
-  F_hat = np.zeros_like(S_hat_onehot, dtype=int)
-  if audio_seg_ids_mf is not None and vlabels_mf is not None:
-      assert set(np.unique(vlabels_mf)).issubset(set(np.unique(alabels))), "vlabels_mf contains labels not present in alabels."
-      F_hat = convert_vlabels_mf_to_binary(audio_seg_ids, audio_seg_ids_mf, vlabels_mf, S_hat_onehot)
+    # Convert labels to binary/one-hot matrices, and collect poyential sates for each time t
+    # audio part
+    S_hat_onehot = convert_alabels_to_onehot(audio_seg_ids, alabels, ncols=n_states)
+    # visual vad part
+    X_onehot = np.zeros_like(S_hat_onehot, dtype=int)
+    if audio_times is not None and visual_times_vad is not None and vlabels_vad is not None:
+        assert set(np.unique(vlabels_vad)).issubset(set(np.unique(alabels))), "vlabels_vad contains labels not present in alabels."
+        X_onehot = convert_vlabels_vad_to_onehot(audio_times, visual_times_vad, audio_seg_ids, vlabels_vad, S_hat_onehot)
+    # visual mid frame part
+    F_hat = np.zeros_like(S_hat_onehot, dtype=int)
+    if audio_seg_ids_mf is not None and vlabels_mf is not None:
+        assert set(np.unique(vlabels_mf)).issubset(set(np.unique(alabels))), "vlabels_mf contains labels not present in alabels."
+        F_hat = convert_vlabels_mf_to_binary(audio_seg_ids, audio_seg_ids_mf, vlabels_mf, S_hat_onehot)
   
-  return S_hat_onehot, X_onehot, F_hat, flag_has_neg1
+    return S_hat_onehot, X_onehot, F_hat, flag_has_neg1
 
 
 def collect_labels_potential(audio_seg_ids, labels_potential_list, n_states, audio_seg_ids_ref=None):
@@ -1018,8 +1018,8 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
         if 'mid_frame' in hmm_visual_info_type:
-            useful_var_dic['audio_seg_ids_mf_aligned'] = audio_seg_ids_mf_aligned
-            useful_var_dic['face_idxs_mf_aligned'] = face_idxs_mf_aligned
+            useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
+            useful_var_dic['face_idxs_mf'] = face_idxs_mf
             useful_var_dic['vlabels_mf'] = vlabels_mf
             useful_var_dic['aligned_mask_mf'] = aligned_mask_mf
             useful_var_dic['vlabels_mf_processed'] = vlabels_mf_processed
@@ -1047,6 +1047,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         with open(alabels_pred_dic_path, 'rb') as f:
             alabels_pred_dic = pickle.load(f)
         alabels_processed = np.array([alabels_pred_dic[seg_id] for seg_id in audio_seg_ids])
+        ## save loaded speaker labels as json
+        summary_cluster_results(alabels_processed, modal_type='speaker_pred_from_model')
+        save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'speaker_pred_from_model.json'))
+        if not hmm_flag:
+            save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'pseudo_labels_audio_from_model.json'))
+            return
         ## load speaker potential list
         alabels_potential_dic_path = os.path.join(result_dir, 'alabels_potential_dic.pkl')
         assert os.path.exists(alabels_potential_dic_path), f"When from_preds is True, alabels_potential_dic.pkl must exist in {result_dir}."
@@ -1061,13 +1067,13 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         alabels_unreliable_metrics = np.array([alabels_unreliable_dic[seg_id] for seg_id in audio_seg_ids])
         
         # Middle frame face labels loading
+        audio_seg_ids_mf_aligned, vlabels_mf_aligned = None, None   # 默认为None，在不使用中间帧信息时发挥作用
+        vlabels_mf_processed, vlabels_mf_potential_list = None, None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf = useful_var_dic['vlabels_mf']
-            aligned_mask_mf = useful_var_dic['aligned_mask_mf']
-            vlabels_mf_processed, vlabels_mf_potential_list = None, None
             ## load useful variables
-            audio_seg_ids_mf_aligned = useful_var_dic['audio_seg_ids_mf_aligned']
-            face_idxs_mf_aligned = useful_var_dic['face_idxs_mf_aligned']
+            audio_seg_ids_mf, face_idxs_mf = useful_var_dic['audio_seg_ids_mf'], useful_var_dic['face_idxs_mf']
+            vlabels_mf, aligned_mask_mf = useful_var_dic['vlabels_mf'], useful_var_dic['aligned_mask_mf']
+            audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
             assert len(audio_seg_ids_mf_aligned) == len(face_idxs_mf_aligned), "Length of audio_seg_ids_mf_aligned must be the same as that of face_idxs_mf_aligned."
             keys_mf = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf_aligned, face_idxs_mf_aligned)]
             
@@ -1080,6 +1086,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                 with open(vlabels_mf_pred_dic_path, 'rb') as f:
                     vlabels_mf_pred_dic = pickle.load(f)
                 vlabels_mf_processed = np.array([vlabels_mf_pred_dic[key_mf] for key_mf in keys_mf])
+                ### save loaded mid-frame face labels
+                vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
+                vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed
+                vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1
+                summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_labels_from_model')
+                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'visual_mid_frame_labels_from_model.json'))
             assert vlabels_mf_processed is not None, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_processed must be provided."
 
             ## load vlabels_mf_potential_list
@@ -1092,6 +1104,28 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                     vlabels_mf_potential_dic = pickle.load(f)
                 vlabels_mf_potential_list = np.array([vlabels_mf_potential_dic[key_mf] for key_mf in keys_mf])
             assert vlabels_mf_potential_list is not None, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_potential_list must be provided."
+
+        # Remove unaligned visual samples according to alabels_processed(since predictions may differ from previous clustering results)
+        ## For vlabels_vad_processed
+        illegal_vad_labels_set = set(np.unique(vlabels_vad_processed)) - set(np.unique(alabels_processed))
+        if len(illegal_vad_labels_set) > 0:
+            legal_indices = [i for i, label in enumerate(vlabels_vad_processed) if label not in illegal_vad_labels_set]
+            vlabels_vad_processed = vlabels_vad_processed[legal_indices]
+            visual_times_vad_aligned = visual_times_vad_aligned[legal_indices]
+            print(f"[INFO] Removed {len(illegal_vad_labels_set)} illegal vad visual labels not in alabels_processed when from_preds is True: {illegal_vad_labels_set}.")
+        ## For vlabels_mf_processed
+        if 'mid_frame' in hmm_visual_info_type:
+            illegal_mf_labels_set = set(np.unique(vlabels_mf_processed)) - set(np.unique(alabels_processed))
+            if len(illegal_mf_labels_set) > 0:
+                legal_indices_mf = [i for i, label in enumerate(vlabels_mf_processed) if label not in illegal_mf_labels_set]
+                vlabels_mf_processed = vlabels_mf_processed[legal_indices_mf]
+                vlabels_mf_potential_list = np.array(vlabels_mf_potential_list)[legal_indices_mf].tolist()
+                audio_seg_ids_mf_aligned = audio_seg_ids_mf_aligned[legal_indices_mf]
+                aligned_mask_mf_updated = np.zeros_like(aligned_mask_mf, dtype=bool)
+                aligned_mask_mf_updated[np.where(aligned_mask_mf)[0][legal_indices_mf]] = True
+                aligned_mask_mf = aligned_mask_mf_updated
+                print(f"[INFO] Removed {len(illegal_mf_labels_set)} illegal mid-frame visual labels not in alabels_processed when from_preds is True: {illegal_mf_labels_set}.")
+        
 
     ## 转换观测及avd协变量为 binary 编码矩阵
     S_hat_onehot, X_onehot, F_hat, flag_has_neg1 = convert201_together(audio_seg_ids, alabels_processed, 
