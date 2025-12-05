@@ -1024,6 +1024,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             useful_var_dic['aligned_mask_mf'] = aligned_mask_mf
             useful_var_dic['vlabels_mf_processed'] = vlabels_mf_processed
             useful_var_dic['vlabels_mf_potential_list'] = vlabels_mf_potential_list
+        useful_var_path = os.path.join(result_dir, 'useful_var_dic.pkl')
+        with open(useful_var_path, 'wb') as f:
+            pickle.dump(useful_var_dic, f)
     else:
         # load useful variables copied from previous clustering step
         useful_var_path = os.path.join(result_dir, 'useful_var_dic.pkl')
