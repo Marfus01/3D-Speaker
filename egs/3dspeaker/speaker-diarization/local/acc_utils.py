@@ -16,12 +16,12 @@ def eval_test_split(xlsx_path):
     keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)
     speakers = df['speaker']
     speaker_labels = ['Others' if speaker not in main_character_list else speaker for speaker in speakers] # Replace all non-main characters with 'Others'
-    durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
-    bins = [0, 1, 2, 3, 4, float('inf')]
-    duration_groups = (np.digitize(durations, bins) - 1).tolist()  # 取值范围 [0, 4]，len(group_indices) == len(durations)
+    # durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
+    # bins = [0, 1, 2, 3, 4, float('inf')]
+    # duration_groups = (np.digitize(durations, bins) - 1).tolist()  # 取值范围 [0, 4]，len(group_indices) == len(durations)
     # Stratified split
-    stratify_labels = [f"{spk}_{grp}" for spk, grp in zip(speaker_labels, duration_groups)]
-    _, valid_keys = train_test_split(keys, test_size=0.2, stratify=stratify_labels, random_state=100)
+    # stratify_labels = [f"{spk}_{grp}" for spk, grp in zip(speaker_labels, duration_groups)]
+    _, valid_keys = train_test_split(keys, test_size=0.2, stratify=speaker_labels, random_state=100)
     valid_keys_list = valid_keys.tolist()
     return valid_keys_list
 
