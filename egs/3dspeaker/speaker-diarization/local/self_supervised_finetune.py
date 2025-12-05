@@ -365,7 +365,7 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
     
     # Parse accuracy from the output file
     # Find the accuracy file that contains "corrected_all_by_HMM"
-    acc_files = [f for f in os.listdir(result_dir) if f.endswith('_accuracy.txt') and 'pseudo_labels_audio' in f]
+    acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy({mode}).txt') and 'pseudo_labels_audio' in f]
     assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
     assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
     

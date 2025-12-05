@@ -8,15 +8,20 @@ main_character_list_BB = ['Sheldon', 'Leonard', 'Penny', 'Howard', 'Raj']
 main_character_list = main_character_list_IL + main_character_list_BB
 
 def eval_test_split(xlsx_path):
-    # 根据 speaker分层抽样,获取 20% 的 keys
+    # 根据 speaker 和 duration 分层抽样,获取 20% 的 keys
     ## 筛选有标注的数据
     df = pd.read_excel(xlsx_path)
     df = df[df['whether annotate speaker'] == 'Yes']
-    ## 提取 keys 和 speakers
+    ## 提取 keys, speakers, durations
     keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)
     speakers = df['speaker']
     speaker_labels = ['Others' if speaker not in main_character_list else speaker for speaker in speakers] # Replace all non-main characters with 'Others'
-    _, valid_keys = train_test_split(keys, test_size=0.2, stratify=speaker_labels, random_state=100)
+    durations = df.apply(lambda row: time_to_seconds(row['End Time']) - time_to_seconds(row['Start Time']), axis=1)
+    bins = [0, 1, 2, 3, 4, float('inf')]
+    duration_groups = (np.digitize(durations, bins) - 1).tolist()  # 取值范围 [0, 4]，len(group_indices) == len(durations)
+    # Stratified split
+    stratify_labels = [f"{spk}_{grp}" for spk, grp in zip(speaker_labels, duration_groups)]
+    _, valid_keys = train_test_split(keys, test_size=0.2, stratify=stratify_labels, random_state=100)
     valid_keys_list = valid_keys.tolist()
     return valid_keys_list
 
