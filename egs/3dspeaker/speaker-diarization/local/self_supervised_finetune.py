@@ -525,6 +525,7 @@ def main():
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
         initial_acc_test = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='test')
+        initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
     else:
         initial_acc_test = run_clustering_and_evaluation(
             args.conf,
@@ -542,10 +543,10 @@ def main():
             from_preds=False,
             mode='test'
         )
+        initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')    # 写两次的目的是保证验证集acc文件也被复制到initial_dir中
         shutil.copytree(initial_dir, os.path.join(finetune_dir, 'initial'), dirs_exist_ok=True)
         logger.info(f"Saved initial clustering results to {initial_dir}")
     
-    initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
     logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
     # Accuracy history
     acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
@@ -657,6 +658,8 @@ def main():
         )
         
         # Fine-tuning
+        round_pseudo_label_dir = os.path.join(round_dir, 'pseudo_label')
+        os.makedirs(round_pseudo_label_dir, exist_ok=True)
         round_model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
         round_classifier_save_path = os.path.join(round_dir, 'finetuned_classifier.pth')
         best_acc_valid_e, best_epoch, patience_counter_epoch = 0.0, 0, 0
@@ -709,7 +712,7 @@ def main():
             save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
             crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid): {crt_acc_valid_e:.4f}")
-            if crt_acc_valid_e > best_acc_valid_e:
+            if crt_acc_valid_e > best_acc_valid_e:  # epoch0 must be better
                 best_acc_valid_e = crt_acc_valid_e
                 best_epoch = ft_epoch
                 patience_counter_epoch = 0
@@ -718,14 +721,14 @@ def main():
                     torch.save(embedding_model.state_dict(), round_model_save_path)
                     torch.save(classifier.state_dict(), round_classifier_save_path)
                     if args.from_preds:
-                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_pred_dic.pkl'), 'wb') as f:
+                        with open(os.path.join(round_pseudo_label_dir, 'alabels_pred_dic.pkl'), 'wb') as f:
                             pickle.dump(preds_dic, f)
-                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_potential_dic.pkl'), 'wb') as f:
+                        with open(os.path.join(round_pseudo_label_dir, 'alabels_potential_dic.pkl'), 'wb') as f:
                             pickle.dump(potential_list_dic, f)
-                        with open(os.path.join(round_dir, 'pseudo_label', 'alabels_unreliable_dic.pkl'), 'wb') as f:
+                        with open(os.path.join(round_pseudo_label_dir, 'alabels_unreliable_dic.pkl'), 'wb') as f:
                             pickle.dump(uncertainty_dic, f)
                     # else:
-                    #     with open(os.path.join(round_dir, 'pseudo_label', 'embeddings.pkl'), 'wb') as f:
+                    #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
                     #         pickle.dump(embeddings_dic, f)
                 if world_size > 1:
                     dist.barrier()
@@ -765,8 +768,7 @@ def main():
         else:
             logger.info(f"Using HMM model from previous round: {hmm_model_path}")
         # update pseudo_label_dir for current round to save results
-        pseudo_label_dir = os.path.join(round_dir, 'pseudo_label')
-        os.makedirs(pseudo_label_dir, exist_ok=True)
+        pseudo_label_dir = round_pseudo_label_dir
         
         if rank == 0:
             crt_acc_test_r = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
