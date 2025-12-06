@@ -13,7 +13,7 @@ Pipeline:
 - Round 1+: Iterate until convergence or max rounds
 """
 
-import os, sys, time, shutil, subprocess
+import os, sys, time, shutil, subprocess, copy
 import json, argparse, random, pickle
 import numpy as np
 import torch
@@ -725,12 +725,14 @@ def main():
                     torch.save(embedding_model.state_dict(), round_model_save_path)
                     torch.save(classifier.state_dict(), round_classifier_save_path)
                     if args.from_preds:
-                        best_preds_dic, best_uncertainty_dic, best_potential_list_dic = preds_dic, uncertainty_dic, potential_list_dic
+                        best_preds_dic = copy.deepcopy(preds_dic)
+                        best_uncertainty_dic = copy.deepcopy(uncertainty_dic)
+                        best_potential_list_dic = copy.deepcopy(potential_list_dic)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_pred_dic.pkl'), 'wb') as f:
                             pickle.dump(best_preds_dic, f)
-                        with open(os.path.join(round_pseudo_label_dir, 'alabels_potential_dic.pkl'), 'wb') as f:
-                            pickle.dump(best_uncertainty_dic, f)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_unreliable_dic.pkl'), 'wb') as f:
+                            pickle.dump(best_uncertainty_dic, f)
+                        with open(os.path.join(round_pseudo_label_dir, 'alabels_potential_dic.pkl'), 'wb') as f:
                             pickle.dump(best_potential_list_dic, f)
                     # else:
                     #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:

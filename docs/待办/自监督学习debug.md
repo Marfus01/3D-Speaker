@@ -11,3 +11,12 @@
 4. 在acc计算中，加入模式valid/test，提前检查valid行号文件是否存在，不存在则创建。在两种模式下，各自调用不同的部分样本✅
 5. 每一次迭代，微调停止按照预设最大epoch/最优valid acc(有一个patience)停止✅
 > 不要改成根据pseudo label的acc停止，可能会导致过拟合。
+
+## 计算速度优化
+1. 在自监督学习文件中，根据解冻层数，构建 hidden feature的dataset，避免每次都从头计算embedding
+2. cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比如1e-2，避免过多迭代。
+3. 增大batch size，减少迭代次数。
+
+## 其他
+1. 分类时，不确定性的准则改为概率最大类的概率
+2. 在cluster文件中，获取多个unreliable pp的json，自监督文件计算所有这些结果的valid acc，选择最优的pp进行后续迭代。如果发现所有pp的valid acc都没有提升，则停止迭代。

@@ -24,7 +24,7 @@ master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 # HMM平滑相关参数
-use_hmm_smoothing=false  # 在"audio_vision"聚类之后，是否做 HMM 平滑
+use_hmm_smoothing=true  # 在"audio_vision"聚类之后，是否做 HMM 平滑
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -43,11 +43,11 @@ finetune_lr=0.001  # 微调学习率
 finetune_batch_size=64  # 微调batch size
 unfrozen_layers_num=2  # 未冻结层的数量
 warmup_epochs_num=2  # 分类器warmup轮数
-max_rounds=2  # 自监督学习的最大迭代轮数
+max_rounds=10  # 自监督学习的最大迭代轮数
 max_finetune_epochs=20  # 每次微调的最大epoch数
 early_stop_patience_round=5  # 早停patience(for round)
 early_stop_patience_epoch=5  # 早停patience(for epoch)
-from_preds=false  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
+from_preds=true  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
 
 from_preds_flag=""
 if [ "$from_preds" = true ]; then
