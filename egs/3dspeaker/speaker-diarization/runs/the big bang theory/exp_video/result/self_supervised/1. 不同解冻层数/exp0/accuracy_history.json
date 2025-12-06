@@ -1,0 +1,52 @@
+[
+  {
+    "round": "Initial",
+    "acc(valid)": 0.9,
+    "acc(test)": 0.9162
+  },
+  {
+    "round": 0,
+    "acc(valid)": 0.8975,
+    "acc(test)": 0.9212
+  },
+  {
+    "round": 1,
+    "acc(valid)": 0.8975,
+    "acc(test)": 0.9225
+  },
+  {
+    "round": 2,
+    "acc(valid)": 0.9,
+    "acc(test)": 0.9206
+  },
+  {
+    "round": 3,
+    "acc(valid)": 0.905,
+    "acc(test)": 0.9194
+  },
+  {
+    "round": 4,
+    "acc(valid)": 0.9025,
+    "acc(test)": 0.9194
+  },
+  {
+    "round": 5,
+    "acc(valid)": 0.9025,
+    "acc(test)": 0.9156
+  },
+  {
+    "round": 6,
+    "acc(valid)": 0.9025,
+    "acc(test)": 0.9144
+  },
+  {
+    "round": 7,
+    "acc(valid)": 0.9,
+    "acc(test)": 0.9144
+  },
+  {
+    "round": 8,
+    "acc(valid)": 0.905,
+    "acc(test)": 0.9131
+  }
+]
