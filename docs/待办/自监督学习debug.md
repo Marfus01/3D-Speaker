@@ -20,3 +20,4 @@
 ## 其他
 1. 分类时，不确定性的准则改为概率最大类的概率
 2. 在cluster文件中，获取多个unreliable pp的json，自监督文件计算所有这些结果的valid acc，选择最优的pp进行后续迭代。如果发现所有pp的valid acc都没有提升，则停止迭代。
+3. 分类器可以用speakerlab/models/campplus/classifier.py中定义的LinearClassifier

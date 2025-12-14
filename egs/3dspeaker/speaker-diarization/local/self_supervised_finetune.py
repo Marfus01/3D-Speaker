@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-from torch.utils.data import Dataset, DataLoader, Sampler
+from torch.utils.data import Dataset, DataLoader, Sampler, SequentialSampler
 
 # Add parent directory to path
 current_file_path = os.path.abspath(__file__)
@@ -76,14 +76,18 @@ class PseudoLabelDataset(Dataset):
     """
     Dataset for fine-tuning with pseudo-labels from pseudo labels.
     """
-    def __init__(self, subseg_json, pseudo_labels_json, feature_extractor):
+    def __init__(self, subseg_json, pseudo_labels_json, feature_extractor, use_hidfeat_flag = False, subseg_hidfeat_dic=None):
         """
         Args:
             subseg_json: Path to sub-segments json file
             pseudo_labels_json: Path to pseudo labels json file
             feature_extractor: Feature extraction object
+            use_hidfeat_flag: If True, use hidden features from embedding model
+            subseg_hidfeat_dic: Dictionary of hidden features for sub-segments (if use_hidfeat_flag is True)
         """
         self.feature_extractor = feature_extractor
+        self.use_hidfeat_flag = use_hidfeat_flag
+        self.subseg_hidfeat_dic = subseg_hidfeat_dic
         
         # Load sub-segments info
         with open(subseg_json, 'r') as f:
@@ -100,21 +104,24 @@ class PseudoLabelDataset(Dataset):
         # 不再过滤-1标签，将所有样本都用于训练
         self.sample_ids = list(self.subseg_info.keys())
         
-        # Get all wav data to speed up loading
-        obj_fs = self.feature_extractor.sample_rate
-        self.wav_paths = list(set([self.subseg_info[sid]['file'] for sid in self.sample_ids]))
-        self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}
-        self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.sample_ids}    # each elements is (1, num_samples_i))
-        del self.wav_paths, self.wav_dat_dic
+        if not self.use_hidfeat_flag:
+            # Get all wav data to speed up loading
+            obj_fs = self.feature_extractor.sample_rate
+            self.wav_paths = list(set([self.subseg_info[sid]['file'] for sid in self.sample_ids]))
+            self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}
+            self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.sample_ids}    # each elements is (1, num_samples_i))
+            del self.wav_paths, self.wav_dat_dic
 
-        # 预先提取特征并记录每个sample的特征帧数
-        self.subseg_feat_dic = {}
-        self.sample_lengths = {}
-        for sid in self.sample_ids:
-            waveform = self.subseg_wav_dic[sid]
-            feat = torch.vmap(self.feature_extractor)(waveform.unsqueeze(0)).squeeze(0)
-            self.subseg_feat_dic[sid] = feat
-            self.sample_lengths[sid] = feat.shape[0]  # 记录特征帧数而非音频采样点数
+            # 预先提取特征并记录每个sample的特征帧数
+            self.subseg_feat_dic = {}
+            self.sample_lengths = {}
+            for sid in self.sample_ids:
+                waveform = self.subseg_wav_dic[sid]
+                feat = torch.vmap(self.feature_extractor)(waveform.unsqueeze(0)).squeeze(0) # mel feature of shape [num_frames, n_mels]
+                self.subseg_feat_dic[sid] = feat
+                self.sample_lengths[sid] = feat.shape[0]  # 记录特征帧数而非音频采样点数
+        else:
+            assert self.subseg_hidfeat_dic is not None, "Hidden features dictionary must be provided when use_hidfeat_flag is True!"
 
         # Create label encoder (map cluster IDs to continuous class indices)
         unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.sample_ids])))
@@ -126,37 +133,49 @@ class PseudoLabelDataset(Dataset):
     
     def __len__(self):
         return len(self.sample_ids)
-    
+
     def __getitem__(self, index):
         subseg_id = self.sample_ids[index]
-        
-        # 直接使用预先提取的特征
-        feat = self.subseg_feat_dic[subseg_id]
-        
         # Get pseudo-label
         cluster_label = self.pseudo_labels[subseg_id]
         class_idx = self.label2idx[cluster_label]
-        length = self.sample_lengths[subseg_id]
 
-        return feat, class_idx, length
+        if not self.use_hidfeat_flag: # use raw pre-extracted features
+            feat = self.subseg_feat_dic[subseg_id]
+            length = self.sample_lengths[subseg_id]
+            return feat, class_idx, length
+        else:  # Use hidden features
+            feat = self.subseg_hidfeat_dic[subseg_id]
+            return feat, class_idx
 
 class LengthAwareBatchSampler(Sampler):
     """
     自定义 BatchSampler，根据样本长度对数据进行分组，并支持每个 epoch 随机打乱 batch 顺序。
+    注意:当使用 hidden features 时,不再需要按长度排序,因为不需要裁剪。
     """
-    def __init__(self, dataset, batch_size, shuffle=True):
+    def __init__(self, dataset, batch_size, shuffle=True, use_hidfeat_flag=False):
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.use_hidfeat_flag = use_hidfeat_flag
         self.indices = list(range(len(dataset)))
-        self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.sample_ids[idx]])  # 按长度排序
+        if not self.use_hidfeat_flag:
+            # 只有在使用原始y语音特征时才按长度排序，要求数据集必须有长度信息
+            assert hasattr(dataset, 'sample_lengths'), "Dataset must have sample_lengths attribute for length-aware batching when not using hidden features!"
+            self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.sample_ids[idx]])  # 按长度排序
 
     def __iter__(self):
         # 按 batch_size 分组
-        batches = [self.indices[i:i + self.batch_size] for i in range(0, len(self.indices), self.batch_size)]
-        if self.shuffle:
-            random.seed(torch.initial_seed())  # 使用全局随机数种子
-            random.shuffle(batches)  # 打乱 batch 顺序
+        if not self.use_hidfeat_flag:
+            batches = [self.indices[i:i + self.batch_size] for i in range(0, len(self.indices), self.batch_size)]
+            if self.shuffle:
+                random.seed(torch.initial_seed())  # 使用全局随机数种子
+                random.shuffle(batches)  # 打乱 batch 顺序
+        else:
+            if self.shuffle:
+                random.seed(torch.initial_seed())  # 使用全局随机数种子
+                random.shuffle(self.indices)  # 打乱 sample 顺序
+            batches = [self.indices[i:i + self.batch_size] for i in range(0, len(self.indices), self.batch_size)]
         for batch in batches:
             yield batch
 
@@ -181,9 +200,24 @@ class MLPClassifier(nn.Module):
         x = self.fc2(x)
         return x
 
+def collate_fn_hidden(batch):
+    """
+    Collate function for hidden features (don't need cropping).
+    Args:
+        batch: List of tuples (feat, label)
+    Returns:
+        feats: batch特征张量 (stacked)
+        labels: batch标签张量
+    """
+    feats, labels = zip(*batch)
+    # Stack features directly
+    stacked_feats = torch.stack(feats)
+    labels = torch.tensor(labels)
+    return stacked_feats, labels
+
 def collate_fn(batch):
     """
-    自定义 collate_fn，用于对 batch 内的样本进行中心裁剪。
+    Collate function for original features, used for center cropping samples within a batch.
     Args:
         batch: List of tuples (feat, label, length)
     Returns:
@@ -226,10 +260,21 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
     all_modules = list(model.named_modules())
     if print_mod_flag:
         print(f"[INFO] Total layers in model: {len(all_modules)}")
-        print(f"[INFO] All layers:")
-        for idx, (name, module) in enumerate(all_modules):
-            print(f"  [{idx}] {name}")
-            print(f"    {module}")
+        # Get all named children of xvector
+        xvector_modules = list(model.xvector.named_children())
+        print(f"[INFO] Total layers in xvector: {len(xvector_modules)}")
+        num_frozen_modules = len(xvector_modules) - unfrozen_layers_num
+        for idx, (name, module) in enumerate(xvector_modules):
+            if idx < num_frozen_modules:
+                print(f"[INFO] Frozen layer [{idx}] {name}")
+                print(f"    {module}")
+            else:
+                print(f"[INFO] Unfrozen layer [{idx}] {name}")
+                print(f"    {module}")
+        # print(f"[INFO] All layers:")
+        # for idx, (name, module) in enumerate(all_modules):
+        #     print(f"  [{idx}] {name}")
+        #     print(f"    {module}")
     
     # Unfreeze top layers
     if unfrozen_layers_num > 0:
@@ -240,9 +285,13 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
                 print(f"[INFO] Unfroze layer [{idx}] {name}")
 
 
-def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device):
+def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device, use_hidfeat_flag=False, unfrozen_layers_num=0):
     """
     Train for one epoch without gradient accumulation.
+    
+    Args:
+        use_hidfeat_flag: If True, input is hidden features and use forward_from
+        unfrozen_layers_num: Number of unfrozen layers from top
     """
     train_stats = AverageMeters()
     train_stats.add('Time', ':6.3f')
@@ -267,7 +316,11 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
         feat = feat.to(device)
         label = label.to(device)
         
-        embedding = model(feat)
+        # Use forward_from if using hidden features, otherwise full forward
+        if use_hidfeat_flag:
+            embedding = model.forward_from(feat, unfrozen_layers_num)
+        else:
+            embedding = model(feat)
         output = classifier(embedding)
         loss = criterion(output, label)
         acc = accuracy(output, label)
@@ -573,6 +626,10 @@ def main():
         # ============================
         logger.info(f"Round {round} Part 1: Fine-tuning embedding model")
         
+        # Determine use_hidfeat_flag
+        use_hidfeat_flag = (args.unfrozen_layers_num > 0)
+        crt_collate_fn = collate_fn_hidden if use_hidfeat_flag else collate_fn
+        
         # Determine which pseudo labels to use
         pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_audio' in f]
         assert len(pseudo_label_files) > 0, f"No pseudo-label file found in {pseudo_label_dir}"
@@ -588,6 +645,10 @@ def main():
             feature_extractor = build('feature_extractor', config_model)
             embedding_model = build('embedding_model', config_model)
             
+            # get output embedding dimension of the embedding model
+            embedding_dim = conf_model['embedding_model']['args']['embedding_size']
+            logger.info(f"Embedding dimension: {embedding_dim}")
+
             # load pretrained model
             pretrained_state = torch.load(config_model.pretrained_model, map_location='cpu')
             embedding_model.load_state_dict(pretrained_state)
@@ -611,12 +672,29 @@ def main():
               f.write(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}\n")
 
         # Create dataset and dataloader
-        train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
+        ## Define subseg_hidfeat_dic at round 0
+        if round == 0:
+            train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
+            subseg_hidfeat_dic = None
+            if use_hidfeat_flag:
+                logger.info(f"Extracting hidden features for all samples with {args.unfrozen_layers_num} unfrozen layers...")
+                subseg_hidfeat_dic = {}
+                embedding_model.eval()
+                with torch.no_grad():
+                    for sid in train_dataset.sample_ids:
+                        feat = train_dataset.subseg_feat_dic[sid].unsqueeze(0).to(device)  # [1, T, F]
+                        hidden_feat = embedding_model.forward_until(feat, args.unfrozen_layers_num)
+                        subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).cpu()  # [C, T'] Store on CPU
+                logger.info(f"Hidden features extracted for {len(subseg_hidfeat_dic)} samples")
+        
+        ## Re-create dataset with new pseudo_label_file
+        train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor, use_hidfeat_flag, subseg_hidfeat_dic)
+        
         if len(train_dataset) == 0:
             logger.error("No valid training samples found!")
             break
-        batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
+        batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True, use_hidfeat_flag=use_hidfeat_flag)
+        train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=crt_collate_fn)
 
         # Freeze embedding model initially
         for param in embedding_model.parameters():
@@ -625,11 +703,6 @@ def main():
         # Create classifier and warm up
         if round == 0 or not args.from_preds: # 当根据分类结果获取伪标签时，每个round伪标签都与之前类似
             # Create classifier
-            sample_feat, _ = next(iter(train_loader))
-            with torch.no_grad():
-                sample_embedding = embedding_model(torch.cat([sample_feat, sample_feat], dim=0).to(device))
-            embedding_dim = sample_embedding.shape[-1]
-            logger.info(f"Embedding dimension: {embedding_dim}")
             classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
         
             # Warmup: train classifier only when round == 0
@@ -644,7 +717,8 @@ def main():
                     torch.cuda.manual_seed_all(args.seed + warmup_epoch)
                 train_stats = train_one_epoch(
                     train_loader,  embedding_model, classifier, criterion,
-                    optimizer, warmup_epoch, logger, device
+                    optimizer, warmup_epoch, logger, device,
+                    use_hidfeat_flag, args.unfrozen_layers_num
                 )
                 logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             optimizer.zero_grad()
@@ -675,11 +749,11 @@ def main():
                 torch.cuda.manual_seed_all(args.seed + ft_epoch)
             train_stats = train_one_epoch(
                 train_loader,  embedding_model, classifier, criterion,
-                optimizer, ft_epoch, logger, device
+                optimizer, ft_epoch, logger, device, use_hidfeat_flag, args.unfrozen_layers_num
             )
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             
-            # === 每个epoch后，直接遍历所有subseg_id，取原始特征，计算所有训练样本的分类标签、概率和不确定度 ===
+            # === 每个epoch后，计算所有样本的分类标签、概率和不确定度 ===
             embedding_model.eval()
             classifier.eval()
             preds_dic = {}
@@ -687,30 +761,67 @@ def main():
                 potential_list_dic, uncertainty_dic = {}, {}
             # else:
             #     embeddings_dic = {}
+            if use_hidfeat_flag:  # 顺序读取 hidden features 的 batch
+                # Create a dataloader for inference (no shuffling, sequential order)
+                inference_loader = DataLoader(train_dataset, batch_size=args.finetune_batch_size * 2, 
+                                              sampler=SequentialSampler(train_dataset),
+                                              num_workers=4, pin_memory=True, collate_fn=collate_fn_hidden)
                 
-            with torch.no_grad():
-                for sid in train_dataset.sample_ids:
-                    # get probs of all classes
-                    feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
-                    feat = feat.unsqueeze(0).to(device)  # [1, T, D]
-                    emb = embedding_model(feat)  # [1, emb_dim]
-                    logits = classifier(emb)
-                    probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
-                    # get predicted label and save to dict
-                    pred_label = torch.argmax(probs).item()
-                    pred_label = int(train_dataset.idx2label[pred_label])
-                    preds_dic[sid] = pred_label
-                    # get potential labels and uncertainty and save to dict
-                    if args.from_preds:
-                        top2_probs, top2_indices = torch.topk(probs, 2)
-                        uncertainty = (top2_probs[0] - top2_probs[1]).item()
-                        uncertainty_dic[sid] = float(uncertainty)
-                        potential_list = top2_indices.cpu().numpy().tolist()
-                        potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
-                        potential_list_dic[sid] = potential_list
-                    # else:
-                    #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
-            
+                with torch.no_grad():
+                    sample_idx = 0
+                    for batch_feat, _ in inference_loader:
+                        batch_feat = batch_feat.to(device)  # [B, ...]
+                        batch_size = batch_feat.size(0)
+                        # Forward pass
+                        batch_emb = embedding_model.forward_from(batch_feat, args.unfrozen_layers_num)
+                        batch_logits = classifier(batch_emb)
+                        batch_probs = torch.softmax(batch_logits, dim=1)  # [B, num_classes]
+                        batch_pred_labels = torch.argmax(batch_probs, dim=1)  # [B]
+                        
+                        # Map back to sample IDs and store results
+                        for i in range(batch_size):
+                            sid = train_dataset.sample_ids[sample_idx]
+                            pred_label = int(train_dataset.idx2label[batch_pred_labels[i].item()])
+                            preds_dic[sid] = pred_label
+                            
+                            if args.from_preds:
+                                probs = batch_probs[i]
+                                top2_probs, top2_indices = torch.topk(probs, 2)
+                                uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                                uncertainty_dic[sid] = float(uncertainty)
+                                potential_list = top2_indices.cpu().numpy().tolist()
+                                potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
+                                potential_list_dic[sid] = potential_list
+                            # else:
+                            #     emb = batch_emb[i]
+                            #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
+                            sample_idx += 1
+
+            else: # 遍历所有subseg_id，取原始特征
+                with torch.no_grad():
+                    for sid in train_dataset.sample_ids:
+                        # get probs of all classes
+                        feat = train_dataset.subseg_feat_dic[sid]  # 原始特征，无截断
+                        feat = feat.unsqueeze(0).to(device)  # [1, T, D]
+                        emb = embedding_model(feat)  # [1, emb_dim]
+                        logits = classifier(emb)
+                        probs = torch.softmax(logits, dim=1)[0]  # [num_classes]
+                        # get predicted label and save to dict
+                        pred_label = torch.argmax(probs).item()
+                        pred_label = int(train_dataset.idx2label[pred_label])
+                        preds_dic[sid] = pred_label
+                        # get potential labels and uncertainty and save to dict
+                        if args.from_preds:
+                            top2_probs, top2_indices = torch.topk(probs, 2)
+                            uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                            uncertainty_dic[sid] = float(uncertainty)
+                            potential_list = top2_indices.cpu().numpy().tolist()
+                            potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
+                            potential_list_dic[sid] = potential_list
+                        # else:
+                        #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
+
+
             # 计算在验证集上的准确率
             epoch_dir = os.path.join(round_dir, f'ft_epoch_{ft_epoch}')
             os.makedirs(epoch_dir, exist_ok=True)

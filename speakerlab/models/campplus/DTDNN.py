@@ -102,6 +102,9 @@ class CAMPPlus(nn.Module):
             'dense',
             DenseLayer(channels * 2, embedding_size, config_str='batchnorm_'))
 
+        # Get list of all named children of xvector
+        self.xvector_modules = list(self.xvector.named_children())
+
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.kaiming_normal_(m.weight.data)
@@ -112,4 +115,51 @@ class CAMPPlus(nn.Module):
         x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
         x = self.head(x)
         x = self.xvector(x)
+        return x
+
+    def forward_until(self, x, unfrozen_layers_num):
+        """
+        Forward pass through frozen layers only, stopping before the unfrozen layers.
+        
+        Args:
+            x: Input tensor (B, T, F)
+            unfrozen_layers_num: Number of unfrozen layers from the top
+        
+        Returns:
+            hidden_features: Output after frozen layers
+        """
+        x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
+        x = self.head(x)
+        
+        # Calculate how many modules to execute (frozen part).
+        num_frozen_modules = len(self.xvector_modules) - unfrozen_layers_num
+        # Forward through frozen modules only
+        for idx, (name, module) in enumerate(self.xvector_modules):
+            if idx < num_frozen_modules:
+                x = module(x)
+            else:
+                break
+        
+        return x
+    
+    def forward_from(self, hidden_features, unfrozen_layers_num):
+        """
+        Forward pass through unfrozen layers only, starting from hidden features.
+        
+        Args:
+            hidden_features: Hidden features from forward_until
+            unfrozen_layers_num: Number of unfrozen layers from the top
+        
+        Returns:
+            embeddings: Final embeddings
+        """
+        x = hidden_features
+        
+        # Calculate starting index for unfrozen modules
+        num_frozen_modules = len(self.xvector_modules) - unfrozen_layers_num
+        # Forward through unfrozen modules only
+        for idx, (name, module) in enumerate(self.xvector_modules):
+            if idx >= num_frozen_modules:
+                x = module(x)
+        
         return x
