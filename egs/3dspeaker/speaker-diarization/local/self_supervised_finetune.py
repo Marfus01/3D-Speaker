@@ -161,13 +161,12 @@ class LengthAwareBatchSampler(Sampler):
         self.use_hidfeat_flag = use_hidfeat_flag
         self.indices = list(range(len(dataset)))
         if not self.use_hidfeat_flag:
-            # 只有在使用原始y语音特征时才按长度排序，要求数据集必须有长度信息
+            # 只有在使用原始语音特征时才按长度排序，要求数据集必须有长度信息
             assert hasattr(dataset, 'sample_lengths'), "Dataset must have sample_lengths attribute for length-aware batching when not using hidden features!"
             self.indices.sort(key=lambda idx: dataset.sample_lengths[dataset.sample_ids[idx]])  # 按长度排序
 
     def __iter__(self):
-        # 按 batch_size 分组
-        if not self.use_hidfeat_flag:
+        if not self.use_hidfeat_flag:   # 按 batch_size 分组
             batches = [self.indices[i:i + self.batch_size] for i in range(0, len(self.indices), self.batch_size)]
             if self.shuffle:
                 random.seed(torch.initial_seed())  # 使用全局随机数种子
@@ -214,7 +213,7 @@ def collate_fn_hidden(batch):
     # Stack features directly
     stacked_feats = torch.stack(feats)
     labels = torch.tensor(labels)
-    return stacked_feats, labels
+    return stacked_feats, labels    # of shape [batch_size, feat_dim], [batch_size]
 
 def collate_fn(batch):
     """
@@ -247,7 +246,7 @@ def collate_fn(batch):
     # 将裁剪后的特征和标签打包成张量
     padded_feats = torch.stack(cropped_feats)
     labels = torch.tensor(labels)
-    return padded_feats, labels
+    return padded_feats, labels # of shape [batch_size, target_length, feat_dim], [batch_size]
 
 def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
     """
@@ -348,8 +347,9 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
     end = time.time()
     
     for i, (feat, label) in enumerate(train_loader):
-        if feat.dim() == 2 or feat.size(0) == 1:
-            continue
+        if not use_hidfeat_flag:    # batch normalization cannot handle bs=1
+            if feat.dim() == 2 or feat.size(0) == 1:
+                continue
         feat = feat.to(device)
         label = label.to(device)
         
@@ -363,6 +363,33 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
         acc = accuracy(output, label)
         optimizer.zero_grad()
         loss.backward()
+
+        # 检查loss是否为nan或0
+        if torch.isnan(loss) or loss.item() == 0:
+            logger.warning(f"[WARNING] Batch {i}: loss is {loss.item()}, output: {output[0]}, label: {label[0]}")
+            continue        
+        # Debug信息输出
+        if i == 0 and epoch == 0:
+            logger.info(f"[DEBUG] Input feat shape: {feat.shape}, label shape: {label.shape}")
+            logger.info(f"[DEBUG] Embedding shape: {embedding.shape}")
+            logger.info(f"[DEBUG] Classifier output shape: {output.shape}")
+            logger.info(f"[DEBUG] Output stats - min: {output.min():.4f}, max: {output.max():.4f}, mean: {output.mean():.4f}")
+            # 检查梯度
+            total_norm_classifier = 0
+            for p in classifier.parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm_classifier += param_norm.item() ** 2
+            total_norm_classifier = total_norm_classifier ** 0.5
+            logger.info(f"[DEBUG] Classifier Gradient norm: {total_norm_classifier:.4f}")
+            total_norm_model = 0
+            for p in model.parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm_model += param_norm.item() ** 2
+            total_norm_model = total_norm_model ** 0.5
+            logger.info(f"[DEBUG] Embedding model Gradient norm: {total_norm_model:.4f}")
+        
         optimizer.step()
         
         # Record statistics
@@ -719,7 +746,7 @@ def main():
                     for sid in train_dataset.sample_ids:
                         feat = train_dataset.subseg_feat_dic[sid].unsqueeze(0).to(device)  # [1, T, F]
                         hidden_feat = embedding_model.forward_until(feat, 1)
-                        subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).cpu()  # [hid_dim]
+                        subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).detach().cpu()  # [hid_dim]
                 logger.info(f"Hidden features extracted for {len(subseg_hidfeat_dic)} samples")
         
         ## Re-create dataset with new pseudo_label_file
