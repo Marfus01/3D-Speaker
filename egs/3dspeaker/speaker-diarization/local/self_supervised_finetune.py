@@ -65,6 +65,7 @@ parser.add_argument('--max_finetune_epochs', default=5, type=int, help='Number o
 parser.add_argument('--early_stop_patience_round', default=5, type=int, help='Early stopping patience for rounds')
 parser.add_argument('--early_stop_patience_epoch', default=5, type=int, help='Early stopping patience for epochs')
 parser.add_argument('--from_preds', action='store_true', help='Use local predictions from classifier model instead of clustering to generate pseudo labels')
+parser.add_argument('--use_hidfeat', action='store_true', help='Use hidden features from embedding model to construct dataset instead of original features')
 
 # Distributed training
 parser.add_argument('--use_gpu', action='store_true', help='Use GPU for training')
@@ -254,28 +255,21 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
     
     Args:
         model: The embedding model
-        unfrozen_layers_num: Number of layers to unfreeze from the top
+        unfrozen_layers_num: Number of layers to unfreeze from the top. Not exact, since both leaf and non-leaf modules are counted.
     """
     # Get all modules
     all_modules = list(model.named_modules())
     if print_mod_flag:
         print(f"[INFO] Total layers in model: {len(all_modules)}")
-        # Get all named children of xvector
-        xvector_modules = list(model.xvector.named_children())
-        print(f"[INFO] Total layers in xvector: {len(xvector_modules)}")
-        num_frozen_modules = len(xvector_modules) - unfrozen_layers_num
-        for idx, (name, module) in enumerate(xvector_modules):
-            if idx < num_frozen_modules:
-                print(f"[INFO] Frozen layer [{idx}] {name}")
-                print(f"    {module}")
-            else:
-                print(f"[INFO] Unfrozen layer [{idx}] {name}")
-                print(f"    {module}")
-        # print(f"[INFO] All layers:")
-        # for idx, (name, module) in enumerate(all_modules):
-        #     print(f"  [{idx}] {name}")
-        #     print(f"    {module}")
-    
+        print(f"[INFO] All layers:")
+        for idx, (name, module) in enumerate(all_modules):
+            print(f"  [{idx}] {name}")
+            print(f"    {module}")
+
+    # Freeze all parameters first
+    for param in model.parameters():
+        param.requires_grad = False
+
     # Unfreeze top layers
     if unfrozen_layers_num > 0:
         for idx, (name, module) in enumerate(all_modules):
@@ -284,14 +278,57 @@ def unfrozen_model_layers(model, unfrozen_layers_num=0, print_mod_flag=False):
                     param.requires_grad = True
                 print(f"[INFO] Unfroze layer [{idx}] {name}")
 
+def unfrozen_model_modules(model, unfrozen_modules_num=1, print_mod_flag=False):
+    """
+    Unfreeze the top layers of the model at module level.
+    
+    Args:
+        model: The embedding model
+        unfrozen_modules_num: Number of modules to unfreeze from the top (based on xvector's named_children)
+        print_mod_flag: Whether to print module information
+    """
+    # Get all named children of xvector (module level)
+    xvector_modules = list(model.xvector.named_children())
+    num_frozen_modules = len(xvector_modules) - unfrozen_modules_num
+    
+    if print_mod_flag:
+        # Print all top-level modules in model
+        print(f"[INFO] Total modules in model: {len(list(model.named_children()))}")
+        print(f"[INFO] All top-level modules in model:")
+        for idx, (name, module) in enumerate(model.named_children()):
+            print(f"  [{idx}] {name}: {module.__class__.__name__}")
+        
+        # Print all xvector modules
+        if unfrozen_modules_num > 0:
+            print(f"[INFO] Total modules in xvector: {len(xvector_modules)}")
+            print(f"[INFO] All xvector modules:")
+            for idx, (name, module) in enumerate(xvector_modules):
+                if idx < num_frozen_modules:
+                    print(f"[INFO] Frozen module [{idx}] {name}")
+                else:
+                    print(f"[INFO] Unfrozen module [{idx}] {name}")
+                print(f"    {module}")
+    
+    # Freeze all parameters first
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    # Unfreeze top modules at module level
+    if unfrozen_modules_num > 0:
+        for idx, (name, module) in enumerate(xvector_modules):
+            if idx >= num_frozen_modules:
+                for param in module.parameters():
+                    param.requires_grad = True
+                print(f"[INFO] Unfroze module [{idx}] {name} in xvector")
 
-def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device, use_hidfeat_flag=False, unfrozen_layers_num=0):
+
+def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device, use_hidfeat_flag=False, unfrozen_modules_num=1):
     """
     Train for one epoch without gradient accumulation.
     
     Args:
         use_hidfeat_flag: If True, input is hidden features and use forward_from
-        unfrozen_layers_num: Number of unfrozen layers from top
+        unfrozen_modules_num: Number of unfrozen modules from top. always be 1 when use_hidfeat_flag is True, since the output of former modules have different dimension.(when use unfrozen_model_layers, unfrozen_layers_num needn't to be known here)
     """
     train_stats = AverageMeters()
     train_stats.add('Time', ':6.3f')
@@ -318,7 +355,7 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
         
         # Use forward_from if using hidden features, otherwise full forward
         if use_hidfeat_flag:
-            embedding = model.forward_from(feat, unfrozen_layers_num)
+            embedding = model.forward_from(feat, unfrozen_modules_num)
         else:
             embedding = model(feat)
         output = classifier(embedding)
@@ -626,10 +663,6 @@ def main():
         # ============================
         logger.info(f"Round {round} Part 1: Fine-tuning embedding model")
         
-        # Determine use_hidfeat_flag
-        use_hidfeat_flag = (args.unfrozen_layers_num > 0)
-        crt_collate_fn = collate_fn_hidden if use_hidfeat_flag else collate_fn
-        
         # Determine which pseudo labels to use
         pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_audio' in f]
         assert len(pseudo_label_files) > 0, f"No pseudo-label file found in {pseudo_label_dir}"
@@ -675,25 +708,27 @@ def main():
         ## Define subseg_hidfeat_dic at round 0
         if round == 0:
             train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
+            crt_collate_fn = collate_fn_hidden if args.use_hidfeat else collate_fn
             subseg_hidfeat_dic = None
-            if use_hidfeat_flag:
-                logger.info(f"Extracting hidden features for all samples with {args.unfrozen_layers_num} unfrozen layers...")
+            if args.use_hidfeat:
+                logger.info(f"Extracting hidden features for all samples,which are outputs of StatsPool layer...")
+                logger.info(f"args.unfrozen_layers_num={args.unfrozen_layers_num} is not used when extracting hidden features.")
                 subseg_hidfeat_dic = {}
                 embedding_model.eval()
                 with torch.no_grad():
                     for sid in train_dataset.sample_ids:
                         feat = train_dataset.subseg_feat_dic[sid].unsqueeze(0).to(device)  # [1, T, F]
-                        hidden_feat = embedding_model.forward_until(feat, args.unfrozen_layers_num)
-                        subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).cpu()  # [C, T'] Store on CPU
+                        hidden_feat = embedding_model.forward_until(feat, 1)
+                        subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).cpu()  # [hid_dim]
                 logger.info(f"Hidden features extracted for {len(subseg_hidfeat_dic)} samples")
         
         ## Re-create dataset with new pseudo_label_file
-        train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor, use_hidfeat_flag, subseg_hidfeat_dic)
+        train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor, args.use_hidfeat, subseg_hidfeat_dic)
         
         if len(train_dataset) == 0:
             logger.error("No valid training samples found!")
             break
-        batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True, use_hidfeat_flag=use_hidfeat_flag)
+        batch_sampler = LengthAwareBatchSampler(train_dataset, batch_size=args.finetune_batch_size, shuffle=True, use_hidfeat_flag=args.use_hidfeat)
         train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=crt_collate_fn)
 
         # Freeze embedding model initially
@@ -717,17 +752,22 @@ def main():
                     torch.cuda.manual_seed_all(args.seed + warmup_epoch)
                 train_stats = train_one_epoch(
                     train_loader,  embedding_model, classifier, criterion,
-                    optimizer, warmup_epoch, logger, device,
-                    use_hidfeat_flag, args.unfrozen_layers_num
-                )
+                    optimizer, warmup_epoch, logger, device, args.use_hidfeat)
                 logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             optimizer.zero_grad()
 
         # Unfreeze last few layers in embedding model
-        if round == 0:
-            unfrozen_model_layers(embedding_model, args.unfrozen_layers_num, print_mod_flag=True)
-        else:
-            unfrozen_model_layers(embedding_model, args.unfrozen_layers_num)
+        if args.use_hidfeat:
+            if round == 0:
+                unfrozen_model_modules(embedding_model, unfrozen_modules_num=1, print_mod_flag=True)
+            else:
+                unfrozen_model_modules(embedding_model, unfrozen_modules_num=1)
+        else: 
+            if round == 0:
+                unfrozen_model_layers(embedding_model, args.unfrozen_layers_num, print_mod_flag=True)
+            else:
+                unfrozen_model_layers(embedding_model, args.unfrozen_layers_num)
+
         # Optimizer for fine-tuning (both embedding and classifier)
         optimizer = torch.optim.Adam(
             list(embedding_model.parameters()) + list(classifier.parameters()),
@@ -749,8 +789,7 @@ def main():
                 torch.cuda.manual_seed_all(args.seed + ft_epoch)
             train_stats = train_one_epoch(
                 train_loader,  embedding_model, classifier, criterion,
-                optimizer, ft_epoch, logger, device, use_hidfeat_flag, args.unfrozen_layers_num
-            )
+                optimizer, ft_epoch, logger, device, args.use_hidfeat)
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             
             # === 每个epoch后，计算所有样本的分类标签、概率和不确定度 ===
@@ -761,7 +800,7 @@ def main():
                 potential_list_dic, uncertainty_dic = {}, {}
             # else:
             #     embeddings_dic = {}
-            if use_hidfeat_flag:  # 顺序读取 hidden features 的 batch
+            if args.use_hidfeat:  # 顺序读取 hidden features 的 batch
                 # Create a dataloader for inference (no shuffling, sequential order)
                 inference_loader = DataLoader(train_dataset, batch_size=args.finetune_batch_size * 2, 
                                               sampler=SequentialSampler(train_dataset),
@@ -773,7 +812,7 @@ def main():
                         batch_feat = batch_feat.to(device)  # [B, ...]
                         batch_size = batch_feat.size(0)
                         # Forward pass
-                        batch_emb = embedding_model.forward_from(batch_feat, args.unfrozen_layers_num)
+                        batch_emb = embedding_model.forward_from(batch_feat, 1)
                         batch_logits = classifier(batch_emb)
                         batch_probs = torch.softmax(batch_logits, dim=1)  # [B, num_classes]
                         batch_pred_labels = torch.argmax(batch_probs, dim=1)  # [B]

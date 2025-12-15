@@ -28,14 +28,6 @@ use_hmm_smoothing=true  # 在"audio_vision"聚类之后，是否做 HMM 平滑
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
-hmm_flag=""
-if [ "$use_hmm_smoothing" = true ]; then
-  hmm_flag="--use_hmm_smoothing"
-fi
-fix_mf_flag=""
-if [ "$fix_mf" = true ]; then
-  fix_mf_flag="--fix_mf"
-fi
 
 # Self-supervised learning parameters
 ft_flag=true  # 是否进行自监督微调
@@ -48,12 +40,7 @@ max_finetune_epochs=20  # 每次微调的最大epoch数
 early_stop_patience_round=5  # 早停patience(for round)
 early_stop_patience_epoch=5  # 早停patience(for epoch)
 from_preds=true  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
-
-from_preds_flag=""
-if [ "$from_preds" = true ]; then
-  from_preds_flag="--from_preds"
-fi
-
+use_hidfeat=true  # 微调时是否直接使用隐藏层特征构建数据集，以加速整个过程。使用时，unfrozen_layers_nu无用，仅解冻stats pool层之后的DenseLayer。
 
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
 
@@ -81,6 +68,23 @@ else
   exit 1
 fi
 
+hmm_flag=""
+if [ "$use_hmm_smoothing" = true ]; then
+  hmm_flag="--use_hmm_smoothing"
+fi
+fix_mf_flag=""
+if [ "$fix_mf" = true ]; then
+  fix_mf_flag="--fix_mf"
+fi
+
+from_preds_flag=""
+if [ "$from_preds" = true ]; then
+  from_preds_flag="--from_preds"
+fi
+use_hidfeat_flag=""
+if [ "$use_hidfeat" = true ]; then
+  use_hidfeat_flag="--use_hidfeat"
+fi
 
 if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then  # stage<=1 且 stop_stage>=1 时执行
   if [ ! -f "$video_list" ]; then
@@ -194,7 +198,7 @@ else
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
       --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \
-      $from_preds_flag  --use_gpu --gpu $gpus --seed 1234 \
+      $from_preds_flag $use_hidfeat_flag --use_gpu --gpu $gpus --seed 1234 \
     
     echo "$(basename $0) Stage5: Self-supervised fine-tuning completed!"
     echo "Results saved in $result_dir/self_supervised/"

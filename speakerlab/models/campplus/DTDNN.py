@@ -117,13 +117,13 @@ class CAMPPlus(nn.Module):
         x = self.xvector(x)
         return x
 
-    def forward_until(self, x, unfrozen_layers_num):
+    def forward_until(self, x, unfrozen_modules_num):
         """
         Forward pass through frozen layers only, stopping before the unfrozen layers.
         
         Args:
             x: Input tensor (B, T, F)
-            unfrozen_layers_num: Number of unfrozen layers from the top
+            unfrozen_modules_num: Number of unfrozen modules from the top. since output of stats pool is fixed size, so unfrozen_modules_num must be 1 when want to create hid_feat batchs of size >1.
         
         Returns:
             hidden_features: Output after frozen layers
@@ -132,7 +132,7 @@ class CAMPPlus(nn.Module):
         x = self.head(x)
         
         # Calculate how many modules to execute (frozen part).
-        num_frozen_modules = len(self.xvector_modules) - unfrozen_layers_num
+        num_frozen_modules = len(self.xvector_modules) - unfrozen_modules_num
         # Forward through frozen modules only
         for idx, (name, module) in enumerate(self.xvector_modules):
             if idx < num_frozen_modules:
@@ -142,21 +142,23 @@ class CAMPPlus(nn.Module):
         
         return x
     
-    def forward_from(self, hidden_features, unfrozen_layers_num):
+    def forward_from(self, hidden_features, unfrozen_modules_num):
         """
         Forward pass through unfrozen layers only, starting from hidden features.
         
         Args:
             hidden_features: Hidden features from forward_until
-            unfrozen_layers_num: Number of unfrozen layers from the top
+            unfrozen_modules_num: Number of unfrozen modules from the top. since output of stats pool is fixed size, so unfrozen_modules_num must be 1 when x's bs>1.
         
         Returns:
             embeddings: Final embeddings
         """
+        if hidden_features.shape[0] > 1 and unfrozen_modules_num != 1:
+            raise ValueError("When batch size > 1, unfrozen_modules_num must be 1 due to stats pooling layer.")
         x = hidden_features
         
         # Calculate starting index for unfrozen modules
-        num_frozen_modules = len(self.xvector_modules) - unfrozen_layers_num
+        num_frozen_modules = len(self.xvector_modules) - unfrozen_modules_num
         # Forward through unfrozen modules only
         for idx, (name, module) in enumerate(self.xvector_modules):
             if idx >= num_frozen_modules:
