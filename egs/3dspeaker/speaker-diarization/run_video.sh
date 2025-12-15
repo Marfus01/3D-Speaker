@@ -32,7 +32,7 @@ unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比
 # Self-supervised learning parameters
 ft_flag=true  # 是否进行自监督微调
 finetune_lr=0.001  # 微调学习率
-finetune_batch_size=64  # 微调batch size
+finetune_batch_size=128  # 微调batch size
 unfrozen_layers_num=2  # 未冻结层的数量
 warmup_epochs_num=2  # 分类器warmup轮数
 max_rounds=10  # 自监督学习的最大迭代轮数

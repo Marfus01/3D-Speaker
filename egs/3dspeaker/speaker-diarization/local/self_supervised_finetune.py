@@ -844,8 +844,7 @@ def main():
                             if args.from_preds:
                                 probs = batch_probs[i]
                                 top2_probs, top2_indices = torch.topk(probs, 2)
-                                # uncertainty = (top2_probs[0] - top2_probs[1]).item()
-                                uncertainty = top2_probs[0].item()
+                                uncertainty = (top2_probs[0] - top2_probs[1]).item()
                                 uncertainty_dic[sid] = float(uncertainty)
                                 potential_list = top2_indices.cpu().numpy().tolist()
                                 potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
@@ -871,8 +870,7 @@ def main():
                         # get potential labels and uncertainty and save to dict
                         if args.from_preds:
                             top2_probs, top2_indices = torch.topk(probs, 2)
-                            # uncertainty = (top2_probs[0] - top2_probs[1]).item()
-                            uncertainty = top2_probs[0].item()
+                            uncertainty = (top2_probs[0] - top2_probs[1]).item()
                             uncertainty_dic[sid] = float(uncertainty)
                             potential_list = top2_indices.cpu().numpy().tolist()
                             potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
