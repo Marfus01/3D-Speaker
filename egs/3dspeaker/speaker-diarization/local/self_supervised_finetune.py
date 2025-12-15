@@ -362,34 +362,7 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
         loss = criterion(output, label)
         acc = accuracy(output, label)
         optimizer.zero_grad()
-        loss.backward()
-
-        # 检查loss是否为nan或0
-        if torch.isnan(loss) or loss.item() == 0:
-            logger.warning(f"[WARNING] Batch {i}: loss is {loss.item()}, output: {output[0]}, label: {label[0]}")
-            continue        
-        # Debug信息输出
-        if i == 0 and epoch == 0:
-            logger.info(f"[DEBUG] Input feat shape: {feat.shape}, label shape: {label.shape}")
-            logger.info(f"[DEBUG] Embedding shape: {embedding.shape}")
-            logger.info(f"[DEBUG] Classifier output shape: {output.shape}")
-            logger.info(f"[DEBUG] Output stats - min: {output.min():.4f}, max: {output.max():.4f}, mean: {output.mean():.4f}")
-            # 检查梯度
-            total_norm_classifier = 0
-            for p in classifier.parameters():
-                if p.grad is not None:
-                    param_norm = p.grad.data.norm(2)
-                    total_norm_classifier += param_norm.item() ** 2
-            total_norm_classifier = total_norm_classifier ** 0.5
-            logger.info(f"[DEBUG] Classifier Gradient norm: {total_norm_classifier:.4f}")
-            total_norm_model = 0
-            for p in model.parameters():
-                if p.grad is not None:
-                    param_norm = p.grad.data.norm(2)
-                    total_norm_model += param_norm.item() ** 2
-            total_norm_model = total_norm_model ** 0.5
-            logger.info(f"[DEBUG] Embedding model Gradient norm: {total_norm_model:.4f}")
-        
+        loss.backward()  
         optimizer.step()
         
         # Record statistics
