@@ -208,10 +208,11 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
     if B_S_diag_min is not None:
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
+    tolerance = 1e-3 if hmm_model_path is None else 1e-1
     if audio_dur_grps_onehot is None:
-        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params)
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, params=params)
     else:
-        model = HMM_X(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
+        model = HMM_X(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     if hmm_model_path is not None:
         model.load_params(hmm_model_path)
         print(f"Loaded HMM model parameters from {hmm_model_path}")
@@ -276,7 +277,8 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     if B_S_diag_min is not None:
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
-    model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=1e-3, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
+    tolerance = 1e-3 if hmm_model_path is None else 1e-1
+    model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
     if hmm_model_path is not None:
         model.load_params(hmm_model_path)
         print(f"Loaded HMM model parameters from {hmm_model_path}")

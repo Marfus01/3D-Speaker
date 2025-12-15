@@ -129,9 +129,27 @@ class PseudoLabelDataset(Dataset):
         self.label2idx = {label: idx for idx, label in enumerate(unique_labels)}
         self.idx2label = {idx: label for label, idx in self.label2idx.items()}
         self.num_classes = len(unique_labels)
+        self.class_weights = self.get_class_weights()
+        self.label_weights = {self.idx2label[idx]: self.class_weights[idx].item() for idx in range(self.num_classes)}
         
         print(f"[INFO] Created dataset with {len(self.sample_ids)} samples and {self.num_classes} classes")
+        print(f"[INFO] Label weights: {self.label_weights}")
     
+    def get_class_weights(self):
+        """
+        Compute class weights inversely proportional to the square root of class frequencies
+        Returns:
+            class_weights: Tensor of shape [num_classes]
+        """
+        class_counts = np.zeros(self.num_classes, dtype=np.int64)
+        for sid in self.sample_ids:
+            cluster_label = self.pseudo_labels[sid]
+            class_idx = self.label2idx[cluster_label]
+            class_counts[class_idx] += 1
+        class_weights = 1.0 / (class_counts)**0.5
+        class_weights = class_weights / np.sum(class_weights) * self.num_classes  # 归一化
+        return torch.tensor(class_weights, dtype=torch.float32)
+
     def __len__(self):
         return len(self.sample_ids)
 
@@ -321,7 +339,7 @@ def unfrozen_model_modules(model, unfrozen_modules_num=1, print_mod_flag=False):
                 print(f"[INFO] Unfroze module [{idx}] {name} in xvector")
 
 
-def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch, logger, device, use_hidfeat_flag=False, unfrozen_modules_num=1):
+def train_one_epoch(train_loader, model, classifier, optimizer, epoch, logger, device, use_hidfeat_flag=False, unfrozen_modules_num=1):
     """
     Train for one epoch without gradient accumulation.
     
@@ -329,6 +347,9 @@ def train_one_epoch(train_loader, model, classifier, criterion, optimizer, epoch
         use_hidfeat_flag: If True, input is hidden features and use forward_from
         unfrozen_modules_num: Number of unfrozen modules from top. always be 1 when use_hidfeat_flag is True, since the output of former modules have different dimension.(when use unfrozen_model_layers, unfrozen_layers_num needn't to be known here)
     """
+    # criterion = nn.CrossEntropyLoss()
+    class_weights = torch.tensor(train_loader.dataset.class_weights, dtype=torch.float32).to(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     train_stats = AverageMeters()
     train_stats.add('Time', ':6.3f')
     train_stats.add('Loss', ':.4e')
@@ -743,16 +764,14 @@ def main():
             # Warmup: train classifier only when round == 0
             ## Optimizer for warmup (only classifier).
             optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
-            criterion = nn.CrossEntropyLoss()
             ## Warmup training
             logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
             for warmup_epoch in range(args.warmup_epochs_num):
                 torch.manual_seed(args.seed + warmup_epoch)
                 if args.use_gpu:
                     torch.cuda.manual_seed_all(args.seed + warmup_epoch)
-                train_stats = train_one_epoch(
-                    train_loader,  embedding_model, classifier, criterion,
-                    optimizer, warmup_epoch, logger, device, args.use_hidfeat)
+                train_stats = train_one_epoch(train_loader,  embedding_model, classifier, optimizer, 
+                                              warmup_epoch, logger, device, args.use_hidfeat)
                 logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             optimizer.zero_grad()
 
@@ -787,9 +806,8 @@ def main():
             torch.manual_seed(args.seed + ft_epoch)
             if args.use_gpu:
                 torch.cuda.manual_seed_all(args.seed + ft_epoch)
-            train_stats = train_one_epoch(
-                train_loader,  embedding_model, classifier, criterion,
-                optimizer, ft_epoch, logger, device, args.use_hidfeat)
+            train_stats = train_one_epoch(train_loader,  embedding_model, classifier, optimizer, 
+                                          ft_epoch, logger, device, args.use_hidfeat)
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
             
             # === 每个epoch后，计算所有样本的分类标签、概率和不确定度 ===
