@@ -450,16 +450,14 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         print(f"[ERROR] Stderr: {e.stderr}")
         raise e
 
-
-def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
+def cmd_compute_acc_spk(result_dir, speaker_anno_file, mode):
     """
-    Compute speaker recognition accuracy from pseudo labels.
+    Call compute_acc_spk.py to compute speaker recognition accuracy.
     This is a simplified version that calls compute_acc_spk.py
     
     Returns:
         accuracy: Overall speaker recognition accuracy
     """
-    
     # Run compute_acc_spk.py
     cmd = [
         sys.executable,
@@ -474,15 +472,16 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
     except subprocess.CalledProcessError as e:
         print(f"[WARNING] Error computing accuracy: {e}")
         raise e
+
+def get_acc(acc_file):
+    """
+    Parse accuracy from the given accuracy file.
     
-    # Parse accuracy from the output file
-    # Find the accuracy file that contains "corrected_all_by_HMM"
-    acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy({mode}).txt') and 'pseudo_labels_audio' in f]
-    assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
-    assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
-    
-    # Read the most recent accuracy file
-    acc_file = os.path.join(result_dir, acc_files[0])
+    Args:
+        acc_file: Path to accuracy file
+    Returns:
+        accuracy: Overall speaker recognition accuracy
+    """
     try:
         with open(acc_file, 'r') as f:
             lines = f.readlines()
@@ -493,6 +492,49 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
     except Exception as e:
         print(f"[WARNING] Error parsing accuracy file: {e}")
         raise e
+
+def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
+    """
+    Compute speaker recognition accuracy from pseudo labels.
+    This is a simplified version that calls compute_acc_spk.py
+    
+    Returns:
+        accuracy: Overall speaker recognition accuracy
+    """
+    # check whether result_dir contains pseudo label json files
+    pseudo_label_files = [f for f in os.listdir(result_dir) if f.endswith('.json') and 'pseudo_labels_audio' in f]
+    assert len(pseudo_label_files) <= 1, f"Multiple pseudo-label files found in {result_dir}: {pseudo_label_files}"
+    if len(pseudo_label_files) == 0:
+        pseudo_labels_all_dir = os.path.join(result_dir, "pseudo_labels_audio_unreliable_pp")
+        assert os.path.exists(pseudo_labels_all_dir), f"No pseudo-label files found in {result_dir} or its subdirectories!"
+        pseudo_label_files = [f for f in os.listdir(pseudo_labels_all_dir) if f.endswith('.json') and 'pseudo_labels_audio' in f]
+        if len(pseudo_label_files) == 0:
+            raise AssertionError(f"No pseudo-label files found in {pseudo_labels_all_dir}!")
+        elif len(pseudo_label_files) == 1:
+            best_idx = 0
+        else:
+            # Find the pseudo label file with highest valid accuracy
+            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode=='valid')
+            pseudo_label_files_acc_val = [get_acc(os.path.join(pseudo_labels_all_dir, f.replace('.json', '_accuracy(valid).txt'))) for f in pseudo_label_files]
+            best_idx = int(np.argmax(np.array(pseudo_label_files_acc_val)))
+            print(f"[INFO] Selected pseudo-label file {pseudo_label_files[best_idx]} with highest valid accuracy {pseudo_label_files_acc_val[best_idx]:.4f}")
+            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode=='test') # used for logging purpose
+        
+        # Move the pseudo label file in pseudo_labels_all_dir with highest valid acc to result_dir
+        src_path = os.path.join(pseudo_labels_all_dir, pseudo_label_files[best_idx])
+        dst_path = os.path.join(result_dir, pseudo_label_files[best_idx])
+        shutil.move(src_path, dst_path)
+    
+    # Run compute_acc_spk.py
+    cmd_compute_acc_spk(result_dir, speaker_anno_file, mode)
+
+    # Parse accuracy from the output file
+    # Find the accuracy file that contains "corrected_all_by_HMM"
+    acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy({mode}).txt') and 'pseudo_labels_audio' in f]
+    assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
+    assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
+    acc = get_acc(os.path.join(result_dir, acc_files[0]))
+    return acc
 
 
 def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None, from_preds=False, mode='test'):

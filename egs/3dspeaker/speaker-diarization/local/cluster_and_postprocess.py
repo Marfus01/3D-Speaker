@@ -196,7 +196,7 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
                         flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
-                        hmm_model_path=None, B_S_diag_min=None):
+                        hmm_model_path=None, B_S_diag_min=None, adaptive_pp=True):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -250,22 +250,33 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    if unreliable_pp >= 100.0:
-        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-    else:
+    if adaptive_pp and unreliable_pp < 100.0:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
-        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-        alabels_smoothed = copy.deepcopy(alabels)
-        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-    
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
+        for unreliable_pp_temp in range(0, 21, 5):
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+            alabels_smoothed = copy.deepcopy(alabels)
+            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+            print(f"unreliable_percent={unreliable_pp_temp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+            smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+            with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
+                json.dump(smoothed_cluster_dic, f, indent=2)
+    else:
+        if unreliable_pp >= 100.0:
+            alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+        else:
+            assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+            alabels_smoothed = copy.deepcopy(alabels)
+            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+        
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+        with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None, adaptive_pp=True):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -329,18 +340,29 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    if unreliable_pp >= 100.0:
-        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-    else:
+    if adaptive_pp and unreliable_pp < 100.0:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
-        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-        alabels_smoothed = copy.deepcopy(alabels)
-        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+        for unreliable_pp_temp in range(0, 21, 5):
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+            alabels_smoothed = copy.deepcopy(alabels)
+            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+            print(f"unreliable_percent={unreliable_pp_temp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+            smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+            with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
+                json.dump(smoothed_cluster_dic, f, indent=2)
+    else:
+        if unreliable_pp >= 100.0:
+            alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+        else:
+            assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+            alabels_smoothed = copy.deepcopy(alabels)
+            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
 
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+        with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
     
     return face_states_viterbi, speaker_states_viterbi
 
