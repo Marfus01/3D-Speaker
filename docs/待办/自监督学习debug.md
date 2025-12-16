@@ -13,11 +13,26 @@
 > 不要改成根据pseudo label的acc停止，可能会导致过拟合。
 
 ## 计算速度优化
-1. 在自监督学习文件中，根据解冻层数，构建 hidden feature的dataset，避免每次都从头计算embedding
-2. cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比如1e-2，避免过多迭代。
-3. 增大batch size，减少迭代次数。
+### 构建 hidden feature的dataset
+在自监督学习文件中，根据解冻层数，构建 hidden feature的dataset，避免每次都从头计算embedding✅
+### 调整每次HMM平滑的迭代次数
+cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比如1e-1，避免过多迭代。✅
+#### 按层解冻的实验结果
+注意到，当前解冻层数为2, 4, 8, 13的实验，最优valid acc、对应的test acc和出现的 round 分别为：
+- 纯语音聚类：valid acc 0.9075, test acc 0.9094
+- 语音-vad联合聚类（hmm观测）：valid acc 0.8950, test acc 0.9088
+- 初始化（hmm解码，采纳5%）: valid acc 0.9000, test acc 0.9162
+- 解冻2层（acc是根据某一轮的解码评估）：best valid acc 0.9050, test acc 0.9194, round 3
+- 解冻4层（acc是根据某一轮的解码评估）：best valid acc 0.9000, test acc 0.9162, round initial
+- 解冻8层（acc是根据某一轮的解码评估）：best valid acc 0.9175, test acc 0.9181, round 1
+- 解冻13层（acc是根据某一轮的解码评估）：best valid acc 0.9150, test acc 0.9200, round 0
+
+### 其他
+1. 增大batch size-->128 --效果不佳，仍保持64✅
 
 ## 其他
-1. 分类时，不确定性的准则改为概率最大类的概率
-2. 在cluster文件中，获取多个unreliable pp的json，自监督文件计算所有这些结果的valid acc，选择最优的pp进行后续迭代。如果发现所有pp的valid acc都没有提升，则停止迭代。
-3. 分类器可以用speakerlab/models/campplus/classifier.py中定义的LinearClassifier
+1. 分类时，不确定性的准则改为概率最大类的概率--效果不佳，仍保持为top2类预测概率之差✅
+2. 在cluster文件中，获取多个unreliable pp的json，自监督文件计算所有这些结果的valid acc，选择最优的pp进行后续迭代。如果发现所有pp的valid acc相较观测都没有提升，则停止迭代。✅
+3. BCE loss使用加权版本，权重与类别不平衡相关✅
+4. 使用hidden feature时，是否要加入某种数据增强？--暂时不需要，一期的时候也没做
+5. 分类器可以用speakerlab/models/campplus/classifier.py中定义的LinearClassifier--暂时不做

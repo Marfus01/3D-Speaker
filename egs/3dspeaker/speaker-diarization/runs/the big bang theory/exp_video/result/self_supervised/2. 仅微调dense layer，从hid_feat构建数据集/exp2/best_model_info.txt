@@ -1,0 +1,4 @@
+Initial: acc(valid)=0.9000, acc(test)=0.9162
+Round 1: acc(valid)=0.9125, acc(test)=0.9119
+Round 2: acc(valid)=0.9200, acc(test)=0.9112
+Round 3: acc(valid)=0.9225, acc(test)=0.9038
