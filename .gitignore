@@ -45,3 +45,5 @@ Makefile
 **/exp/
 **/__pycache__/
 egs/3dspeaker/speaker-diarization/pretrained_models/face_recog_ir101.onnx
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_model.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_classifier.pth
