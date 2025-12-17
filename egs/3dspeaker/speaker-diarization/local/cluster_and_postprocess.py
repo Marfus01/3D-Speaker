@@ -252,6 +252,7 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
     if adaptive_pp and unreliable_pp < 100.0:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
         for unreliable_pp_temp in range(0, 21, 5):
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
             alabels_smoothed = copy.deepcopy(alabels)
@@ -342,6 +343,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
     if adaptive_pp and unreliable_pp < 100.0:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
         for unreliable_pp_temp in range(0, 21, 5):
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
             alabels_smoothed = copy.deepcopy(alabels)

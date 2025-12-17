@@ -514,11 +514,11 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
             best_idx = 0
         else:
             # Find the pseudo label file with highest valid accuracy
-            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode=='valid')
+            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode='valid')
             pseudo_label_files_acc_val = [get_acc(os.path.join(pseudo_labels_all_dir, f.replace('.json', '_accuracy(valid).txt'))) for f in pseudo_label_files]
             best_idx = int(np.argmax(np.array(pseudo_label_files_acc_val)))
             print(f"[INFO] Selected pseudo-label file {pseudo_label_files[best_idx]} with highest valid accuracy {pseudo_label_files_acc_val[best_idx]:.4f}")
-            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode=='test') # used for logging purpose
+            cmd_compute_acc_spk(pseudo_labels_all_dir, speaker_anno_file, mode='test') # used for logging purpose
         
         # Move the pseudo label file in pseudo_labels_all_dir with highest valid acc to result_dir
         src_path = os.path.join(pseudo_labels_all_dir, pseudo_label_files[best_idx])
@@ -651,6 +651,7 @@ def main():
     ## Paths for best model and info
     best_model_path = os.path.join(exp_dir, 'best_model.pth')
     best_model_info_path = os.path.join(exp_dir, 'best_model_info.txt')
+    best_classifier_path = os.path.join(exp_dir, 'best_classifier.pth')
     
     # Setup logger
     logger = get_logger(os.path.join(exp_dir, 'self_supervised_train.log'))
@@ -1004,6 +1005,7 @@ def main():
                 patience_counter_round = 0
                 # Save best model
                 shutil.copy(round_model_save_path, best_model_path)
+                shutil.copy(round_classifier_save_path, best_classifier_path)
                 # Write best model info to file
                 with open(best_model_info_path, 'a') as f:
                     f.write(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}\n") 

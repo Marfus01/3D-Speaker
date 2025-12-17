@@ -34,13 +34,14 @@ def main(args):
         df = df[df['whether annotate speaker'] == 'Yes']
         keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 与聚类结果中的 segment ID 完全对应
         ## 根据 mode 筛选数据
-        if args.mode == 'valid':
-            df = df[keys.isin(valid_keys_list)]  # 筛选 keys 在 valid_keys_list 中的行
-        elif args.mode == 'test':
-            df = df[~keys.isin(valid_keys_list)]  # 筛选 keys 不在 valid_keys_list 中的行
-        else:
-            raise ValueError("Invalid mode. Choose from 'valid' or 'test'.")
-        keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 重新提取 keys
+        if args.mode != 'all':
+            if args.mode == 'valid':
+                df = df[keys.isin(valid_keys_list)]  # 筛选 keys 在 valid_keys_list 中的行
+            elif args.mode == 'test':
+                df = df[~keys.isin(valid_keys_list)]  # 筛选 keys 不在 valid_keys_list 中的行
+            else:
+                raise ValueError("Invalid mode. Choose from 'valid' or 'test'.")
+            keys = df.apply(lambda row: f"E{int(row['Episode']):02}-{int(row['Text Index'])}", axis=1)  # 重新提取 keys
         ## 提取对应的segment id，说话人和时长
         speaker_labels = df['speaker'].tolist()
         speaker_others_set = set([speaker for speaker in speaker_labels if speaker not in main_character_list])
@@ -132,7 +133,10 @@ def main(args):
 
 
         # 8. 保存结果
-        filename = os.path.basename(json_file).replace('.json', f'_accuracy({args.mode}).txt')
+        if args.mode == 'all':
+            filename = os.path.basename(json_file).replace('.json', f'_accuracy.txt')
+        else:
+            filename = os.path.basename(json_file).replace('.json', f'_accuracy({args.mode}).txt')
         with open(os.path.join(args.result_dir, filename), 'w') as f:
             name_grp_cnt = 0
             for k, v in results.items():
@@ -148,6 +152,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--ref_xlsx', type=str, required=True, help="filepath of reference xlsx")
     parser.add_argument('--result_dir', type=str, default='./result', help="directory containing clustering result json files")
-    parser.add_argument('--mode', type=str, default='test', help="mode: valid or test")
+    parser.add_argument('--mode', type=str, default='test', help="mode: valid or test or all")
     args = parser.parse_args()
     main(args)
