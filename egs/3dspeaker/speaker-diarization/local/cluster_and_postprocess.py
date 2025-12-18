@@ -1041,6 +1041,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         useful_var_dic['alengths'] = alengths
         useful_var_dic['audio_seg_ids'] = audio_seg_ids
         useful_var_dic['audio_times'] = audio_times
+        useful_var_dic['alabels_processed_init'] = alabels_processed
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
         if 'mid_frame' in hmm_visual_info_type:
@@ -1079,6 +1080,14 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         if not hmm_flag:
             save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'pseudo_labels_audio_from_model.json'))
             return
+        ## Take care of missing clusster ids of alabels_processed_init in alabels_processed
+        if hmm_model_path is not None:
+            alabels_processed_init = useful_var_dic['alabels_processed_init']
+            missing_alabels_set = set(np.unique(alabels_processed_init)) - set(np.unique(alabels_processed))
+            if len(missing_alabels_set) > 0:
+                print(f"[WARNING] {missing_alabels_set} in alabels_processed_init are missing in alabels_processed loaded from model predictions. They will be recovered.")
+                for missing_label in missing_alabels_set:
+                    alabels_processed[alabels_processed_init == missing_label] = missing_label
         ## load speaker potential list
         alabels_potential_dic_path = os.path.join(result_dir, 'alabels_potential_dic.pkl')
         assert os.path.exists(alabels_potential_dic_path), f"When from_preds is True, alabels_potential_dic.pkl must exist in {result_dir}."
