@@ -704,6 +704,20 @@ def main():
     logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
     # Accuracy history
     acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
+    
+    # Load unreliable segment IDs and initial cluster results
+    with open(os.path.join(pseudo_label_dir, 'useful_var_dic.pkl'), 'rb') as f:
+        useful_var_dic = pickle.load(f)
+    audio_seg_ids = useful_var_dic['audio_seg_ids']
+    audio_cluster_unreliable_metrics = useful_var_dic['alabels_unreliable_metrics']
+    idxs_unreliable = np.argsort(audio_cluster_unreliable_metrics)[:int(args.unreliable_pp / 100 * len(audio_seg_ids))]
+    audio_seg_ids_unreliable = audio_seg_ids[idxs_unreliable]
+    
+    audio_cluster_result_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'cluster_results_audio_processed' in f]
+    assert len(audio_cluster_result_files) == 1, f"No or multiple cluster_result_processed file found in {pseudo_label_dir}: {audio_cluster_result_files}"
+    cluster_result_file = os.path.join(pseudo_label_dir, audio_cluster_result_files[0])
+    with open(cluster_result_file, 'r') as f:
+        initial_cluster_results = json.load(f)
 
     # Record best accuracy
     best_acc_valid_r = initial_acc_valid
@@ -909,11 +923,11 @@ def main():
                         # get predicted label and save to dict
                         pred_label = torch.argmax(probs).item()
                         pred_label = int(train_dataset.idx2label[pred_label])
-                        preds_dic[sid] = pred_label
+                        preds_dic[sid] = pred_label if sid in audio_seg_ids_unreliable else initial_cluster_results[sid]
                         # get potential labels and uncertainty and save to dict
                         if args.from_preds:
                             top2_probs, top2_indices = torch.topk(probs, 2)
-                            uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                            uncertainty = (top2_probs[0] - top2_probs[1]).item() if sid in audio_seg_ids_unreliable else 2
                             uncertainty_dic[sid] = float(uncertainty)
                             potential_list = top2_indices.cpu().numpy().tolist()
                             potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
@@ -928,7 +942,9 @@ def main():
             save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
             crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid): {crt_acc_valid_e:.4f}")
-            if ft_epoch==4:  # epoch0 must be better
+            if crt_acc_valid_e > best_acc_valid_e:  # epoch0 must be better
+                best_acc_valid_e, best_epoch  = crt_acc_valid_e, ft_epoch
+                patience_counter_epoch = 0
                 # Save best model of this round, and preds, uncertainty, potential_list dicts
                 if rank == 0:
                     torch.save(embedding_model.state_dict(), round_model_save_path)
@@ -946,17 +962,16 @@ def main():
                     # else:
                     #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
                     #         pickle.dump(embeddings_dic, f)
-                    break   # only train 5 epochs
                 if world_size > 1:
                     dist.barrier()
-            # else:
-            #     patience_counter_epoch += 1
-            #     logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
-            #     if patience_counter_epoch >= args.early_stop_patience_epoch:
-            #         logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
+            else:
+                patience_counter_epoch += 1
+                logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
+                if patience_counter_epoch >= args.early_stop_patience_epoch:
+                    logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
                     break
         optimizer.zero_grad()
-        # logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid)={best_acc_valid_e:.4f}")
+        logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid)={best_acc_valid_e:.4f}")
         
         
         # ============================
