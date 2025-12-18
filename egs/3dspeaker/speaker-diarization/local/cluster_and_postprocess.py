@@ -196,7 +196,7 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
                         flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
-                        hmm_model_path=None, B_S_diag_min=None, adaptive_pp=True):
+                        hmm_model_path=None, B_S_diag_min=None, adaptive_pp=False):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -277,7 +277,7 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None, adaptive_pp=True):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None, adaptive_pp=False):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
