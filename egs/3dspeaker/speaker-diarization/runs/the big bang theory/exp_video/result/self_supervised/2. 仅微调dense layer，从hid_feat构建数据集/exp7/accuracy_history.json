@@ -1,0 +1,27 @@
+[
+  {
+    "round": "Initial",
+    "acc(valid)": 0.9,
+    "acc(test)": 0.9162
+  },
+  {
+    "round": 0,
+    "acc(valid)": 0.895,
+    "acc(test)": 0.9081
+  },
+  {
+    "round": 1,
+    "acc(valid)": 0.825,
+    "acc(test)": 0.8344
+  },
+  {
+    "round": 2,
+    "acc(valid)": 0.7025,
+    "acc(test)": 0.7238
+  },
+  {
+    "round": 3,
+    "acc(valid)": 0.645,
+    "acc(test)": 0.6512
+  }
+]
