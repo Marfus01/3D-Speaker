@@ -1,13 +1,13 @@
-overall_accuracy: 0.9081
-group_0_accuracy: 0.84
-group_1_accuracy: 0.8754
-group_2_accuracy: 0.9443
-group_3_accuracy: 0.9402
+overall_accuracy: 0.9169
+group_0_accuracy: 0.8133
+group_1_accuracy: 0.8936
+group_2_accuracy: 0.9513
+group_3_accuracy: 0.9348
 group_4_accuracy: 0.9423
 
-accuracy_Sheldon: 0.9742
-accuracy_Leonard: 0.9352
-accuracy_Penny: 0.9318
-accuracy_Howard: 0.8902
-accuracy_Others: 0.6943
-accuracy_Raj: 0.7838
+accuracy_Sheldon: 0.9761
+accuracy_Leonard: 0.9252
+accuracy_Penny: 0.9394
+accuracy_Howard: 0.9024
+accuracy_Others: 0.7006
+accuracy_Raj: 0.8919
