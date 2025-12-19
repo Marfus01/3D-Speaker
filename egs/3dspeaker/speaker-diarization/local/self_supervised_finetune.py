@@ -450,6 +450,11 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         print(f"[ERROR] Stderr: {e.stderr}")
         raise e
 
+def compute_acc_from_dic(pred_dic, ref_dic):
+    correct_num = sum(list(map(lambda k: 1 if pred_dic[k] == ref_dic[k] else 0, ref_dic.keys())))
+    ref_total = len(ref_dic)
+    return correct_num / ref_total if ref_total > 0 else 0
+
 def cmd_compute_acc_spk(result_dir, speaker_anno_file, mode):
     """
     Call compute_acc_spk.py to compute speaker recognition accuracy.
@@ -710,7 +715,16 @@ def main():
     best_round = 0
     acc_test_at_best_valid = initial_acc_test
     patience_counter_round = 0
-    
+
+    # define pseudo_valid_label_dic and save
+    with open(os.path.join(pseudo_label_dir, 'cluster_results_vision_vad_processed_for_HMM_nested_X_uniq.json'), 'r', encoding='utf-8') as f:
+        vad_cluster_results = json.load(f)
+    with open(os.path.join(pseudo_label_dir, 'cluster_results_audio_processed_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
+        audio_obs_init_results = json.load(f)
+    pseudo_valid_label_dic = {k: vad_cluster_results[k] for k in vad_cluster_results if vad_cluster_results[k] == audio_obs_init_results[k]}
+    with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels.json'), 'w', encoding='utf-8') as f:
+        json.dump(pseudo_valid_label_dic, f, indent=2)
+
     # ============================
     # Iterative fine-tuning
     # ============================
@@ -841,7 +855,7 @@ def main():
         os.makedirs(round_pseudo_label_dir, exist_ok=True)
         round_model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
         round_classifier_save_path = os.path.join(round_dir, 'finetuned_classifier.pth')
-        best_acc_valid_e, best_epoch, patience_counter_epoch = 0.0, 0, 0
+        best_acc_valid_e_pseudo, best_epoch, patience_counter_epoch = 0.0, 0, 0
         if args.from_preds:
             best_preds_dic, best_uncertainty_dic, best_potential_list_dic = {}, {}, {}
         logger.info(f"Fine-tuning embedding model for {args.max_finetune_epochs} epochs...")
@@ -926,9 +940,12 @@ def main():
             epoch_dir = os.path.join(round_dir, f'ft_epoch_{ft_epoch}')
             os.makedirs(epoch_dir, exist_ok=True)
             save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
+            crt_acc_valid_e_pseudo = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic)
             crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
-            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid): {crt_acc_valid_e:.4f}")
-            if (round==0 and ft_epoch==4) or (round>0 and ft_epoch==0):  # epoch0 must be better
+            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo:.4f}, acc(valid): {crt_acc_valid_e:.4f}")
+            if crt_acc_valid_e_pseudo > best_acc_valid_e_pseudo:  # epoch0 must be better
+                best_acc_valid_e_pseudo, best_epoch  = crt_acc_valid_e_pseudo, ft_epoch
+                patience_counter_epoch = 0
                 # Save best model of this round, and preds, uncertainty, potential_list dicts
                 if rank == 0:
                     torch.save(embedding_model.state_dict(), round_model_save_path)
@@ -946,17 +963,17 @@ def main():
                     # else:
                     #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
                     #         pickle.dump(embeddings_dic, f)
-                    break   # only train 5 epochs
                 if world_size > 1:
                     dist.barrier()
-            # else:
-            #     patience_counter_epoch += 1
-            #     logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
-            #     if patience_counter_epoch >= args.early_stop_patience_epoch:
-            #         logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
+            else:
+                patience_counter_epoch += 1
+                logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
+                if patience_counter_epoch >= args.early_stop_patience_epoch:
+                    logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
                     break
         optimizer.zero_grad()
-        # logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid)={best_acc_valid_e:.4f}")
+        logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid_pseudo)={best_acc_valid_e_pseudo:.4f}")
+
         
         
         # ============================
