@@ -710,6 +710,14 @@ def main():
     # Accuracy history
     acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
 
+    # Load unreliable segment IDs and initial cluster results
+    with open(os.path.join(pseudo_label_dir, 'useful_var_dic.pkl'), 'rb') as f:
+        useful_var_dic = pickle.load(f)
+    audio_seg_ids = useful_var_dic['audio_seg_ids']
+    alabels_unreliable_metrics_init = useful_var_dic['alabels_unreliable_metrics_init']
+    idxs_unreliable = np.argsort(alabels_unreliable_metrics_init)[:int(args.unreliable_pp / 100 * len(audio_seg_ids))]
+    audio_seg_ids_unreliable = audio_seg_ids[idxs_unreliable]
+
     # Record best accuracy
     best_acc_valid_r = initial_acc_valid
     best_round = 0
@@ -898,7 +906,7 @@ def main():
                         for i in range(batch_size):
                             sid = train_dataset.sample_ids[sample_idx]
                             pred_label = int(train_dataset.idx2label[batch_pred_labels[i].item()])
-                            preds_dic[sid] = pred_label
+                            preds_dic[sid] = pred_label if sid in audio_seg_ids_unreliable else audio_obs_init_results[sid]
                             
                             if args.from_preds:
                                 probs = batch_probs[i]
@@ -925,7 +933,7 @@ def main():
                         # get predicted label and save to dict
                         pred_label = torch.argmax(probs).item()
                         pred_label = int(train_dataset.idx2label[pred_label])
-                        preds_dic[sid] = pred_label
+                        preds_dic[sid] = pred_label if sid in audio_seg_ids_unreliable else audio_obs_init_results[sid]
                         # get potential labels and uncertainty and save to dict
                         if args.from_preds:
                             top2_probs, top2_indices = torch.topk(probs, 2)
