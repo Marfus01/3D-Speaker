@@ -1,7 +1,7 @@
 ## Step0 加入调试接口
 
 
-## Step1
+## Step1：确定observation来源
 确定是分类微调-分类给出伪标签-HMM平滑，还是对比学习微调-聚类给出伪标签-HMM平滑。确定范式之后，可以进一步采用样本置信度及频率加权、随机裁剪、
 渐进解冻+学习率、正则化等技巧。
 ### 分类范式
@@ -12,7 +12,7 @@
 5. 每一次迭代，微调停止按照预设最大epoch/最优valid acc(有一个patience)停止✅
 > 不要改成根据pseudo label的acc停止，可能会导致过拟合。
 
-## 计算速度优化
+##  Step2：计算速度优化
 ### 构建 hidden feature的dataset
 在自监督学习文件中，根据解冻层数，构建 hidden feature的dataset，避免每次都从头计算embedding✅
 ### 调整每次HMM平滑的迭代次数
@@ -33,13 +33,26 @@ cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比�
 - best round(at round 3, hmm解码): best valid acc 0.9100, test acc 0.9206
 > 指定文件夹test acc直接测量方式：python local/compute_acc_spk.py --result_dir "/data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-d
 /scv7387/run/tv_series_plus/dataset/the big bang theory/annotation/text_annotated.xlsx" --mode "test"构建数据集/exp1/round3/ft_epoch_3" --ref_xlsx
+### 增大batch size
+增大batch size-->128 --效果不佳，仍保持64✅
 
-### 其他
-1. 增大batch size-->128 --效果不佳，仍保持64✅
-
-## 其他
+## Step3：其他
 1. 分类时，不确定性的准则改为概率最大类的概率--效果不佳，仍保持为top2类预测概率之差✅
 2. 在cluster文件中，获取多个unreliable pp的json，自监督文件计算所有这些结果的valid acc，选择最优的pp进行后续迭代。如果发现所有pp的valid acc相较观测都没有提升，则停止迭代。✅
 3. BCE loss使用加权版本，权重与类别不平衡相关✅
 4. 使用hidden feature时，是否要加入某种数据增强？--暂时不需要，一期的时候也没做
 5. 分类器可以用speakerlab/models/campplus/classifier.py中定义的LinearClassifier--暂时不做
+
+## Step4：尝试去除valid set
+目前valid set用于：
+1. 在每一个round的每一个epoch结束后，计算valid acc，选择最优epoch用于计算prediction/伪标签
+2. 在每一个round结束后，计算valid acc，选择最优round，作为最终结果
+理想情况下，各个round的test acc应该持续上升，这在我爱我家上也确实成立。由此出发，计划固定round数=5/10。
+然而，观察实验结果发现，目前实验结果对每个round训练的epoch数较为敏感，不便设置固定的epoch数。
+目前注意到，根据初始联合聚类标签和vad聚类一致性获得的部分样本acc很高，可以被视为pseudo valid set。前期实验证明，使用该pseudo valid set选择最优epoch，实验结果略有下降。尤其是，
+由于我们，为了避免
+为了使得生活大爆炸上，随随】round增加，test acc保持平稳，目前分别进行了以下尝试：
+1. 对于每一个round给出的prediction，仅利用其修正初始聚类标签中的少数高不确定样本，随后送给hmm作为observation。
+2. 在每个round的hmm平滑中，均使用初始聚类标签及不确定性作为参考。这样，每个round的test acc至少会有相对稳定的下限。
+> 与 1 类似。
+3. 每个round均从初始预训练模型和随机初始化的分类器开始训练，避免前一个round过拟合的模型影响后续round，同时减弱对于每一个round训练epoch数的敏感性。

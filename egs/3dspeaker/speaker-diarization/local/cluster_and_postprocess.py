@@ -275,7 +275,7 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
         with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
             json.dump(smoothed_cluster_dic, f, indent=2)
 
-def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_init, lengths, 
+def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
                                   audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None, adaptive_pp=False):
     n_actors = S_hat_onehot.shape[1]    
@@ -346,7 +346,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
         for unreliable_pp_temp in range(0, 21, 5):
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-            alabels_smoothed = copy.deepcopy(alabels_init)
+            alabels_smoothed = copy.deepcopy(alabels)
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
             print(f"unreliable_percent={unreliable_pp_temp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
@@ -358,7 +358,7 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         else:
             assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-            alabels_smoothed = copy.deepcopy(alabels_init)
+            alabels_smoothed = copy.deepcopy(alabels)
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
             print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
 
@@ -1037,14 +1037,11 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         del audio_embeddings
 
         # 保存一些有用变量，供后续直接对模型预测结果进行HMM平滑时使用
-        alabels_processed_init = copy.deepcopy(alabels_processed)  # 保存未经过HMM平滑的speaker labels
-        alabels_unreliable_metrics_init = copy.deepcopy(alabels_unreliable_metrics)  # 保存未经过HMM平滑的speaker unreliable metrics
         useful_var_dic = {}
         useful_var_dic['alengths'] = alengths
         useful_var_dic['audio_seg_ids'] = audio_seg_ids
         useful_var_dic['audio_times'] = audio_times
-        useful_var_dic['alabels_processed_init'] = alabels_processed_init
-        useful_var_dic['alabels_unreliable_metrics_init'] = alabels_unreliable_metrics_init
+        useful_var_dic['alabels_processed_init'] = alabels_processed
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
         if 'mid_frame' in hmm_visual_info_type:
@@ -1067,8 +1064,6 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         alengths = useful_var_dic['alengths']
         audio_seg_ids = useful_var_dic['audio_seg_ids']
         audio_times = useful_var_dic['audio_times']
-        alabels_processed_init = useful_var_dic['alabels_processed_init']
-        alabels_unreliable_metrics_init = useful_var_dic['alabels_unreliable_metrics_init']
         visual_times_vad_aligned = useful_var_dic['visual_times_vad_aligned']
         vlabels_vad_processed = useful_var_dic['vlabels_vad_processed']
 
@@ -1087,6 +1082,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             return
         ## Take care of missing clusster ids of alabels_processed_init in alabels_processed
         if hmm_model_path is not None:
+            alabels_processed_init = useful_var_dic['alabels_processed_init']
             missing_alabels_set = set(np.unique(alabels_processed_init)) - set(np.unique(alabels_processed))
             if len(missing_alabels_set) > 0:
                 print(f"[WARNING] {missing_alabels_set} in alabels_processed_init are missing in alabels_processed loaded from model predictions. They will be recovered.")
@@ -1189,7 +1185,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, 
                             alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
     else:
-        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_processed_init, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
+        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
 
         vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
         vlabels_mf_corrected_all = np.ones_like(vlabels_mf, dtype=np.int32)
