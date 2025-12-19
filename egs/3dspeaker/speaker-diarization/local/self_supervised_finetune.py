@@ -906,7 +906,7 @@ def main():
                         for i in range(batch_size):
                             sid = train_dataset.sample_ids[sample_idx]
                             pred_label = int(train_dataset.idx2label[batch_pred_labels[i].item()])
-                            preds_dic[sid] = pred_label if sid in audio_seg_ids_unreliable else audio_obs_init_results[sid]
+                            preds_dic[sid] = pred_label
                             
                             if args.from_preds:
                                 probs = batch_probs[i]
@@ -933,7 +933,7 @@ def main():
                         # get predicted label and save to dict
                         pred_label = torch.argmax(probs).item()
                         pred_label = int(train_dataset.idx2label[pred_label])
-                        preds_dic[sid] = pred_label if sid in audio_seg_ids_unreliable else audio_obs_init_results[sid]
+                        preds_dic[sid] = pred_label
                         # get potential labels and uncertainty and save to dict
                         if args.from_preds:
                             top2_probs, top2_indices = torch.topk(probs, 2)
@@ -961,7 +961,7 @@ def main():
                     torch.save(embedding_model.state_dict(), round_model_save_path)
                     torch.save(classifier.state_dict(), round_classifier_save_path)
                     if args.from_preds:
-                        best_preds_dic = copy.deepcopy(preds_dic)
+                        best_preds_dic = {k: preds_dic[k] if k in audio_seg_ids_unreliable else audio_obs_init_results[k] for k in preds_dic}
                         best_uncertainty_dic = copy.deepcopy(uncertainty_dic)
                         best_potential_list_dic = copy.deepcopy(potential_list_dic)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_pred_dic.pkl'), 'wb') as f:
