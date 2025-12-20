@@ -47,3 +47,6 @@ Makefile
 egs/3dspeaker/speaker-diarization/pretrained_models/face_recog_ir101.onnx
 egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_model.pth
 egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_classifier.pth
+egs/3dspeaker/speaker-diarization/pretrained_models/CurricularFace_Backbone_HuangYG123.pth
+egs/3dspeaker/speaker-diarization/pretrained_models/CurricularFace_Backbone_ms.pth
+egs/3dspeaker/speaker-diarization/pretrained_models/IR_101_glint360k_webface_glinms1m_megaface_TFace.pth
