@@ -1,0 +1,42 @@
+[
+  {
+    "round": "Initial",
+    "acc(valid)": 0.8175,
+    "acc(test)": 0.8038
+  },
+  {
+    "round": 0,
+    "acc(valid)": 0.855,
+    "acc(test)": 0.85
+  },
+  {
+    "round": 1,
+    "acc(valid)": 0.8625,
+    "acc(test)": 0.865
+  },
+  {
+    "round": 2,
+    "acc(valid)": 0.875,
+    "acc(test)": 0.8669
+  },
+  {
+    "round": 3,
+    "acc(valid)": 0.8775,
+    "acc(test)": 0.8688
+  },
+  {
+    "round": 4,
+    "acc(valid)": 0.86,
+    "acc(test)": 0.8625
+  },
+  {
+    "round": 5,
+    "acc(valid)": 0.875,
+    "acc(test)": 0.8619
+  },
+  {
+    "round": 6,
+    "acc(valid)": 0.8775,
+    "acc(test)": 0.8581
+  }
+]
