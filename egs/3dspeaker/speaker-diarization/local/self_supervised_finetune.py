@@ -961,9 +961,10 @@ def main():
                 if world_size > 1:
                     dist.barrier()
             else:
-                patience_counter_epoch += 1
+                if ft_epoch>2:
+                    patience_counter_epoch += 1
                 logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
-                if patience_counter_epoch >= args.early_stop_patience_epoch:
+                if ft_epoch>2 and (patience_counter_epoch >= args.early_stop_patience_epoch):
                     logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
                     break
         optimizer.zero_grad()
