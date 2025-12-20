@@ -806,28 +806,27 @@ def main():
         train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=crt_collate_fn)
 
         # Freeze embedding model initially
-        embedding_model.load_state_dict(torch.load(os.path.join(initial_dir, 'pretrained_model.pth'), map_location=device))
-        embedding_model.to(device)
         for param in embedding_model.parameters():
             param.requires_grad = False
         
         # Create classifier and warm up
-        # Create classifier
-        classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
-    
-        # Warmup: train classifier only when round == 0
-        ## Optimizer for warmup (only classifier).
-        optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
-        ## Warmup training
-        logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
-        for warmup_epoch in range(args.warmup_epochs_num):
-            torch.manual_seed(args.seed + warmup_epoch)
-            if args.use_gpu:
-                torch.cuda.manual_seed_all(args.seed + warmup_epoch)
-            train_stats = train_one_epoch(train_loader,  embedding_model, classifier, optimizer, 
-                                            warmup_epoch, logger, device, args.use_hidfeat)
-            logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
-        optimizer.zero_grad()
+        if round == 0 or not args.from_preds: # 当根据分类结果获取伪标签时，每个round伪标签都与之前类似
+            # Create classifier
+            classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
+        
+            # Warmup: train classifier only when round == 0
+            ## Optimizer for warmup (only classifier).
+            optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
+            ## Warmup training
+            logger.info(f"Warmup training classifier for {args.warmup_epochs_num} epochs...")
+            for warmup_epoch in range(args.warmup_epochs_num):
+                torch.manual_seed(args.seed + warmup_epoch)
+                if args.use_gpu:
+                    torch.cuda.manual_seed_all(args.seed + warmup_epoch)
+                train_stats = train_one_epoch(train_loader,  embedding_model, classifier, optimizer, 
+                                                warmup_epoch, logger, device, args.use_hidfeat)
+                logger.info(f"Round {round}, Warmup Epoch {warmup_epoch}: loss={train_stats['loss']:.4f}, acc(pseudo)={train_stats['acc']:.2f}%")
+            optimizer.zero_grad()
 
         # Unfreeze last few layers in embedding model
         if args.use_hidfeat:
