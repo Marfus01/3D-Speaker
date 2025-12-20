@@ -653,10 +653,6 @@ def main():
     exp_dir = os.path.join(finetune_dir, exp_name)
     assert not os.path.exists(exp_dir), f"Experiment directory {exp_dir} already exists!"   # NOTE: 一次性跑多个实验时，需要等待前一个实验目录创建完成
     os.makedirs(exp_dir, exist_ok=True)
-    ## Paths for best model and info
-    best_model_path = os.path.join(exp_dir, 'best_model.pth')
-    best_model_info_path = os.path.join(exp_dir, 'best_model_info.txt')
-    best_classifier_path = os.path.join(exp_dir, 'best_classifier.pth')
     
     # Setup logger
     logger = get_logger(os.path.join(exp_dir, 'self_supervised_train.log'))
@@ -706,6 +702,7 @@ def main():
         shutil.copytree(initial_dir, os.path.join(finetune_dir, 'initial'), dirs_exist_ok=True)
         logger.info(f"Saved initial clustering results to {initial_dir}")
     
+    cmd_compute_acc_spk(pseudo_label_dir, args.speaker_anno_file, mode='all')  # for logging purpose
     logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
     # Accuracy history
     acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
@@ -717,12 +714,6 @@ def main():
     alabels_unreliable_metrics_init = useful_var_dic['alabels_unreliable_metrics_init']
     idxs_unreliable = np.argsort(alabels_unreliable_metrics_init)[:int(args.unreliable_pp / 100 * len(audio_seg_ids))]
     audio_seg_ids_unreliable = audio_seg_ids[idxs_unreliable]
-
-    # Record best accuracy
-    best_acc_valid_r = initial_acc_valid
-    best_round = 0
-    acc_test_at_best_valid = initial_acc_test
-    patience_counter_round = 0
 
     # define pseudo_valid_label_dic and save
     with open(os.path.join(pseudo_label_dir, 'cluster_results_vision_vad_processed_for_HMM_nested_X_uniq.json'), 'r', encoding='utf-8') as f:
@@ -786,10 +777,6 @@ def main():
             
             # Copy pretrained model to local round dir for record
             torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model.pth'))
-            shutil.copy(os.path.join(initial_dir, 'pretrained_model.pth'), best_model_path)
-            # Write best model info to file
-            with open(best_model_info_path, 'a') as f:
-              f.write(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}\n")
 
         # Create dataset and dataloader
         ## Define subseg_hidfeat_dic at round 0
@@ -882,7 +869,7 @@ def main():
             classifier.eval()
             preds_dic = {}
             if args.from_preds:
-                potential_list_dic, uncertainty_dic = {}, {}
+                potential_list_dic, uncertainty_dic, embeddings_dic = {}, {}, {}
             # else:
             #     embeddings_dic = {}
             if args.use_hidfeat:  # 顺序读取 hidden features 的 batch
@@ -907,7 +894,8 @@ def main():
                             sid = train_dataset.sample_ids[sample_idx]
                             pred_label = int(train_dataset.idx2label[batch_pred_labels[i].item()])
                             preds_dic[sid] = pred_label
-                            
+                            embeddings_dic[sid] = batch_emb[i].squeeze(0).cpu().numpy()
+
                             if args.from_preds:
                                 probs = batch_probs[i]
                                 top2_probs, top2_indices = torch.topk(probs, 2)
@@ -916,9 +904,6 @@ def main():
                                 potential_list = top2_indices.cpu().numpy().tolist()
                                 potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
                                 potential_list_dic[sid] = potential_list
-                            # else:
-                            #     emb = batch_emb[i]
-                            #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
                             sample_idx += 1
 
             else: # 遍历所有subseg_id，取原始特征
@@ -934,6 +919,7 @@ def main():
                         pred_label = torch.argmax(probs).item()
                         pred_label = int(train_dataset.idx2label[pred_label])
                         preds_dic[sid] = pred_label
+                        embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
                         # get potential labels and uncertainty and save to dict
                         if args.from_preds:
                             top2_probs, top2_indices = torch.topk(probs, 2)
@@ -942,8 +928,6 @@ def main():
                             potential_list = top2_indices.cpu().numpy().tolist()
                             potential_list = [int(train_dataset.idx2label[idx]) for idx in potential_list]
                             potential_list_dic[sid] = potential_list
-                        # else:
-                        #     embeddings_dic[sid] = emb.squeeze(0).cpu().numpy()
 
 
             # 计算在验证集上的准确率
@@ -952,6 +936,8 @@ def main():
             save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
             crt_acc_valid_e_pseudo = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic)
             crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
+            cmd_compute_acc_spk(epoch_dir, args.speaker_anno_file, mode='all')
+            cmd_compute_acc_spk(epoch_dir, args.speaker_anno_file, mode='test')
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo:.4f}, acc(valid): {crt_acc_valid_e:.4f}")
             if crt_acc_valid_e_pseudo > best_acc_valid_e_pseudo:  # epoch0 must be better
                 best_acc_valid_e_pseudo, best_epoch  = crt_acc_valid_e_pseudo, ft_epoch
@@ -960,6 +946,8 @@ def main():
                 if rank == 0:
                     torch.save(embedding_model.state_dict(), round_model_save_path)
                     torch.save(classifier.state_dict(), round_classifier_save_path)
+                    with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
+                        pickle.dump(embeddings_dic, f)
                     if args.from_preds:
                         best_preds_dic = {k: preds_dic[k] if k in audio_seg_ids_unreliable else audio_obs_init_results[k] for k in preds_dic}
                         best_uncertainty_dic = copy.deepcopy(uncertainty_dic)
@@ -970,9 +958,7 @@ def main():
                             pickle.dump(best_uncertainty_dic, f)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_potential_dic.pkl'), 'wb') as f:
                             pickle.dump(best_potential_list_dic, f)
-                    # else:
-                    #     with open(os.path.join(round_pseudo_label_dir, 'embeddings.pkl'), 'wb') as f:
-                    #         pickle.dump(embeddings_dic, f)
+
                 if world_size > 1:
                     dist.barrier()
             else:
@@ -1020,33 +1006,15 @@ def main():
                                                         args.hmm_visual_info_type,  args.unreliable_pp,
                                                         args.speaker_anno_file, hmm_model_path, args.from_preds, mode='test')
             crt_acc_valid_r = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
+            cmd_compute_acc_spk(pseudo_label_dir, args.speaker_anno_file, mode='all')
             logger.info(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}")
             # Record accuracy
             acc_history.append({'round': round, 'acc(valid)': crt_acc_valid_r, 'acc(test)': crt_acc_test_r})
             
-            # Check if best
-            if crt_acc_valid_r > best_acc_valid_r:
-                # Update best accuracy
-                best_acc_valid_r, best_round, acc_test_at_best_valid = crt_acc_valid_r, round, crt_acc_test_r
-                patience_counter_round = 0
-                # Save best model
-                shutil.copy(round_model_save_path, best_model_path)
-                shutil.copy(round_classifier_save_path, best_classifier_path)
-                # Write best model info to file
-                with open(best_model_info_path, 'a') as f:
-                    f.write(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}\n") 
-                logger.info(f"New best acc(valid) at round {best_round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}") 
-            else:
-                patience_counter_round += 1
-                logger.info(f"No improvement. Patience(round): {patience_counter_round}/{args.early_stop_patience_round}")
             
             # Save accuracy history
             with open(os.path.join(exp_dir, 'accuracy_history.json'), 'w') as f:
                 json.dump(acc_history, f, indent=2)
-            # Early stopping
-            if patience_counter_round >= args.early_stop_patience_round:
-                logger.info(f"Early stopping triggered at round {best_round}.")
-                break
             
             # # Clean up previous checkpoint to save space
             # if round > 0:
@@ -1064,9 +1032,9 @@ def main():
         logger.info("="*20)
         logger.info("Self-supervised fine-tuning completed!")
         logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
-        logger.info(f"Best acc(valid) at round {best_round}: acc(valid)={best_acc_valid_r:.4f}, acc(test)={acc_test_at_best_valid:.4f}")
-        logger.info(f"Improvement for acc(valid): {(best_acc_valid_r - initial_acc_valid):.4f} ({(best_acc_valid_r - initial_acc_valid) / initial_acc_valid * 100:.2f}%)")
-        logger.info(f"Improvement for acc(test): {(acc_test_at_best_valid - initial_acc_test):.4f} ({(acc_test_at_best_valid - initial_acc_test) / initial_acc_test * 100:.2f}%)")
+        logger.info(f"Final at round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}")
+        logger.info(f"Improvement for acc(valid): {(crt_acc_valid_r - initial_acc_valid):.4f} ({(crt_acc_valid_r - initial_acc_valid) / initial_acc_valid * 100:.2f}%)")
+        logger.info(f"Improvement for acc(test): {(crt_acc_test_r - initial_acc_test):.4f} ({(crt_acc_test_r - initial_acc_test) / initial_acc_test * 100:.2f}%)")
         logger.info("="*20)
 
 

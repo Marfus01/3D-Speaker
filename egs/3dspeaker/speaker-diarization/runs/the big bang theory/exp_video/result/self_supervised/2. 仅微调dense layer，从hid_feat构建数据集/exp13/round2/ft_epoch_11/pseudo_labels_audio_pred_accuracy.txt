@@ -1,0 +1,13 @@
+overall_accuracy: 0.7245
+group_0_accuracy: 0.581
+group_1_accuracy: 0.67
+group_2_accuracy: 0.7925
+group_3_accuracy: 0.7661
+group_4_accuracy: 0.803
+
+accuracy_Sheldon: 0.9444
+accuracy_Leonard: 0.4331
+accuracy_Penny: 0.8939
+accuracy_Howard: 0.9512
+accuracy_Others: 0.3061
+accuracy_Raj: 0.6331

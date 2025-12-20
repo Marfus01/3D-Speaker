@@ -1,0 +1,31 @@
+{
+    "conf": "conf/I love my family/diar_video.yaml",
+    "wavs": "/data/home/scv7387/run/tv_series_plus/dataset/I love my family/raw/wav.list",
+    "cluster_type": "audio_vision",
+    "audio_embs_dir": "runs/I love my family/exp_video/embs",
+    "visual_embs_dir": "runs/I love my family/exp_video/embs_video",
+    "result_dir": "runs/I love my family/exp_video/result",
+    "use_hmm_smoothing": true,
+    "fix_mf": false,
+    "hmm_visual_info_type": "vad+mid_frame",
+    "unreliable_pp": 100.0,
+    "speaker_anno_file": "/data/home/scv7387/run/tv_series_plus/dataset/I love my family/annotation/text_annotated.xlsx",
+    "speaker_model_id": "iic/speech_campplus_sv_zh-cn_3dspeaker_16k",
+    "speaker_pretrained_model": null,
+    "subseg_json": "runs/I love my family/exp_video/json/subseg.json",
+    "finetune_lr": 0.001,
+    "finetune_batch_size": 64,
+    "unfrozen_layers_num": 2,
+    "warmup_epochs_num": 2,
+    "max_rounds": 10,
+    "max_finetune_epochs": 20,
+    "early_stop_patience_round": 5,
+    "early_stop_patience_epoch": 5,
+    "from_preds": true,
+    "use_hidfeat": true,
+    "use_gpu": true,
+    "gpu": [
+        "0"
+    ],
+    "seed": 1234
+}
