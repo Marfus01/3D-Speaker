@@ -852,6 +852,7 @@ def main():
         round_model_save_path = os.path.join(round_dir, 'finetuned_model.pth')
         round_classifier_save_path = os.path.join(round_dir, 'finetuned_classifier.pth')
         best_acc_valid_e_pseudo, best_epoch, patience_counter_epoch = 0.0, 0, 0
+        prev_acc_valid_e_pseudo = 0.0
         if args.from_preds:
             best_preds_dic, best_uncertainty_dic, best_potential_list_dic = {}, {}, {}
         logger.info(f"Fine-tuning embedding model for {args.max_finetune_epochs} epochs...")
@@ -961,12 +962,16 @@ def main():
                 if world_size > 1:
                     dist.barrier()
             else:
-                if ft_epoch>2:
-                    patience_counter_epoch += 1
+                patience_counter_epoch += 1
                 logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch}/{args.early_stop_patience_epoch}")
-                if ft_epoch>2 and (patience_counter_epoch >= args.early_stop_patience_epoch):
-                    logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
-                    break
+                if ft_epoch>2:
+                    if (patience_counter_epoch >= args.early_stop_patience_epoch):
+                        logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
+                        break
+                    if (crt_acc_valid_e_pseudo - prev_acc_valid_e_pseudo) < -0.05:
+                        logger.info(f"Early stopping at epoch {ft_epoch} due to significant drop in pseudo-label validation accuracy: {prev_acc_valid_e_pseudo:.4f} -> {crt_acc_valid_e_pseudo:.4f}.")
+                        break
+            prev_acc_valid_e_pseudo = copy.deepcopy(crt_acc_valid_e_pseudo)
         optimizer.zero_grad()
         logger.info(f"Round {round}: Best fine-tuned epoch={best_epoch}, acc(valid_pseudo)={best_acc_valid_e_pseudo:.4f}")
 
