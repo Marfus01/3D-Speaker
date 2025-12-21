@@ -704,7 +704,6 @@ def main():
         shutil.copytree(initial_dir, os.path.join(finetune_dir, 'initial'), dirs_exist_ok=True)
         logger.info(f"Saved initial clustering results to {initial_dir}")
     
-    cmd_compute_acc_spk(pseudo_label_dir, args.speaker_anno_file, mode='all')  # for logging purpose
     logger.info(f"Initial: acc={initial_acc:.4f}")
     # Accuracy history
     acc_history = [{'round': 'Initial', 'acc': initial_acc}]
