@@ -1,1 +1,0 @@
-Initial: acc(valid)=0.9000, acc(test)=0.9162
