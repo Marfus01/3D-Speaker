@@ -498,7 +498,7 @@ def get_acc(acc_file):
         print(f"[WARNING] Error parsing accuracy file: {e}")
         raise e
 
-def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
+def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='all'):
     """
     Compute speaker recognition accuracy from pseudo labels.
     This is a simplified version that calls compute_acc_spk.py
@@ -534,15 +534,19 @@ def compute_speaker_accuracy(result_dir, speaker_anno_file, mode='valid'):
     cmd_compute_acc_spk(result_dir, speaker_anno_file, mode)
 
     # Parse accuracy from the output file
-    # Find the accuracy file that contains "corrected_all_by_HMM"
-    acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy({mode}).txt') and 'pseudo_labels_audio' in f]
+    if mode == 'all':
+        acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy.txt') and 'pseudo_labels_audio' in f]
+    elif mode in ['valid', 'test']:
+        acc_files = [f for f in os.listdir(result_dir) if f.endswith(f'_accuracy({mode}).txt') and 'pseudo_labels_audio' in f]
+    else:
+        raise ValueError(f"Unsupported mode {mode} for accuracy computation!")
     assert len(acc_files) > 0, f"No accuracy file found in {result_dir}"
     assert len(acc_files) == 1, f"Multiple accuracy files found in {result_dir}: {acc_files}"
     acc = get_acc(os.path.join(result_dir, acc_files[0]))
     return acc
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None, from_preds=False, mode='test'):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, hmm_model_path=None, from_preds=False, mode='all'):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -560,7 +564,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         speaker_anno_file: Speaker annotation xlsx file
         hmm_model_path: Path to HMM model (optional)
         from_preds: Whether to use local predictions from classifier model instead of clustering (optional)
-        mode: Mode for accuracy computation ('valid' or 'test')
+        mode: Mode for accuracy computation ('valid', 'test' or 'all')
     
     Returns:
         accuracy: Speaker recognition accuracy
@@ -679,10 +683,9 @@ def main():
     if os.path.exists(os.path.join(finetune_dir, 'initial')):
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
-        initial_acc_test = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='test')
-        initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
+        initial_acc = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='all')
     else:
-        initial_acc_test = run_clustering_and_evaluation(
+        initial_acc = run_clustering_and_evaluation(
             args.conf,
             args.cluster_type,
             args.wavs,
@@ -696,16 +699,15 @@ def main():
             args.speaker_anno_file,
             hmm_model_path=None,
             from_preds=False,
-            mode='test'
+            mode='all'
         )
-        initial_acc_valid = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')    # 写两次的目的是保证验证集acc文件也被复制到initial_dir中
         shutil.copytree(initial_dir, os.path.join(finetune_dir, 'initial'), dirs_exist_ok=True)
         logger.info(f"Saved initial clustering results to {initial_dir}")
     
     cmd_compute_acc_spk(pseudo_label_dir, args.speaker_anno_file, mode='all')  # for logging purpose
-    logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
+    logger.info(f"Initial: acc={initial_acc:.4f}")
     # Accuracy history
-    acc_history = [{'round': 'Initial', 'acc(valid)': initial_acc_valid, 'acc(test)': initial_acc_test}]
+    acc_history = [{'round': 'Initial', 'acc': initial_acc}]
 
     # Load unreliable segment IDs and initial cluster results
     with open(os.path.join(pseudo_label_dir, 'useful_var_dic.pkl'), 'rb') as f:
@@ -935,10 +937,8 @@ def main():
             os.makedirs(epoch_dir, exist_ok=True)
             save_cluster_results_audio(np.array([preds_dic[k] for k in train_dataset.sample_ids]), np.array(train_dataset.sample_ids), os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'))
             crt_acc_valid_e_pseudo = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic)
-            crt_acc_valid_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='valid')
-            cmd_compute_acc_spk(epoch_dir, args.speaker_anno_file, mode='all')
-            cmd_compute_acc_spk(epoch_dir, args.speaker_anno_file, mode='test')
-            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo:.4f}, acc(valid): {crt_acc_valid_e:.4f}")
+            crt_acc_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='all')
+            logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo:.4f}, acc: {crt_acc_e:.4f}")
             if crt_acc_valid_e_pseudo > best_acc_valid_e_pseudo:  # epoch0 must be better
                 best_acc_valid_e_pseudo, best_epoch  = crt_acc_valid_e_pseudo, ft_epoch
                 patience_counter_epoch = 0
@@ -1006,15 +1006,13 @@ def main():
         pseudo_label_dir = round_pseudo_label_dir
         
         if rank == 0:
-            crt_acc_test_r = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
+            crt_acc_r = run_clustering_and_evaluation(args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
                                                         pseudo_label_dir, args.use_hmm_smoothing, args.fix_mf,
                                                         args.hmm_visual_info_type,  args.unreliable_pp,
-                                                        args.speaker_anno_file, hmm_model_path, args.from_preds, mode='test')
-            crt_acc_valid_r = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='valid')
-            cmd_compute_acc_spk(pseudo_label_dir, args.speaker_anno_file, mode='all')
-            logger.info(f"Round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}")
+                                                        args.speaker_anno_file, hmm_model_path, args.from_preds, mode='all')
+            logger.info(f"Round {round}: acc={crt_acc_r:.4f}")
             # Record accuracy
-            acc_history.append({'round': round, 'acc(valid)': crt_acc_valid_r, 'acc(test)': crt_acc_test_r})
+            acc_history.append({'round': round, 'acc': crt_acc_r})
             
             
             # Save accuracy history
@@ -1036,10 +1034,9 @@ def main():
     if rank == 0:
         logger.info("="*20)
         logger.info("Self-supervised fine-tuning completed!")
-        logger.info(f"Initial: acc(valid)={initial_acc_valid:.4f}, acc(test)={initial_acc_test:.4f}")
-        logger.info(f"Final at round {round}: acc(valid)={crt_acc_valid_r:.4f}, acc(test)={crt_acc_test_r:.4f}")
-        logger.info(f"Improvement for acc(valid): {(crt_acc_valid_r - initial_acc_valid):.4f} ({(crt_acc_valid_r - initial_acc_valid) / initial_acc_valid * 100:.2f}%)")
-        logger.info(f"Improvement for acc(test): {(crt_acc_test_r - initial_acc_test):.4f} ({(crt_acc_test_r - initial_acc_test) / initial_acc_test * 100:.2f}%)")
+        logger.info(f"Initial: acc={initial_acc:.4f}")
+        logger.info(f"Final at round {round}: acc={crt_acc_r:.4f}")
+        logger.info(f"Improvement for acc: {(crt_acc_r - initial_acc):.4f} ({(crt_acc_r - initial_acc) / initial_acc * 100:.2f}%)")
         logger.info("="*20)
 
 
