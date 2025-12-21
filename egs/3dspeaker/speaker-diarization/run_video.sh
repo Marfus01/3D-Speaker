@@ -38,7 +38,7 @@ warmup_epochs_num=2  # 分类器warmup轮数
 max_rounds=10  # 自监督学习的最大迭代轮数
 max_finetune_epochs=20  # 每次微调的最大epoch数
 early_stop_patience_round=5  # 早停patience(for round)
-early_stop_patience_epoch=5  # 早停patience(for epoch)
+early_stop_patience_epoch=1  # 早停patience(for epoch)
 from_preds=true  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
 use_hidfeat=true  # 微调时是否直接使用隐藏层特征构建数据集，以加速整个过程。使用时，unfrozen_layers_nu无用，仅解冻stats pool层之后的DenseLayer。
 
