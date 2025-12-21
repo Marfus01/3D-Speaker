@@ -8,6 +8,16 @@ from acc_utils import *
 
 def main(args):
     os.makedirs(args.result_dir, exist_ok=True)
+    
+    if args.mode != 'all':
+      # Load valid keys if they exist
+      valid_keys_path = os.path.join(os.path.dirname(args.ref_xlsx), 'valid_part_keys_face.npy')
+      if os.path.isfile(valid_keys_path):
+          valid_keys_list = np.load(valid_keys_path, allow_pickle=True).tolist()
+      else:
+          valid_keys_list = []
+          raise FileNotFoundError(f"Valid keys file not found: {valid_keys_path}. Please provide the file or implement eval_test_split for face data.")
+    
     json_files = [os.path.join(args.result_dir, f) for f in os.listdir(args.result_dir) if f.endswith('.json') and os.path.isfile(os.path.join(args.result_dir, f))]  # all cluster json files for evaluation
     json_files = [f for f in json_files if 'faces' in os.path.basename(f) and 'mid_frame' in os.path.basename(f)]  # only evaluate face clustering results in mid-frame
     if not json_files:
@@ -21,6 +31,17 @@ def main(args):
         # 2. 读取标注文件，并筛选有标注的数据，提取对应的segment id，说话人和时长
         df = pd.read_excel(args.ref_xlsx) # Text Index列从 0 开始
         keys = df.apply(lambda row: f"{row['audio_seg_id']}_{int(row['face index'])}", axis=1)  # 与聚类结果中的 face ID 完全对应
+        
+        ## 根据 mode 筛选数据
+        if args.mode != 'all' and len(valid_keys_list) > 0:
+            if args.mode == 'valid':
+                df = df[keys.isin(valid_keys_list)]
+            elif args.mode == 'test':
+                df = df[~keys.isin(valid_keys_list)]
+            else:
+                raise ValueError("Invalid mode. Choose from 'all', 'valid' or 'test'.")
+            keys = df.apply(lambda row: f"{row['audio_seg_id']}_{int(row['face index'])}", axis=1)
+        
         face_labels = df['face label'].tolist()
         face_others_set = set([face_label for face_label in face_labels if face_label not in main_character_list])
         print("Non-main character labels in the reference xlsx:", face_others_set)
@@ -108,7 +129,10 @@ def main(args):
                 results[f'accuracy_{name}'] = acc
 
         # 8. 保存结果
-        filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
+        if args.mode == 'all':
+            filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
+        else:
+            filename = os.path.basename(json_file).replace('.json', f'_accuracy({args.mode}).txt')
         with open(os.path.join(args.result_dir, filename), 'w') as f:
             name_grp_cnt = 0
             for k, v in results.items():
@@ -124,5 +148,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--ref_xlsx', type=str, required=True, help="filepath of reference xlsx")
     parser.add_argument('--result_dir', type=str, default='./result', help="directory containing clustering result json files")
+    parser.add_argument('--mode', type=str, default='all', help="mode: valid or test or all")
     args = parser.parse_args()
     main(args)

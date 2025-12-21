@@ -41,6 +41,7 @@ early_stop_patience_round=5  # 早停patience(for round)
 early_stop_patience_epoch=3  # 早停patience(for epoch)
 from_preds=true  # 每一个round中，伪标签来自预测结果还是embedding聚类（包括其平滑）
 use_hidfeat=true  # 微调时是否直接使用隐藏层特征构建数据集，以加速整个过程。使用时，unfrozen_layers_nu无用，仅解冻stats pool层之后的DenseLayer。
+face_pretrained_model="pretrained_models/pytorch_model_tongyi.bin"  # 用于提取人脸特征的预训练模型
 
 . local/parse_options.sh || exit 1  # 解析命令行参数，覆盖默认变量值
 
@@ -192,9 +193,9 @@ else
       --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
       --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
       $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
-      --speaker_anno_file "$speaker_anno_file" \
-      --speaker_model_id "$speaker_model_id" \
-      --subseg_json "$exp/json/subseg.json" \
+      --speaker_anno_file "$speaker_anno_file" --face_anno_file "$face_anno_file" \
+      --speaker_model_id "$speaker_model_id" --face_pretrained_model "$face_pretrained_model" \
+      --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
       --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \

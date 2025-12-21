@@ -1198,7 +1198,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         summary_cluster_results(vlabels_mf_corrected, modal_type='visual_mid_frame_corrected_by_HMM_nested_X')
         summary_cluster_results(vlabels_mf_corrected_all, modal_type='visual_mid_frame_corrected_all_by_HMM_nested_X')
         save_cluster_results_vision_mf(vlabels_mf_corrected_all, audio_seg_ids_mf, face_idxs_mf, 
-                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame.json'))
+                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_nested_hmm_full.json'))
 
 def main():
     args = parser.parse_args()
