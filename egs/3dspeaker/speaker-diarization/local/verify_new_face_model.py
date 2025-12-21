@@ -99,6 +99,52 @@ def load_face_image(image_path):
     return img
 
 
+# 新增：从视频中提取指定人脸
+def extract_face_from_video(video_path, pkl_path, subseg_id, face_idx):
+    """
+    根据pkl文件信息，从视频中提取指定subseg_id和face_idx的人脸区域。
+    返回该人脸的BGR图像（与直接保存图片一致）。
+    """
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"视频文件不存在: {video_path}")
+    if not os.path.exists(pkl_path):
+        raise FileNotFoundError(f"PKL文件不存在: {pkl_path}")
+    import pickle
+    import cv2
+    import numpy as np
+    # 读取pkl，找到对应帧和bbox
+    with open(pkl_path, 'rb') as f:
+        data = pickle.load(f)
+    found = False
+    for i in range(len(data['audio_seg_id'])):
+        if data['audio_seg_id'][i] == subseg_id and data['face_idx'][i] == face_idx:
+            mid_time = data['times'][i]
+            bbox = data['bbox'][i]  # [x1, y1, x2, y2]
+            found = True
+            break
+    if not found:
+        raise ValueError(f"未找到匹配的embedding: subseg_id={subseg_id}, face_idx={face_idx}")
+    # 打开视频，定位到对应帧
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 0:
+        cap.release()
+        raise ValueError(f"无法获取视频帧率: {video_path}")
+    mid_frame_idx = int(mid_time * fps)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame_idx)
+    ret, frame = cap.read()
+    cap.release()
+    if not ret:
+        raise ValueError(f"无法读取视频帧: {mid_frame_idx} @ {video_path}")
+    # 裁剪人脸区域
+    x1, y1, x2, y2 = bbox
+    face_img = frame[y1:y2, x1:x2]
+    if face_img.size == 0:
+        raise ValueError(f"裁剪后人脸为空: bbox={bbox}, frame shape={frame.shape}")
+    print(f"[INFO] 从视频帧 {mid_frame_idx} 裁剪人脸: bbox={bbox}, 裁剪尺寸: {face_img.shape}")
+    return face_img
+
+
 def load_pkl_embedding(pkl_path, subseg_id, face_idx):
     """从pkl文件中加载对应的embedding"""
     if not os.path.exists(pkl_path):
@@ -180,6 +226,11 @@ def main():
         PROJECT_ROOT,
         "dataset/the big bang theory/midframe_faces/E01/E01-1_0.jpg"
     )
+
+    video_path = os.path.join(
+        PROJECT_ROOT,
+        "dataset/the big bang theory/raw/E01.mp4"
+    )
     
     # 新模型权重路径
     model_weight_path = os.path.join(
@@ -215,7 +266,8 @@ def main():
         print(f"[INFO] 使用设备: {device}")
         
         new_model = NewFaceRecognitionModel(model_weight_path, device=device)
-        face_img = load_face_image(face_image_path)
+        face_img = extract_face_from_video(video_path, pkl_path, subseg_id, face_idx)
+        # face_img = load_face_image(face_image_path)
         new_embedding = new_model(face_img)
         
         print(f"[INFO] 新模型提取的embedding shape: {new_embedding.shape}")
