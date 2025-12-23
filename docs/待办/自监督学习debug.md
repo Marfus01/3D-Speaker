@@ -56,3 +56,7 @@ cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比�
 > 与 1 类似。每一个round的效果都更好，说明行之有效。存在轻微的退化现象。
 3. 每个round均从初始预训练模型和随机初始化的分类器开始训练，避免前一个round过拟合的模型影响后续round，同时减弱对于每一个round训练epoch数的敏感性。
 > round 0 效果不变，round 1-2 效果略差，round 3-4 效果略好。
+
+
+## Step5: 加入人脸
+pseudo label测量方式：python local/compute_acc_face.py --result_dir "runs/the big bang theory/exp_video/result/self_supervised/exp0/round0/pseudo_label" --mode "all" --ref_xlsx "/data/home/scv7387/run/tv_series_plus/dataset/the big bang theory/annotation/faces_annotation_with_loc_new.xlsx"
