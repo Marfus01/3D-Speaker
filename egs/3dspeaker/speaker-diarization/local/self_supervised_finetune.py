@@ -1191,22 +1191,23 @@ def main():
                     with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
                         pseudo_label_face = json.load(f)
                     # 将face ids按audio_seg_id分组
-                    face_ids_dic = {}
-                    for face_id in pseudo_label_face:
-                        audio_seg_id = face_id.rsplit('_', 1)[0]
-                        if audio_seg_id not in face_ids_dic:
-                            face_ids_dic[audio_seg_id] = []
-                        face_ids_dic[audio_seg_id].append(face_id)
-                    # 根据speaker信息筛选face ids
-                    face_ids_filtered_list_spk = []
-                    for key in face_ids_dic:
-                        face_ids_spk = []
-                        for face_id in face_ids_dic[key]:
-                            if pseudo_label_audio[key] == pseudo_label_face[face_id]:
-                                face_ids_spk.append(face_id)
-                        if len(face_ids_spk) == 1:
-                            face_ids_filtered_list_spk.extend(face_ids_spk)
-                    pseudo_valid_label_dic_face = {k: pseudo_label_face[k] for k in face_ids_filtered_list_spk}
+                    # face_ids_dic = {}
+                    # for face_id in pseudo_label_face:
+                    #     audio_seg_id = face_id.rsplit('_', 1)[0]
+                    #     if audio_seg_id not in face_ids_dic:
+                    #         face_ids_dic[audio_seg_id] = []
+                    #     face_ids_dic[audio_seg_id].append(face_id)
+                    # # 根据speaker信息筛选face ids
+                    # face_ids_filtered_list_spk = []
+                    # for key in face_ids_dic:
+                    #     face_ids_spk = []
+                    #     for face_id in face_ids_dic[key]:
+                    #         if pseudo_label_audio[key] == pseudo_label_face[face_id]:
+                    #             face_ids_spk.append(face_id)
+                    #     if len(face_ids_spk) == 1:
+                    #         face_ids_filtered_list_spk.extend(face_ids_spk)
+                    # pseudo_valid_label_dic_face = {k: pseudo_label_face[k] for k in face_ids_filtered_list_spk}
+                    pseudo_valid_label_dic_face = pseudo_label_face
                     with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_face.json'), 'w', encoding='utf-8') as f:
                         json.dump(pseudo_valid_label_dic_face, f, indent=2)
                 
@@ -1447,13 +1448,16 @@ def main():
                 else:
                     patience_counter_epoch_face += 1
                     logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: No improvement. Patience(epoch): {patience_counter_epoch_face}/{args.early_stop_patience_epoch}")
-                    if ft_epoch_face > 2:
-                        if patience_counter_epoch_face >= args.early_stop_patience_epoch:
-                            logger.info(f"Early stopping at face epoch {ft_epoch_face}")
-                            break
-                        if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
-                            logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
-                            break
+                    if crt_acc_valid_e_pseudo_face < prev_acc_valid_e_pseudo_face:
+                        logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: Validation accuracy dropped from {prev_acc_valid_e_pseudo_face:.4f} to {crt_acc_valid_e_pseudo_face:.4f}")
+                        break
+                    # if ft_epoch_face > 2:
+                    #     if patience_counter_epoch_face >= args.early_stop_patience_epoch:
+                    #         logger.info(f"Early stopping at face epoch {ft_epoch_face}")
+                    #         break
+                    #     if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
+                    #         logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
+                    #         break
                 prev_acc_valid_e_pseudo_face = copy.deepcopy(crt_acc_valid_e_pseudo_face)
             
             optimizer_face.zero_grad()
