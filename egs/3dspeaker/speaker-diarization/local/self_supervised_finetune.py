@@ -14,14 +14,12 @@ Pipeline:
 """
 
 import os, sys, time, shutil, subprocess, copy
-import json, argparse, random, pickle
+import json, argparse, random, pickle, cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader, Sampler, SequentialSampler
-import cv2
-from PIL import Image
 
 # Add parent directory to path
 current_file_path = os.path.abspath(__file__)
@@ -99,16 +97,12 @@ class PseudoLabelDataset(Dataset):
         with open(subseg_json, 'r') as f:
             self.subseg_info = json.load(f)
         
-        # Load pseudo-labels
-        with open(pseudo_labels_json, 'r') as f:
-            self.pseudo_labels = json.load(f)
-        
-        # Assert that the keys in subseg_info and pseudo_labels match
-        assert set(self.subseg_info.keys()) == set(self.pseudo_labels.keys()), \
-            "Keys in subseg_info and pseudo_labels do not match!"
-        
         # 不再过滤-1标签，将所有样本都用于训练
         self.sample_ids = list(self.subseg_info.keys())
+        # 设置各个sample的标签
+        self.pseudo_labels = {}
+        self.unique_labels = []
+        update_flag = self.reset_labels(pseudo_labels_json)
         
         if not self.use_hidfeat_flag:
             # Get all wav data to speed up loading
@@ -129,16 +123,41 @@ class PseudoLabelDataset(Dataset):
         else:
             assert self.subseg_hidfeat_dic is not None, "Hidden features dictionary must be provided when use_hidfeat_flag is True!"
 
+    def reset_labels(self, pseudo_labels_json):
+        """
+        Update pseudo-labels from a new pseudo labels json file.
+        Args:
+            pseudo_labels_json: Path to new pseudo labels json file
+        """
+        # Load pseudo-labels
+        with open(pseudo_labels_json, 'r') as f:
+            pseudo_labels = json.load(f)
+        
+        # Assert that the keys in subseg_info and pseudo_labels match
+        assert set(self.subseg_info.keys()) == set(pseudo_labels.keys()), \
+            "Keys in subseg_info and pseudo_labels do not match!"
+        
         # Create label encoder (map cluster IDs to continuous class indices)
-        unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.sample_ids])))
-        self.label2idx = {label: idx for idx, label in enumerate(unique_labels)}
-        self.idx2label = {idx: label for label, idx in self.label2idx.items()}
-        self.num_classes = len(unique_labels)
+        unique_labels = sorted(list(set([pseudo_labels[sid] for sid in self.sample_ids])))
+        if set(unique_labels).issubset(set(self.unique_labels)):
+            # don't update unique_labels, label2idx, idx2label, num_classes to reuse classifier
+            # some class may be missing in new pseudo labels
+            update_flag = False
+        else:
+            update_flag = True
+            # update unique_labels
+            self.unique_labels = unique_labels
+            self.label2idx = {label: idx for idx, label in enumerate(self.unique_labels)}
+            self.idx2label = {idx: label for label, idx in self.label2idx.items()}
+            self.num_classes = len(self.unique_labels)
+        
+        self.pseudo_labels = pseudo_labels
         self.class_weights = self.get_class_weights()
         self.label_weights = {self.idx2label[idx]: self.class_weights[idx].item() for idx in range(self.num_classes)}
         
         print(f"[INFO] Created dataset with {len(self.sample_ids)} samples and {self.num_classes} classes")
         print(f"[INFO] Label weights: {self.label_weights}")
+        return update_flag
     
     def get_class_weights(self):
         """
@@ -151,8 +170,12 @@ class PseudoLabelDataset(Dataset):
             cluster_label = self.pseudo_labels[sid]
             class_idx = self.label2idx[cluster_label]
             class_counts[class_idx] += 1
-        class_weights = 1.0 / (class_counts)**0.5
-        class_weights = class_weights / np.sum(class_weights) * self.num_classes  # 归一化
+        class_valid_flag = class_counts > 0
+        valid_count = np.sum(class_valid_flag)
+        
+        class_weights = np.zeros(self.num_classes, dtype=np.float32)
+        class_weights[class_valid_flag] = 1.0 / (class_counts[class_valid_flag])**0.5
+        class_weights = class_weights / np.sum(class_weights) * valid_count  # 归一化
         return torch.tensor(class_weights, dtype=torch.float32)
 
     def __len__(self):
@@ -182,23 +205,43 @@ class PseudoLabelFaceDataset(Dataset):
             pseudo_labels_json: Path to pseudo labels json file (format: {"E01-1_0": 0, ...})
             dataset_dir: Directory containing mid-frame face images organized by episode
         """
+        self.dataset_dir = dataset_dir
+        self.pseudo_labels = {}
+        self.sample_ids = []
+        self.unique_labels = []
+        update_flag = self.reset_labels(pseudo_labels_json)
+
+    def reset_labels(self, pseudo_labels_json):
+        """
+        Update pseudo-labels from a new pseudo labels json file.
+        Args:
+            pseudo_labels_json: Path to new pseudo labels json file
+        """
         # Load pseudo-labels
         with open(pseudo_labels_json, 'r') as f:
-            self.pseudo_labels = json.load(f)
-        
-        self.dataset_dir = dataset_dir
-        self.sample_ids = list(self.pseudo_labels.keys())
+            pseudo_labels = json.load(f)
+        self.sample_ids = list(pseudo_labels.keys())
         
         # Create label encoder (map cluster IDs to continuous class indices)
-        unique_labels = sorted(list(set([self.pseudo_labels[sid] for sid in self.sample_ids])))
-        self.label2idx = {label: idx for idx, label in enumerate(unique_labels)}
-        self.idx2label = {idx: label for label, idx in self.label2idx.items()}
-        self.num_classes = len(unique_labels)
+        unique_labels = sorted(list(set([pseudo_labels[sid] for sid in self.sample_ids])))
+        if set(unique_labels).issubset(set(self.unique_labels)):
+            # don't update unique_labels, label2idx, idx2label, num_classes to reuse classifier
+            # some class may be missing in new pseudo labels
+            update_flag = False
+        else:
+            update_flag = True
+            self.unique_labels = unique_labels
+            self.label2idx = {label: idx for idx, label in enumerate(self.unique_labels)}
+            self.idx2label = {idx: label for label, idx in self.label2idx.items()}
+            self.num_classes = len(self.unique_labels)
+        
+        self.pseudo_labels = pseudo_labels
         self.class_weights = self.get_class_weights()
         self.label_weights = {self.idx2label[idx]: self.class_weights[idx].item() for idx in range(self.num_classes)}
         
         print(f"[INFO] Created face dataset with {len(self.sample_ids)} samples and {self.num_classes} classes")
         print(f"[INFO] Face label weights: {self.label_weights}")
+        return update_flag
     
     def get_class_weights(self):
         """
@@ -211,8 +254,12 @@ class PseudoLabelFaceDataset(Dataset):
             cluster_label = self.pseudo_labels[sid]
             class_idx = self.label2idx[cluster_label]
             class_counts[class_idx] += 1
-        class_weights = 1.0 / (class_counts)**0.5
-        class_weights = class_weights / np.sum(class_weights) * self.num_classes
+        class_valid_flag = class_counts > 0
+        valid_count = np.sum(class_valid_flag)
+        
+        class_weights = np.zeros(self.num_classes, dtype=np.float32)
+        class_weights[class_valid_flag] = 1.0 / (class_counts[class_valid_flag])**0.5
+        class_weights = class_weights / np.sum(class_weights) * valid_count  # 归一化
         return torch.tensor(class_weights, dtype=torch.float32)
     
     def preprocess(self, img):
@@ -459,7 +506,7 @@ def unfrozen_model_face_modules(model, print_mod_flag=False):
         print(f"[WARNING] Model does not have output_layer attribute")
 
 
-def inference_with_classifier(model, classifier, dataset, device, compute_uncertainty=False, batch_process_flag=True, batch_size=None, use_hidfeat=False, unfrozen_modules_num=1):
+def inference_with_classifier(model, classifier, dataset, device, compute_uncertainty=False, batch_process_flag=True, batch_size=None, use_hidfeat=False, unfrozen_modules_num=1, potential_set=None):
     """
     Perform inference on dataset using model and classifier.
     Supports both speaker (audio) and face (vision) modalities.
@@ -474,6 +521,7 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
         batch_size: Batch size for inference (only used when use_hidfeat=True)
         use_hidfeat: Whether using hidden features for speaker model (enables batch inference)
         unfrozen_modules_num: Number of unfrozen modules (for forward_from with hidden features)
+        potential_set: List of potential class indices to consider for uncertainty computation (optional)
     
     Returns:
         preds_dic: {sample_id: predicted_label}
@@ -487,6 +535,9 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
     preds_dic, embeddings_dic = {}, {}
     if compute_uncertainty:
         uncertainty_dic, potential_list_dic = {}, {}
+        if potential_set is not None:
+            # Filter probabilities to only include potential_set indices
+            potential_indices = [dataset.label2idx[label] for label in potential_set if label in dataset.label2idx]
     else:
         uncertainty_dic, potential_list_dic = None, None
     
@@ -523,9 +574,13 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
                         top2_probs, top2_indices = torch.topk(probs, 2)
                         uncertainty = (top2_probs[0] - top2_probs[1]).item()
                         uncertainty_dic[sid] = float(uncertainty)
-                        potential_list = top2_indices.cpu().numpy().tolist()
-                        potential_list = [int(dataset.idx2label[idx]) for idx in potential_list]
-                        potential_list_dic[sid] = potential_list
+                        if potential_set is not None:   # Filter top2 within potential_set
+                            _, top2_indices_potential = torch.topk(probs[potential_indices], 2)
+                            top2_indices = [potential_indices[idx] for idx in top2_indices_potential.cpu().numpy()]
+                        else:
+                            top2_indices = top2_indices.cpu().numpy().tolist()
+                        top2_labels = [int(dataset.idx2label[idx]) for idx in top2_indices]
+                        potential_list_dic[sid] = top2_labels
                     sample_idx += 1
         
         else:  # Single sample processing: Speaker model without hidden features
@@ -554,10 +609,20 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
                     top2_probs, top2_indices = torch.topk(probs, 2)
                     uncertainty = (top2_probs[0] - top2_probs[1]).item()
                     uncertainty_dic[sample_id] = float(uncertainty)
-                    potential_list = top2_indices.cpu().numpy().tolist()
-                    potential_list = [int(dataset.idx2label[idx]) for idx in potential_list]
-                    potential_list_dic[sample_id] = potential_list
-    
+                    if potential_set is not None:   # Filter top2 within potential_set
+                        _, top2_indices_potential = torch.topk(probs[potential_indices], 2)
+                        top2_indices = [potential_indices[idx] for idx in top2_indices_potential.cpu().numpy()]
+                    else:
+                        top2_indices = top2_indices.cpu().numpy().tolist()
+                    top2_labels = [int(dataset.idx2label[idx]) for idx in top2_indices]
+                    potential_list_dic[sid] = top2_labels
+
+    if compute_uncertainty and potential_set is not None:
+        # Gather all values from potential_list_dic, make them unique, and assert they are a subset of potential_set
+        potential_list_labels = set(label for labels in potential_list_dic.values() for label in labels)
+        # print(f"[INFO] Potential set: {potential_set}")
+        # print(f"[INFO] Unique labels in potential_list_dic: {potential_list_labels}")
+        assert potential_list_labels.issubset(potential_set), "Potential list labels are not a subset of the potential set!"
     return preds_dic, embeddings_dic, uncertainty_dic, potential_list_dic
 
 
@@ -570,7 +635,7 @@ def train_one_epoch(train_loader, model, classifier, optimizer, epoch, logger, d
         unfrozen_modules_num: Number of unfrozen modules from top. always be 1 when use_hidfeat_flag is True, since the output of former modules have different dimension.(when use unfrozen_model_layers, unfrozen_layers_num needn't to be known here)
     """
     # criterion = nn.CrossEntropyLoss()
-    class_weights = torch.tensor(train_loader.dataset.class_weights, dtype=torch.float32).to(device)
+    class_weights = train_loader.dataset.class_weights.clone().detach().to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     train_stats = AverageMeters()
     train_stats.add('Time', ':6.3f')
@@ -677,7 +742,7 @@ def compute_acc_from_dic(pred_dic, ref_dic):
     ref_total = len(ref_dic)
     return correct_num / ref_total if ref_total > 0 else 0
 
-def cmd_compute_acc_spk(result_dir, anno_file, mode, modal='speaker'):
+def cmd_compute_acc(result_dir, anno_file, mode, modal='speaker'):
     """
     Call compute_acc_spk.py or compute_acc_face.py to compute accuracy.
     
@@ -733,7 +798,7 @@ def get_acc(acc_file):
         print(f"[WARNING] Error parsing accuracy file: {e}")
         raise e
 
-def compute_speaker_accuracy(result_dir, anno_file, mode='all', modal='speaker'):
+def compute_acc_from_anno(result_dir, anno_file, mode='all', modal='speaker'):
     """
     Compute speaker or face recognition accuracy from pseudo labels.
     
@@ -767,11 +832,11 @@ def compute_speaker_accuracy(result_dir, anno_file, mode='all', modal='speaker')
             best_idx = 0
         else:
             # Find the pseudo label file with highest valid accuracy
-            cmd_compute_acc_spk(pseudo_labels_all_dir, anno_file, mode='valid', modal=modal)
+            cmd_compute_acc(pseudo_labels_all_dir, anno_file, mode='valid', modal=modal)
             pseudo_label_files_acc_val = [get_acc(os.path.join(pseudo_labels_all_dir, f.replace('.json', '_accuracy(valid).txt'))) for f in pseudo_label_files]
             best_idx = int(np.argmax(np.array(pseudo_label_files_acc_val)))
             print(f"[INFO] Selected pseudo-label file {pseudo_label_files[best_idx]} with highest valid accuracy {pseudo_label_files_acc_val[best_idx]:.4f}")
-            cmd_compute_acc_spk(pseudo_labels_all_dir, anno_file, mode='test', modal=modal) # used for logging purpose
+            cmd_compute_acc(pseudo_labels_all_dir, anno_file, mode='test', modal=modal) # used for logging purpose
         
         # Move the pseudo label file in pseudo_labels_all_dir with highest valid acc to result_dir
         src_path = os.path.join(pseudo_labels_all_dir, pseudo_label_files[best_idx])
@@ -779,7 +844,7 @@ def compute_speaker_accuracy(result_dir, anno_file, mode='all', modal='speaker')
         shutil.move(src_path, dst_path)
     
     # Run accuracy computation script
-    cmd_compute_acc_spk(result_dir, anno_file, mode, modal)
+    cmd_compute_acc(result_dir, anno_file, mode, modal)
 
     # Parse accuracy from the output file
     if mode == 'all':
@@ -859,13 +924,13 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
     
     # Compute speaker accuracy
     assert os.path.exists(speaker_anno_file), f"Speaker annotation file {speaker_anno_file} does not exist!"
-    speaker_acc = compute_speaker_accuracy(result_dir, speaker_anno_file, mode, modal='speaker')
+    speaker_acc = compute_acc_from_anno(result_dir, speaker_anno_file, mode, modal='speaker')
     
     # Compute face accuracy if applicable
     face_acc = None
     if cluster_type == 'audio_vision' and face_anno_file is not None:
         if os.path.exists(face_anno_file):
-            face_acc = compute_speaker_accuracy(result_dir, face_anno_file, mode, modal='face')
+            face_acc = compute_acc_from_anno(result_dir, face_anno_file, mode, modal='face')
         else:
             print(f"[WARNING] Face annotation file {face_anno_file} does not exist, skipping face accuracy computation.")
     
@@ -941,9 +1006,9 @@ def main():
     if os.path.exists(os.path.join(finetune_dir, 'initial')):
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
-        initial_acc_spk = compute_speaker_accuracy(pseudo_label_dir, args.speaker_anno_file, mode='all', modal='speaker')
+        initial_acc_spk = compute_acc_from_anno(pseudo_label_dir, args.speaker_anno_file, mode='all', modal='speaker')
         if args.cluster_type == 'audio_vision' and os.path.exists(args.face_anno_file):
-            initial_acc_face = compute_speaker_accuracy(pseudo_label_dir, args.face_anno_file, mode='all', modal='face')
+            initial_acc_face = compute_acc_from_anno(pseudo_label_dir, args.face_anno_file, mode='all', modal='face')
         else:
             initial_acc_face = None
     else:
@@ -1045,8 +1110,8 @@ def main():
               json.dump(conf_model, f, indent=4)  # Assuming conf_model is serializable
             logger.info(f"Saved speaker config_model to {config_model_json_path}")
             
-            # Copy pretrained model to local round dir for record
-            torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_speaker.pth'))
+            # # Copy pretrained model to local round dir for record
+            # torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_speaker.pth'))
             
             # ============ Face Model ============
             if args.cluster_type == 'audio_vision':
@@ -1080,16 +1145,16 @@ def main():
                 else:
                     print("[INFO]: Face model using CPU")
                 
-                # Copy pretrained face model to local round dir for record
-                torch.save(face_embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_face.pth'))
+                # # Copy pretrained face model to local round dir for record
+                # torch.save(face_embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_face.pth'))
 
         # Create speaker dataset and dataloader
-        ## Define subseg_hidfeat_dic at round 0
         if round == 0:
+            spk_update_class_flag = True
             train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor)
             crt_collate_fn = collate_fn_hidden if args.use_hidfeat else collate_fn
             subseg_hidfeat_dic = None
-            if args.use_hidfeat:
+            if args.use_hidfeat:    # Define subseg_hidfeat_dic at round 0
                 logger.info(f"Extracting hidden features for all speaker samples, which are outputs of StatsPool layer...")
                 logger.info(f"args.unfrozen_layers_num={args.unfrozen_layers_num} is not used when extracting hidden features.")
                 subseg_hidfeat_dic = {}
@@ -1100,9 +1165,9 @@ def main():
                         hidden_feat = embedding_model.forward_until(feat, 1)
                         subseg_hidfeat_dic[sid] = hidden_feat.squeeze(0).detach().cpu()  # [hid_dim]
                 logger.info(f"Hidden features extracted for {len(subseg_hidfeat_dic)} speaker samples")
-        
-        ## Re-create dataset with new pseudo_label_file
-        train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor, args.use_hidfeat, subseg_hidfeat_dic)
+                train_dataset = PseudoLabelDataset(args.subseg_json, pseudo_label_file, feature_extractor, args.use_hidfeat, subseg_hidfeat_dic)
+        else:   # Re-create dataset with new pseudo_label_file
+            spk_update_class_flag = train_dataset.reset_labels(pseudo_label_file)
         
         if len(train_dataset) == 0:
             logger.error("No valid speaker training samples found!")
@@ -1120,7 +1185,11 @@ def main():
                 logger.info(f"Using face pseudo-label file: {face_pseudo_label_file}")
                 
                 # Create face dataset
-                face_train_dataset = PseudoLabelFaceDataset(face_pseudo_label_file, args.midframe_face_dir)
+                if round == 0:
+                    face_update_class_flag = True
+                    face_train_dataset = PseudoLabelFaceDataset(face_pseudo_label_file, args.midframe_face_dir)
+                else:
+                    face_update_class_flag = face_train_dataset.reset_labels(face_pseudo_label_file)
                 if len(face_train_dataset) == 0:
                     logger.error("No valid face training samples found!")
                     face_train_loader = None
@@ -1140,7 +1209,7 @@ def main():
             param.requires_grad = False
         
         # Create speaker classifier and warm up
-        if round == 0 or not args.from_preds: # 当根据分类结果获取伪标签时，每个round伪标签都与之前类似
+        if spk_update_class_flag:
             # Create speaker classifier
             classifier = MLPClassifier(input_dim=embedding_dim, num_classes=train_dataset.num_classes).to(device)
         
@@ -1165,7 +1234,7 @@ def main():
                 param.requires_grad = False
             
             # Create face classifier and warm up
-            if round == 0 or not args.from_preds:
+            if face_update_class_flag:
                 # Create face classifier
                 face_classifier = MLPClassifier(input_dim=face_embedding_dim, num_classes=face_train_dataset.num_classes).to(device)
                 
@@ -1235,17 +1304,17 @@ def main():
             with open(os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'), 'w') as f:
                 json.dump(preds_dic, f, indent=2)
             crt_acc_valid_e_pseudo_spk = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic_spk)
-            crt_acc_e = compute_speaker_accuracy(epoch_dir, args.speaker_anno_file, mode='all', modal='speaker')
+            crt_acc_e = compute_acc_from_anno(epoch_dir, args.speaker_anno_file, mode='all', modal='speaker')
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo_spk:.4f}, acc: {crt_acc_e:.4f}")
             if crt_acc_valid_e_pseudo_spk > best_acc_valid_e_pseudo_spk:  # epoch0 must be better
                 best_acc_valid_e_pseudo_spk, best_epoch_spk  = crt_acc_valid_e_pseudo_spk, ft_epoch
                 patience_counter_epoch_spk = 0
                 # Save best model of this round, and preds, uncertainty, potential_list dicts
                 if rank == 0:
-                    torch.save(embedding_model.state_dict(), round_model_save_path_spk)
-                    torch.save(classifier.state_dict(), round_classifier_save_path_spk)
-                    with open(os.path.join(round_pseudo_label_dir, 'alabels_embeddings.pkl'), 'wb') as f:
-                        pickle.dump(embeddings_dic, f)
+                    # torch.save(embedding_model.state_dict(), round_model_save_path_spk)
+                    # torch.save(classifier.state_dict(), round_classifier_save_path_spk)
+                    # with open(os.path.join(round_pseudo_label_dir, 'alabels_embeddings.pkl'), 'wb') as f:
+                    #     pickle.dump(embeddings_dic, f)
                     if args.from_preds:
                         best_preds_dic_spk = {k: preds_dic[k] if k in audio_seg_ids_unreliable else audio_obs_init_results[k] for k in preds_dic}
                         best_uncertainty_dic_spk = copy.deepcopy(uncertainty_dic)
@@ -1261,7 +1330,7 @@ def main():
                     dist.barrier()
             else:
                 patience_counter_epoch_spk += 1
-                logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch_spk}/{args.early_stop_patience_epoch}")
+                logger.info(f"Round {round}, Speaker Fine-tune Epoch {ft_epoch}: No improvement in validation accuracy. Patience(epoch): {patience_counter_epoch_spk}/{args.early_stop_patience_epoch}")
                 if ft_epoch>2:
                     if (patience_counter_epoch_spk >= args.early_stop_patience_epoch):
                         logger.info(f"Early stopping at epoch {ft_epoch} due to no improvement in validation accuracy for {args.early_stop_patience_epoch} epochs.")
@@ -1314,6 +1383,7 @@ def main():
                     batch_size=args.finetune_batch_size * 2,
                     use_hidfeat=False,
                     unfrozen_modules_num=None,
+                    potential_set=train_dataset.unique_labels,
                 )
                 
                 # Save predictions and compute accuracy on annotated data
@@ -1321,7 +1391,7 @@ def main():
                 os.makedirs(epoch_dir_face, exist_ok=True)
                 with open(os.path.join(epoch_dir_face, 'pseudo_labels_faces_mid_frame_pred.json'), 'w') as f:
                     json.dump(preds_dic_face, f, indent=2)
-                crt_acc_e_face = compute_speaker_accuracy(epoch_dir_face, args.face_anno_file, mode='all', modal='face')
+                crt_acc_e_face = compute_acc_from_anno(epoch_dir_face, args.face_anno_file, mode='all', modal='face')
                 logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: acc={crt_acc_e_face:.4f}")
                 
                 if crt_acc_e_face > best_acc_e_face:
@@ -1329,10 +1399,10 @@ def main():
                     patience_counter_epoch_face = 0
                     # Save best face model
                     if rank == 0:
-                        torch.save(face_embedding_model.state_dict(), round_model_save_path_face)
-                        torch.save(face_classifier.state_dict(), round_classifier_save_path_face)
-                        with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_embeddings.pkl'), 'wb') as f:
-                            pickle.dump(embeddings_dic_face, f)
+                        # torch.save(face_embedding_model.state_dict(), round_model_save_path_face)
+                        # torch.save(face_classifier.state_dict(), round_classifier_save_path_face)
+                        # with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_embeddings.pkl'), 'wb') as f:
+                        #     pickle.dump(embeddings_dic_face, f)
                         if args.from_preds:
                             best_preds_dic_face = copy.deepcopy(preds_dic_face)
                             best_uncertainty_dic_face = copy.deepcopy(uncertainty_dic_face)

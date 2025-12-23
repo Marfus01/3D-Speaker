@@ -184,8 +184,12 @@ else
     echo "$(basename $0) Stage5: Self-supervised fine-tuning..."
     speaker_anno_file=$examples/annotation/text_annotated.xlsx
     if [ ! -f "$speaker_anno_file" ]; then
-      echo "Error: Speaker annotation file $speaker_anno_file not found. Self-supervised learning requires annotations for evaluation."
+      echo "Error: Speaker annotation file $speaker_anno_file not found. Self-supervised learning requires speaker annotations for evaluation."
       exit 1
+    fi
+    face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
+    if [ ! -f "$face_anno_file" ]; then
+      echo "Face_anno_file $face_anno_file is not found. Self-supervised learning requires face annotations for evaluation."
     fi
     
     # Run self-supervised fine-tuning

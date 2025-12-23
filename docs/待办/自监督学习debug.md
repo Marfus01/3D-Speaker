@@ -31,8 +31,7 @@ cluster文件中，如果加载了hmm参数，将收敛阈值调大一些，比�
 - round 0(hmm解码): best valid acc 0.8950, test acc 0.9081
 - best round(at round 3, prediction): best valid acc 0.9075, test acc 0.9200
 - best round(at round 3, hmm解码): best valid acc 0.9100, test acc 0.9206
-> 指定文件夹test acc直接测量方式：python local/compute_acc_spk.py --result_dir "/data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-d
-/scv7387/run/tv_series_plus/dataset/the big bang theory/annotation/text_annotated.xlsx" --mode "test"构建数据集/exp1/round3/ft_epoch_3" --ref_xlsx
+> 指定文件夹test acc直接测量方式：python local/compute_acc_spk.py --result_dir "runs/the big bang theory/exp_video/result/self_supervised/exp0/round0/pseudo_label" --mode "all" --ref_xlsx "/data/home/scv7387/run/tv_series_plus/dataset/the big bang theory/annotation/text_annotated.xlsx"
 ### 增大batch size
 增大batch size-->128 --效果不佳，仍保持64✅
 

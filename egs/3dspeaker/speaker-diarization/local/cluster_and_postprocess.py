@@ -1111,38 +1111,45 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         if 'mid_frame' in hmm_visual_info_type:
             ## load useful variables
             audio_seg_ids_mf, face_idxs_mf = useful_var_dic['audio_seg_ids_mf'], useful_var_dic['face_idxs_mf']
-            vlabels_mf, aligned_mask_mf = useful_var_dic['vlabels_mf'], useful_var_dic['aligned_mask_mf']
-            audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-            assert len(audio_seg_ids_mf_aligned) == len(face_idxs_mf_aligned), "Length of audio_seg_ids_mf_aligned must be the same as that of face_idxs_mf_aligned."
-            keys_mf = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf_aligned, face_idxs_mf_aligned)]
+            vlabels_mf = useful_var_dic['vlabels_mf']
             
             ## load vlabels_mf_pred
-            if 'vlabels_mf_processed' in useful_var_dic:
-                vlabels_mf_processed = useful_var_dic['vlabels_mf_processed']
-                assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_processed), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_processed."
             vlabels_mf_pred_dic_path = os.path.join(result_dir, 'vlabels_mf_pred_dic.pkl')
-            if os.path.exists(vlabels_mf_pred_dic_path):
+            if not os.path.exists(vlabels_mf_pred_dic_path):
+                assert 'vlabels_mf_processed' in useful_var_dic, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_processed must be provided in useful_var_dic if vlabels_mf_pred_dic.pkl does not exist."
+                aligned_mask_mf = useful_var_dic['aligned_mask_mf']
+                audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
+                keys_mf_aligned = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf_aligned, face_idxs_mf_aligned)]
+                vlabels_mf_processed = useful_var_dic['vlabels_mf_processed']
+            else:
                 with open(vlabels_mf_pred_dic_path, 'rb') as f:
                     vlabels_mf_pred_dic = pickle.load(f)
-                vlabels_mf_processed = np.array([vlabels_mf_pred_dic[key_mf] for key_mf in keys_mf])
+                ### update aligned_mask_mf and vlabels_mf_processed
+                keys_mf_all = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
+                aligned_mask_mf = np.array([key in vlabels_mf_pred_dic for key in keys_mf_all], dtype=bool)
+                audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
+                keys_mf_aligned = np.array(keys_mf_all)[aligned_mask_mf].tolist()
+                vlabels_mf_processed = np.array([vlabels_mf_pred_dic[k] for k in keys_mf_aligned])
                 ### save loaded mid-frame face labels
                 vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
                 vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed
                 vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1
-                summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_labels_from_model')
-                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'visual_mid_frame_labels_from_model.json'))
-            assert vlabels_mf_processed is not None, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_processed must be provided."
+                summary_cluster_results(vlabels_mf_processed_all, modal_type='faces_mid_frame_labels_from_model')
+                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'faces_mid_frame_labels_from_model.json'))
+                
+            assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_processed), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_processed."
+            assert len(audio_seg_ids_mf_aligned) == len(face_idxs_mf_aligned), "Length of audio_seg_ids_mf_aligned must be the same as that of face_idxs_mf_aligned."
 
             ## load vlabels_mf_potential_list
-            if 'vlabels_mf_potential_list' in useful_var_dic:
-                vlabels_mf_potential_list = useful_var_dic['vlabels_mf_potential_list']
-                assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_potential_list), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_potential_list."
             vlabels_mf_potential_dic_path = os.path.join(result_dir, 'vlabels_mf_potential_dic.pkl')
-            if os.path.exists(vlabels_mf_potential_dic_path):
+            if not os.path.exists(vlabels_mf_potential_dic_path):
+                assert 'vlabels_mf_potential_list' in useful_var_dic, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_potential_list must be provided in useful_var_dic if vlabels_mf_potential_dic.pkl does not exist."
+                vlabels_mf_potential_list = useful_var_dic['vlabels_mf_potential_list']
+            else:
                 with open(vlabels_mf_potential_dic_path, 'rb') as f:
                     vlabels_mf_potential_dic = pickle.load(f)
-                vlabels_mf_potential_list = np.array([vlabels_mf_potential_dic[key_mf] for key_mf in keys_mf])
-            assert vlabels_mf_potential_list is not None, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_potential_list must be provided."
+                vlabels_mf_potential_list = np.array([vlabels_mf_potential_dic[k] for k in keys_mf_aligned])
+            assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_potential_list), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_potential_list."
 
         # Remove unaligned visual samples according to alabels_processed(since predictions may differ from previous clustering results)
         ## For vlabels_vad_processed
