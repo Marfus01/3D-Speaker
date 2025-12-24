@@ -488,8 +488,8 @@ def get_mf2audio_align_dic(audio_seg_ids, alabels_processed, audio_seg_ids_mf, v
         ratios = list(alabels_filtered_ratio_dic.values())
         upper_bound = np.percentile(ratios, 75) + 1.5 * (np.percentile(ratios, 75) - np.percentile(ratios, 25))
         outliers_upper = {label: ratio for label, ratio in alabels_filtered_ratio_dic.items() if ratio > upper_bound}
-        # 如果仅有一个upper outlier，则认为该说话人簇与当前视觉簇对应
-        if len(outliers_upper) == 1:
+        # 如果仅有一个upper outlier，且其比例大于0.5，则认为该说话人簇与当前视觉簇对应
+        if len(outliers_upper) == 1 and list(outliers_upper.values())[0] > 0.5:
             speaker_id_aligned = list(outliers_upper.keys())[0]
             vlabels_mf_aligned_dic[vlabels_mf_cluster_id] = speaker_id_aligned
             print(f"face_mf cluster {vlabels_mf_cluster_id} of size {vlabels_mf_cluster_size}  is aligned to speaker cluster {speaker_id_aligned} of size {alabels_processed.tolist().count(speaker_id_aligned)}")
