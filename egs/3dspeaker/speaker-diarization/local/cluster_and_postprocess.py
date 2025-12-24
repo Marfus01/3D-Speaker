@@ -13,6 +13,7 @@ import pathlib
 import numpy as np
 import copy, time
 from hmmlearn import hmm
+from statistics import median
 
 current_file_path = os.path.abspath(__file__)
 # 从'local/'回到'speaker-diarization'目录
@@ -196,7 +197,7 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
                         flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
-                        hmm_model_path=None, B_S_diag_min=None, adaptive_pp=False):
+                        hmm_model_path=None, B_S_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -250,8 +251,11 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    if adaptive_pp and unreliable_pp < 100.0:
+    if unreliable_pp >= 100.0:
+        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    else:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        # 保存不同unreliable_pp下的选择性平滑结果
         os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
         for unreliable_pp_temp in range(0, 21, 5):
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
@@ -261,23 +265,19 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
             with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
-    else:
-        if unreliable_pp >= 100.0:
-            alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-        else:
-            assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
-            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-            alabels_smoothed = copy.deepcopy(alabels)
-            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-        
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
+        # 按指定的unreliable_pp保存选择性平滑结果
+        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+        alabels_smoothed = copy.deepcopy(alabels)
+        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+    
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_init, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None, adaptive_pp=False):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -341,10 +341,14 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
         alabels[alabels == n_actors - 1] = -1
 
     print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-    if adaptive_pp and unreliable_pp < 100.0:
+        
+    if unreliable_pp >= 100.0:
+        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+    else:
         assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+        # 保存不同unreliable_pp下的选择性平滑结果
         os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
-        for unreliable_pp_temp in range(0, 21, 5):
+        for unreliable_pp_temp in range(0, 101, 5):
             changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
             alabels_smoothed = copy.deepcopy(alabels_init)
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
@@ -352,19 +356,16 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
             smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
             with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
                 json.dump(smoothed_cluster_dic, f, indent=2)
-    else:
-        if unreliable_pp >= 100.0:
-            alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-        else:
-            assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
-            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-            alabels_smoothed = copy.deepcopy(alabels_init)
-            alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-            print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-
-        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-        with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-            json.dump(smoothed_cluster_dic, f, indent=2)
+        
+        # 按指定的unreliable_pp保存选择性平滑结果
+        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+        alabels_smoothed = copy.deepcopy(alabels_init)
+        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+    
+    print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
     
     return face_states_viterbi, speaker_states_viterbi
 
@@ -448,6 +449,51 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
             new_vlabels_mf_aligned[vlabels_mf_aligned == old_id] = new_id
 
     return new_alabels, new_vlabels_vad_aligned, new_vlabels_mf_aligned
+
+def get_mf2audio_align_dic(alabels_processed, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf):
+    """
+    根据人脸-说话人共现关系，尝试将 mid-frame 视觉簇与语音簇做进一步的对齐
+
+    Args:
+        alabels_processed (ndarray): 前期已经完成与vad, mf初步对齐（利用vad信息）,仅保留潜在主要说话人簇的语音簇标签，shape (N, )
+        audio_seg_ids_mf (ndarray): mid-frame 人脸对应的音频段ID，shape (M, )
+        vlabels_mf (ndarray): mid-frame 人脸的视觉簇标签，shape (M, )
+        aligned_mask_mf (ndarray): 布尔数组，True表示该 mid-frame 已与语音簇对齐，shape (M, )
+
+    Returns:
+        tuple: 包含两个字典
+            - vlabels_mf_aligned_dic (dict): key为mid-frame视觉簇ID，value为对应的语音簇ID
+            - vlabels_mf_major_aligned_dic (dict): key为mid-frame视觉簇ID，value为对应的语音簇ID，仅包含那些样本数大于等于语音簇中位数的视觉簇
+    """
+    vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic = {}, {}
+    audio_seg_ids_mf_unaligned, vlabels_mf_unaligned = audio_seg_ids_mf[~aligned_mask_mf], vlabels_mf[~aligned_mask_mf] # 筛选出未对齐的 mid-frame 人脸及其对应的音频段ID
+    if len(audio_seg_ids_mf_unaligned) == 0:
+        return vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic
+    _, alabels_processed_count = np.unique(alabels_processed, return_counts=True) # 统计每个说话人簇的大小
+    
+    for vlabels_mf_cluster_id in np.unique(vlabels_mf_unaligned): # 遍历每一个未对齐的视觉簇
+        # 筛选该视觉簇中，帧内只包含单一人脸的audio_seg_ids子集
+        audio_seg_ids_mf_cluster = audio_seg_ids_mf_unaligned[np.where(vlabels_mf_unaligned == vlabels_mf_cluster_id)[0]]
+        vlabels_mf_cluster_size = len(audio_seg_ids_mf_cluster)
+        unique, counts = np.unique(audio_seg_ids_mf_cluster, return_counts=True)
+        single_occurrence_ids = unique[counts == 1]
+        if len(single_occurrence_ids) == 0:
+            continue
+        # 获取只包含单一人脸的audio_seg_ids子集对应的说话人簇标签
+        alabels_filtered_spk = [alabels_processed[k] for k in single_occurrence_ids]
+        # 统计其中每个说话人簇的出现次数及比例，并判断是否存在upper outlier
+        alabels_filtered_count_dic = {spk: alabels_filtered_spk.count(spk) for spk in set(alabels_filtered_spk)}
+        alabels_filtered_ratio_dic = {spk: cnt/alabels_processed.tolist().count(spk) for spk, cnt in alabels_filtered_count_dic.items()}
+        ratios = list(alabels_filtered_ratio_dic.values())
+        upper_bound = np.percentile(ratios, 75) + 1.5 * (np.percentile(ratios, 75) - np.percentile(ratios, 25))
+        outliers_upper = {label: ratio for label, ratio in alabels_filtered_ratio_dic.items() if ratio > upper_bound}
+        # 如果仅有一个upper outlier，则认为该说话人簇与当前视觉簇对应
+        if len(outliers_upper) == 1:
+            speaker_id_aligned = list(outliers_upper.keys())[0]
+            vlabels_mf_aligned_dic[vlabels_mf_cluster_id] = speaker_id_aligned
+            if vlabels_mf_cluster_size >= median(alabels_processed_count):
+                vlabels_mf_major_aligned_dic[vlabels_mf_cluster_id] = speaker_id_aligned
+    return vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic
 
 def convert_alabels_to_onehot(audio_seg_ids, alabels, ncols):
     """
@@ -1004,8 +1050,27 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
 
         ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
         alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
-        ## 将之前未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm还是只用完全对齐的版本）
+        ## 处理之前未能与语音簇对齐的 mid-frame 视觉簇: 尝试根据人脸-说话人共现关系，做进一步的对齐
         if 'mid_frame' in hmm_visual_info_type:
+            vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic = get_mf2audio_align_dic(alabels_processed, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf)
+            if len(vlabels_mf_aligned_dic) > 0:
+                print(f"[INFO] The mid-frame visual clusters aligned to audio clusters according to face-speaker co-occurance are: {vlabels_mf_aligned_dic}.")
+                # 依据共现关系，补充对齐之前未能对齐的 mid-frame 视觉簇，并与之前对齐的结果合并
+                vlabels_mf_processed_more, _, aligned_mask_mf_more = extract_aligned_vlabels_results(vlabels_mf, vlabels_mf_aligned_dic, None)  # 无需再 process, vlabels_mf_processed_more 的标签一定在 alabels_processed 中
+                vlabels_mf_processed_new = np.zeros_like(vlabels_mf, dtype=np.int32)
+                vlabels_mf_processed_new[aligned_mask_mf] = vlabels_mf_processed
+                vlabels_mf_processed_new[aligned_mask_mf_more] = vlabels_mf_processed_more
+                vlabels_mf_processed = copy.deepcopy(vlabels_mf_processed_new)
+                aligned_mask_mf = aligned_mask_mf | aligned_mask_mf_more
+            
+            if len(vlabels_mf_major_aligned_dic) > 0: # 选用major是为了保证vad的高质量。
+                print(f"[INFO] The major mid-frame visual clusters aligned to audio clusters according to face-speaker co-occurance are: {vlabels_mf_major_aligned_dic}.")
+                # 依据共现关系，补充对齐之前未能对齐的 vad 视觉簇，并与之前对齐的结果合并
+                vlabels_vad_processed_more, visual_times_vad_aligned_more, _ = extract_aligned_vlabels_results(vlabels_vad, vlabels_mf_major_aligned_dic, visual_times_vad) # 无需再 process, vlabels_vad_processed_more 的标签一定在 alabels_processed 中
+                vlabels_vad_processed = np.concatenate((vlabels_vad_processed, vlabels_vad_processed_more))
+                visual_times_vad_aligned =  np.concatenate((visual_times_vad_aligned, visual_times_vad_aligned_more))
+            
+            ## 将之前未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm还是只用完全对齐的版本）
             vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
             vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed # of the same length as original vlabels_mf
             vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
