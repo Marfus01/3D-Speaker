@@ -1448,16 +1448,13 @@ def main():
                 else:
                     patience_counter_epoch_face += 1
                     logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: No improvement. Patience(epoch): {patience_counter_epoch_face}/{args.early_stop_patience_epoch}")
-                    if crt_acc_valid_e_pseudo_face < prev_acc_valid_e_pseudo_face:
-                        logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: Validation accuracy dropped from {prev_acc_valid_e_pseudo_face:.4f} to {crt_acc_valid_e_pseudo_face:.4f}")
-                        break
-                    # if ft_epoch_face > 2:
-                    #     if patience_counter_epoch_face >= args.early_stop_patience_epoch:
-                    #         logger.info(f"Early stopping at face epoch {ft_epoch_face}")
-                    #         break
-                    #     if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
-                    #         logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
-                    #         break
+                    if ft_epoch_face > 2:
+                        if patience_counter_epoch_face >= args.early_stop_patience_epoch:
+                            logger.info(f"Early stopping at face epoch {ft_epoch_face}")
+                            break
+                        if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
+                            logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
+                            break
                 prev_acc_valid_e_pseudo_face = copy.deepcopy(crt_acc_valid_e_pseudo_face)
             
             optimizer_face.zero_grad()
