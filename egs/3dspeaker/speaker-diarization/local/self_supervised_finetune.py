@@ -195,6 +195,44 @@ class PseudoLabelDataset(Dataset):
             feat = self.subseg_hidfeat_dic[subseg_id]
             return feat, class_idx
 
+
+class PseudoLabelFaceDataset_infer(Dataset):
+    """
+    Dataset for using face recognition model to infer sample labels.
+    """
+    def __init__(self, pseudo_labels_json, dataset_train):
+        """
+        Args:
+            pseudo_labels_json: Path to pseudo labels json file (format: {"E01-1_0": 0, ...})
+            dataset_train: a PseudoLabelFaceDataset object constructed during training
+        """
+        self.dataset_train = copy.deepcopy(dataset_train)
+        # Load sample ids
+        with open(pseudo_labels_json, 'r') as f:
+            pseudo_labels = json.load(f)
+        self.sample_ids = list(pseudo_labels.keys())
+        self.label2idx = self.dataset_train.label2idx
+        self.idx2label = self.dataset_train.idx2label
+        
+
+    def __len__(self):
+        return len(self.sample_ids)
+    
+    def __getitem__(self, index):
+        face_id = self.sample_ids[index]
+        # Parse episode_id and face_idx from face_id (format: "E01-1_0")
+        episode_id = face_id.rsplit('-', 1)[0]
+        
+        # Load face image
+        img_path = os.path.join(self.dataset_train.dataset_dir, episode_id, f'{face_id}.jpg')
+        img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"无法读取图像: {img_path}")
+        # Preprocess image
+        img_tensor = torch.from_numpy(self.dataset_train.preprocess(img))
+        
+        return img_tensor, -2  # use -2 as dummy label for inference
+
 class PseudoLabelFaceDataset(Dataset):
     """
     Dataset for fine-tuning face recognition model with pseudo-labels.
@@ -815,7 +853,7 @@ def compute_acc_from_anno(result_dir, anno_file, mode='all', modal='speaker'):
     if modal == 'speaker':
         json_pattern = 'pseudo_labels_audio'
     elif modal == 'face':
-        json_pattern = 'pseudo_labels_faces_mid_frame'
+        json_pattern = 'pseudo_labels_faces_mid_frame_all'
     else:
         raise ValueError(f"Unsupported modal: {modal}")
     
@@ -1178,12 +1216,16 @@ def main():
         # Create face dataset and dataloader (if using audio_vision)
         if args.cluster_type == 'audio_vision':
             # Find face pseudo label file
-            face_pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame' in f]
+            face_pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_train' in f]
+            face_pseudo_label_files_infer = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_all' in f]
             if len(face_pseudo_label_files) > 0:
-                assert len(face_pseudo_label_files) == 1, f"Multiple face pseudo-label files found in {pseudo_label_dir}: {face_pseudo_label_files}"
+                assert len(face_pseudo_label_files) == 1, f"Multiple face pseudo-label files for training found in {pseudo_label_dir}: {face_pseudo_label_files}"
                 face_pseudo_label_file = os.path.join(pseudo_label_dir, face_pseudo_label_files[0])
-                logger.info(f"Using face pseudo-label file: {face_pseudo_label_file}")
-                
+                logger.info(f"For training, Using face pseudo-label file: {face_pseudo_label_file}")
+                assert len(face_pseudo_label_files_infer) == 1, f"Multiple face pseudo-label files for infering found in {pseudo_label_dir}: {face_pseudo_label_files_infer}"
+                face_pseudo_label_file_infer = os.path.join(pseudo_label_dir, face_pseudo_label_files_infer[0])
+                logger.info(f"For infering, Using face pseudo-label file: {face_pseudo_label_file_infer}")
+
                 # define pseudo_valid_label_dic for face and save
                 with open(pseudo_label_file, 'r', encoding='utf-8') as f:
                     pseudo_label_audio = json.load(f)
@@ -1217,6 +1259,8 @@ def main():
                     face_train_dataset = PseudoLabelFaceDataset(face_pseudo_label_file, args.midframe_face_dir)
                 else:
                     face_update_class_flag = face_train_dataset.reset_labels(face_pseudo_label_file)
+                face_infer_dataset = PseudoLabelFaceDataset_infer(face_pseudo_label_file_infer, face_train_dataset)
+                
                 if len(face_train_dataset) == 0:
                     logger.error("No valid face training samples found!")
                     face_train_loader = None
@@ -1404,7 +1448,7 @@ def main():
                 preds_dic_face, embeddings_dic_face, uncertainty_dic_face, potential_list_dic_face = inference_with_classifier(
                     model=face_embedding_model,
                     classifier=face_classifier,
-                    dataset=face_train_dataset,
+                    dataset=face_infer_dataset,
                     device=device,
                     compute_uncertainty=args.from_preds,
                     batch_process_flag=True,
@@ -1417,7 +1461,7 @@ def main():
                 # Save predictions and compute accuracy on annotated data
                 epoch_dir_face = os.path.join(round_dir, f'ft_epoch_face_{ft_epoch_face}')
                 os.makedirs(epoch_dir_face, exist_ok=True)
-                with open(os.path.join(epoch_dir_face, 'pseudo_labels_faces_mid_frame_pred.json'), 'w') as f:
+                with open(os.path.join(epoch_dir_face, 'pseudo_labels_faces_mid_frame_all_pred.json'), 'w') as f:
                     json.dump(preds_dic_face, f, indent=2)
                 crt_acc_valid_e_pseudo_face = compute_acc_from_dic(preds_dic_face, pseudo_valid_label_dic_face)
                 crt_acc_e_face = compute_acc_from_anno(epoch_dir_face, args.face_anno_file, mode='all', modal='face')

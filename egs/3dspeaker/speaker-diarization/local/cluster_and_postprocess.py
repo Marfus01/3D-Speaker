@@ -1074,7 +1074,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                 vlabels_vad_processed = np.concatenate((vlabels_vad_processed, vlabels_vad_processed_more))
                 visual_times_vad_aligned =  np.concatenate((visual_times_vad_aligned, visual_times_vad_aligned_more))
             
-            ## 将之前未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm还是只用完全对齐的版本）
+            ## 将经过两次对齐处理后，仍未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm只用完全对齐的部分sample）
             vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
             vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed # of the same length as original vlabels_mf
             vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
@@ -1119,7 +1119,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         if 'mid_frame' in hmm_visual_info_type:
             useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
             useful_var_dic['face_idxs_mf'] = face_idxs_mf
-            useful_var_dic['vlabels_mf'] = vlabels_mf
+            useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
             useful_var_dic['aligned_mask_mf'] = aligned_mask_mf
             useful_var_dic['vlabels_mf_processed'] = vlabels_mf_processed
             useful_var_dic['vlabels_mf_potential_list'] = vlabels_mf_potential_list
@@ -1180,34 +1180,27 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         if 'mid_frame' in hmm_visual_info_type:
             ## load useful variables
             audio_seg_ids_mf, face_idxs_mf = useful_var_dic['audio_seg_ids_mf'], useful_var_dic['face_idxs_mf']
-            vlabels_mf = useful_var_dic['vlabels_mf']
+            aligned_mask_mf = useful_var_dic['aligned_mask_mf']
+            audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
             
             ## load vlabels_mf_pred
             vlabels_mf_pred_dic_path = os.path.join(result_dir, 'vlabels_mf_pred_dic.pkl')
             if not os.path.exists(vlabels_mf_pred_dic_path):
                 assert 'vlabels_mf_processed' in useful_var_dic, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_processed must be provided in useful_var_dic if vlabels_mf_pred_dic.pkl does not exist."
-                aligned_mask_mf = useful_var_dic['aligned_mask_mf']
-                audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-                keys_mf_aligned = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf_aligned, face_idxs_mf_aligned)]
+                vlabels_mf_processed_all = useful_var_dic['vlabels_mf_processed_all']
                 vlabels_mf_processed = useful_var_dic['vlabels_mf_processed']
             else:
                 with open(vlabels_mf_pred_dic_path, 'rb') as f:
-                    vlabels_mf_pred_dic = pickle.load(f)
-                ### update aligned_mask_mf and vlabels_mf_processed
+                    vlabels_mf_pred_dic = pickle.load(f)  # contains predcitions for all mid-frame face samples
+                ### update vlabels_mf_processed_all and vlabels_mf_processed
                 keys_mf_all = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
-                aligned_mask_mf = np.array([key in vlabels_mf_pred_dic for key in keys_mf_all], dtype=bool)
-                audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-                keys_mf_aligned = np.array(keys_mf_all)[aligned_mask_mf].tolist()
-                vlabels_mf_processed = np.array([vlabels_mf_pred_dic[k] for k in keys_mf_aligned])
-                ### save loaded mid-frame face labels
-                vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
-                vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed
-                vlabels_mf_processed_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1
-                summary_cluster_results(vlabels_mf_processed_all, modal_type='faces_mid_frame_labels_from_model')
-                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'faces_mid_frame_labels_from_model.json'))
-                
-            assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_processed), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_processed."
-            assert len(audio_seg_ids_mf_aligned) == len(face_idxs_mf_aligned), "Length of audio_seg_ids_mf_aligned must be the same as that of face_idxs_mf_aligned."
+                vlabels_mf_processed_all = np.array([vlabels_mf_pred_dic[k] for k in keys_mf_all])  # model predictions for all mid-frame face samples
+                vlabels_mf_processed = vlabels_mf_processed_all[aligned_mask_mf]  # in hmm, only use these aligned to audio clusters in initialization, since they are more reliable
+                ### save loaded mid-frame face labels for hmm
+                summary_cluster_results(vlabels_mf_processed, modal_type='faces_mid_frame_labels_from_model')
+                summary_cluster_results(vlabels_mf_processed_all, modal_type='faces_mid_frame_labels_all_from_model')
+                save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, os.path.join(result_dir, f'faces_mid_frame_labels_from_model.json'))
+                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'faces_mid_frame_labels_all_from_model.json'))
 
             ## load vlabels_mf_potential_list
             vlabels_mf_potential_dic_path = os.path.join(result_dir, 'vlabels_mf_potential_dic.pkl')
@@ -1217,8 +1210,8 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             else:
                 with open(vlabels_mf_potential_dic_path, 'rb') as f:
                     vlabels_mf_potential_dic = pickle.load(f)
+                keys_mf_aligned = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf_aligned, face_idxs_mf_aligned)]
                 vlabels_mf_potential_list = np.array([vlabels_mf_potential_dic[k] for k in keys_mf_aligned])
-            assert len(audio_seg_ids_mf_aligned) == len(vlabels_mf_potential_list), "Length of audio_seg_ids_mf_aligned must be the same as that of vlabels_mf_potential_list."
 
         # Remove unaligned visual samples according to alabels_processed(since predictions may differ from previous clustering results)
         ## For vlabels_vad_processed
@@ -1268,13 +1261,15 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_processed_init, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
 
         vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf_aligned, vlabels_mf_processed, vlabels_mf_potential_list)
-        vlabels_mf_corrected_all = np.ones_like(vlabels_mf, dtype=np.int32)
-        vlabels_mf_corrected_all[aligned_mask_mf] = vlabels_mf_corrected  # of the same length as original vlabels_mf
-        vlabels_mf_corrected_all[~aligned_mask_mf] = reset_cluster_ids(vlabels_mf[~aligned_mask_mf]) + max(alabels_processed) + 1  # assign new ids to unaligned mid-frame faces
+        vlabels_mf_corrected_all = np.ones_like(vlabels_mf_processed_all, dtype=np.int32)   # of the same length as original vlabels_mf
+        vlabels_mf_corrected_all[aligned_mask_mf] = vlabels_mf_corrected
+        vlabels_mf_corrected_all[~aligned_mask_mf] = vlabels_mf_processed_all[~aligned_mask_mf]
         summary_cluster_results(vlabels_mf_corrected, modal_type='visual_mid_frame_corrected_by_HMM_nested_X')
         summary_cluster_results(vlabels_mf_corrected_all, modal_type='visual_mid_frame_corrected_all_by_HMM_nested_X')
+        save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf],
+                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
         save_cluster_results_vision_mf(vlabels_mf_corrected_all, audio_seg_ids_mf, face_idxs_mf, 
-                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_nested_hmm_full.json'))
+                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
 
 def main():
     args = parser.parse_args()
