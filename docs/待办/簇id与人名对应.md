@@ -43,6 +43,20 @@ Speaker to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '
 Cluster_id to speaker_id mapping: {9: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 10: 0, 11: 0, 12: 0}
 Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_audio_processed_for_HMM_nested_X_accuracy.txt
 
+Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
+Warning: 241 out of 1027 keys in the reference xlsx are missing in runs/I love my family/exp_video/result/vad联合聚类+hmm_nested_x/比较基准/cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json.
+Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, -1: 149}
+Renamed cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 11: 149}
+Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
+Cluster_id to character_name_id mapping: {9: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 10: 0, 11: 0}
+Accuracy results saved to runs/I love my family/exp_video/result/vad联合聚类+hmm_nested_x/比较基准/cluster_results_faces_mid_frame_processed_for_HMM_nested_X_accuracy.txt
+
+Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
+Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 12: 207, 13: 18, 14: 6, 15: 6, 16: 1, 17: 1, 20: 1, 22: 1, -1: 149}
+Renamed cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 11: 207, 12: 18, 13: 6, 14: 6, 15: 1, 16: 1, 17: 1, 18: 1, 23: 149}
+Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
+Cluster_id to character_name_id mapping: {11: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 9: 0, 10: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 23: 0}
+Accuracy results saved to runs/I love my family/exp_video/result/vad联合聚类+hmm_nested_x/比较基准/cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X_accuracy.txt
 
 Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
 Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 12: 207, 13: 18, 14: 6, 15: 6, 16: 1, 17: 1, 20: 1, 22: 1, -1: 149}
@@ -52,32 +66,19 @@ Cluster_id to character_name_id mapping: {11: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6
 Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/pseudo_labels_faces_mid_frame_accuracy.txt
 所有对应主要角色的人脸簇均来自与 audio 对齐后的人脸簇。
 
-Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
-Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 12: 207, 13: 18, 14: 6, 15: 6, 16: 1, 17: 1, 20: 1, 22: 1, -1: 149}
-Renamed cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 19, 9: 13, 10: 12, 11: 207, 12: 18, 13: 6, 14: 6, 15: 1, 16: 1, 17: 1, 18: 1, 23: 149}
+加入二次对齐之后：
+Non-main character labels in the reference xlsx: {'于大妈', 'Others', '老和', '春生'}
+Warning: 235 out of 1027 keys in the reference xlsx are missing in runs/I love my family/exp_video/result/self_supervised/exp0/initial/pseudo_label/cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json.
+Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 25, 9: 13, 10: 12, -1: 149}
+Renamed cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 25, 9: 13, 10: 12, 11: 149}
 Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
-Cluster_id to character_name_id mapping: {11: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 9: 0, 10: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 23: 0}
-Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X_accuracy.txt
+Cluster_id to character_name_id mapping: {9: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 10: 0, 11: 0}
+Accuracy results saved to runs/I love my family/exp_video/result/self_supervised/exp0/initial/pseudo_label/cluster_results_faces_mid_frame_processed_for_HMM_nested_X_accuracy.txt
 
-
-Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
-Original cluster ids and their counts on labeled data: {0: 207, 1: 127, 2: 128, 3: 123, 4: 112, 5: 48, 6: 30, 7: 24, 8: 17, 9: 19, 10: 13, 11: 28, 12: 9, 13: 12, 14: 18, 15: 12, 16: 13, 17: 10, 18: 9, 19: 3, 20: 6, 21: 6, 22: 4, 23: 1, 24: 1, 25: 1, 26: 3, 27: 4, 28: 3, 29: 1, 30: 2, 31: 1, 32: 3, 33: 1, 34: 4, 36: 1, 38: 2, 39: 1, 40: 1, 42: 1, 44: 1, 46: 2, 48: 1, 49: 1, 51: 2, 53: 2, 54: 1, 58: 1, 59: 1, 62: 1, 65: 2, 66: 2, 77: 1}
-Renamed cluster ids and their counts on labeled data: {0: 207, 1: 127, 2: 128, 3: 123, 4: 112, 5: 48, 6: 30, 7: 24, 8: 17, 9: 19, 10: 13, 11: 28, 12: 9, 13: 12, 14: 18, 15: 12, 16: 13, 17: 10, 18: 9, 19: 3, 20: 6, 21: 6, 22: 4, 23: 1, 24: 1, 25: 1, 26: 3, 27: 4, 28: 3, 29: 1, 30: 2, 31: 1, 32: 3, 33: 1, 34: 4, 35: 1, 36: 2, 37: 1, 38: 1, 39: 1, 40: 1, 41: 2, 42: 1, 43: 1, 44: 2, 45: 2, 46: 1, 47: 1, 48: 1, 49: 1, 50: 2, 51: 2, 52: 1}
+Non-main character labels in the reference xlsx: {'于大妈', 'Others', '老和', '春生'}
+Original cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 25, 9: 13, 10: 12, 12: 207, 13: 18, 14: 6, 15: 1, 16: 1, 18: 1, 19: 1, -1: 149}
+Renamed cluster ids and their counts on labeled data: {0: 128, 1: 112, 2: 127, 3: 48, 4: 12, 5: 30, 6: 123, 7: 13, 8: 25, 9: 13, 10: 12, 11: 207, 12: 18, 13: 6, 14: 1, 15: 1, 16: 1, 17: 1, 20: 149}
 Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
-Cluster_id to character_name_id mapping: {0: 0, 2: 1, 1: 2, 5: 3, 10: 4, 6: 5, 3: 6, 4: 7, 9: 8, 7: 0, 8: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0, 26: 0, 27: 0, 28: 0, 29: 0, 30: 0, 31: 0, 32: 0, 33: 0, 34: 0, 35: 0, 36: 0, 37: 0, 38: 0, 39: 0, 40: 0, 41: 0, 42: 0, 43: 0, 44: 0, 45: 0, 46: 0, 47: 0, 48: 0, 49: 0, 50: 0, 51: 0, 52: 0}
-Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_faces_mid_frame_before_vision_align_accuracy.txt
-
-Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
-Original cluster ids and their counts on labeled data: {0: 128, 1: 127, 2: 112, 3: 30, 4: 48, 5: 13, 6: 13, 7: 12, 8: 19, 9: 12, 10: 3, 11: 3, 12: 123, 13: 4, 15: 10, 16: 4, 17: 1, 18: 3, 20: 4, 21: 18, 24: 9, 26: 6, 29: 1, 30: 1, 31: 6, 32: 1, 35: 1, 38: 1, 39: 1, 40: 1, 45: 207, -1: 105}
-Renamed cluster ids and their counts on labeled data: {0: 128, 1: 127, 2: 112, 3: 30, 4: 48, 5: 13, 6: 13, 7: 12, 8: 19, 9: 12, 10: 3, 11: 3, 12: 123, 13: 4, 14: 10, 15: 4, 16: 1, 17: 3, 18: 4, 19: 18, 20: 9, 21: 6, 22: 1, 23: 1, 24: 6, 25: 1, 26: 1, 27: 1, 28: 1, 29: 1, 30: 207, 46: 105}
-Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
-Cluster_id to character_name_id mapping: {30: 0, 0: 1, 1: 2, 4: 3, 5: 4, 3: 5, 12: 6, 2: 7, 8: 8, 6: 0, 7: 0, 9: 0, 10: 0, 11: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0, 26: 0, 27: 0, 28: 0, 29: 0, 46: 0}
-Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_faces_mid_frame_vision_aligned_accuracy.txt
-
-Non-main character labels in the reference xlsx: {'Others', '老和', '于大妈', '春生'}
-Warning: 241 out of 1027 keys in the reference xlsx are missing in /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_faces_mid_frame_vision-audio_aligned.json.
-Original cluster ids and their counts on labeled data: {28: 112, 29: 13, 30: 48, 31: 123, 32: 127, 33: 128, 34: 30, 37: 19, 39: 12, 41: 3, 42: 1, 44: 1, 46: 4, 47: 12, 49: 1, 54: 1, 57: 13, 61: 3, 62: 4, 63: 9, 65: 4, 67: 10, 72: 3, -1: 105}
-Renamed cluster ids and their counts on labeled data: {0: 112, 1: 13, 2: 48, 3: 123, 4: 127, 5: 128, 6: 30, 7: 19, 8: 12, 9: 3, 10: 1, 11: 1, 12: 4, 13: 12, 14: 1, 15: 1, 16: 13, 17: 3, 18: 4, 19: 9, 20: 4, 21: 10, 22: 3, 73: 105}
-Character name to index mapping: {'Others': 0, '傅老': 1, '和平': 2, '圆圆': 3, '小凡': 4, '小张': 5, '志国': 6, '志新': 7, '燕红': 8}
-Cluster_id to character_name_id mapping: {16: 0, 5: 1, 4: 2, 2: 3, 1: 4, 6: 5, 3: 6, 0: 7, 7: 8, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 17: 0, 18: 0, 19: 0, 20: 0, 21: 0, 22: 0, 73: 0}
-Accuracy results saved to /data/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/initial/pseudo_label/cluster_results_faces_mid_frame_vision-audio_aligned_accuracy.txt
+Cluster_id to character_name_id mapping: {11: 0, 0: 1, 2: 2, 3: 3, 7: 4, 5: 5, 6: 6, 1: 7, 8: 8, 4: 0, 9: 0, 10: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 20: 0}
+Accuracy results saved to runs/I love my family/exp_video/result/self_supervised/exp0/initial/pseudo_label/cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X_accuracy.txt
+变化不大，只有原来的簇15被合并到了簇8。
