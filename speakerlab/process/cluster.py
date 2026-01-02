@@ -82,7 +82,7 @@ def reset_cluster_ids(labels):
         new_labels[labels==old_id] = new_id
     return new_labels
 
-def align_clusters2clusters(source_labels, target_labels, source_embeddings, target_embeddings, align_cos_thr=0.5):
+def align_clusters2clusters(source_labels, target_labels, source_embeddings, target_embeddings, align_cos_thr=0.5, unaligned_label=-3):
     """
     Align source cluster labels to target cluster labels based on cosine similarity of cluster centroids.
 
@@ -92,6 +92,7 @@ def align_clusters2clusters(source_labels, target_labels, source_embeddings, tar
         source_embeddings (ndarray): Source embeddings, of shape [N, D].
         target_embeddings (ndarray): Target embeddings, of shape [M, D].
         align_cos_thr (float): Cosine similarity threshold for alignment. Default is 0.5.
+        unaligned_label (int): Label to assign to unaligned clusters. Default is -3.
 
     Returns:
         ndarray: Aligned source cluster labels, of shape [N].
@@ -119,7 +120,7 @@ def align_clusters2clusters(source_labels, target_labels, source_embeddings, tar
       if sim_matrix[i, j] >= align_cos_thr:
           aligned_source_labels[source_labels == reverse_source_label_map[i]] = reverse_target_label_map[j]
       else:
-          aligned_source_labels[source_labels == reverse_source_label_map[i]] = -1  # unaligned clusters are assigned to -1
+          aligned_source_labels[source_labels == reverse_source_label_map[i]] = unaligned_label
     return aligned_source_labels
 
 def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align_cluster_num=0, target_labels=None, target_embeddings=None):
