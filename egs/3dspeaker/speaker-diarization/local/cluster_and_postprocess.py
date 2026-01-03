@@ -744,10 +744,11 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
         unique_counts = {label: potential_states_all.count(label) for label in set(potential_states_all)}
         ## Check if
         all_appear_once = all(unique_counts.get(face_states, 0) == 1 for face_states in appearing_face_states)
-
         if not all_appear_once:
             continue  # Cannot determine labels directly, skip to next audio segment
-        
+        if len(appearing_face_states) < len(mf_indices_selected):
+            continue  # Not enough appearing states to assign to all mid-frame faces, skip to next audio segment
+
         # Update labels based on appearing_face_states
         for mf_indice in mf_indices_selected:
             vlabel_mf_obs = vlabels_mf[mf_indice]
@@ -757,6 +758,13 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
             potential_states = [label if label != -1 else F_decode.shape[1] - 1 for label in potential_states]
 
             vlabel_mf_new = list(set(appearing_face_states).intersection(set(potential_states)))
+            if len(vlabel_mf_new) != 1:
+                print(audio_idx)
+                print(mf_indices_selected)
+                print(F_hat[audio_idx, :])
+                print(F_decode[audio_idx, :])
+                print(vlabels_mf_potential_list_selected)
+                print([vlabels_mf[mf_idx] for mf_idx in mf_indices_selected])
             assert len(vlabel_mf_new) == 1, f"There should be one intersected label, But got {vlabel_mf_new} for appearing_face_states {appearing_face_states} and potential_states {potential_states}."
             vlabel_mf_new = vlabel_mf_new[0]
 
@@ -1105,7 +1113,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
         vlabels_mf_potential_list = None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=4) # of the same length as vlabels_mf_processed
+            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=8) # of the same length as vlabels_mf_processed
+            for i in range(len(vlabels_mf_processed_input)):
+                if vlabels_mf_processed_input[i] != -1:
+                    vlabels_mf_potential_list[i] = [vlabels_mf_processed_input[i]]  # only -1 samples will make error
             del visual_embeddings_mf
         del audio_embeddings
 
