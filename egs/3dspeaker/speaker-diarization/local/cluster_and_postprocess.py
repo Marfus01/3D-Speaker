@@ -1105,7 +1105,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
         vlabels_mf_potential_list = None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=2) # of the same length as vlabels_mf_processed
+            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=4) # of the same length as vlabels_mf_processed
             del visual_embeddings_mf
         del audio_embeddings
 

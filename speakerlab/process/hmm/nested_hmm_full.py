@@ -285,18 +285,26 @@ class NestedHMM_full():
                 potential_states_idxs = [0]  # 如果没有face sample，返回全零配置的索引0
             else:
                 # 1. 获取所有可能的状态组合（笛卡尔积）
-                if n_samples > 12:
-                    # 避免笛卡尔积爆炸，限制组合数量
-                    unique_potential_labels = list(set([item for sublist in potential_states_lists for item in sublist]))
-                    k = min(len(unique_potential_labels), self.n_actors)
-                    all_combinations = [list(comb) for size in range(1, k+1) for comb in itertools.combinations(unique_potential_labels, size)]
-                    # print(f"k ={k}, total combinations to consider: {len(all_combinations)}")
+                if n_samples > 4:
+                    # 逐步确定所有可能的状态组合，避免内存爆炸
+                    all_combinations = itertools.product(*potential_states_lists[0:4])
+                    all_combinations_processed = [tuple(sorted(set(comb))) for comb in all_combinations]
+                    all_combinations_unique = list(set(all_combinations_processed))
+                    all_combinations = copy.deepcopy(all_combinations_unique)
+                    for i in range(4, n_samples):
+                        new_combinations = []
+                        for state in potential_states_lists[i]:
+                            new_combs = list(map(lambda comb: tuple(sorted(set(comb + (state,)))), all_combinations))
+                            new_combs_unique = list(set(new_combs))
+                            new_combinations.extend(new_combs_unique)
+                        all_combinations = list(set(new_combinations))
+
                 else:
                     all_combinations = itertools.product(*potential_states_lists)
-                # 2. 对每个组合下涵盖的元素去重（set），排序(打乱了sample顺序)，得到可做set比较的tuple
-                all_combinations_processed = [tuple(sorted(set(comb))) for comb in all_combinations]
-                # 3. 在组合层面去重
-                all_combinations_unique = list(set(all_combinations_processed))
+                    # 2. 对每个组合下涵盖的元素去重（set），排序(打乱了sample顺序)，得到可做set比较的tuple
+                    all_combinations_processed = [tuple(sorted(set(comb))) for comb in all_combinations]
+                    # 3. 在组合层面去重
+                    all_combinations_unique = list(set(all_combinations_processed))
                 # 4. 将每个组合转换为self.face_configs_arr中的row index，并排序返回
                 potential_states_idxs = sorted(list(map(lambda comb: sum(2**i for i in comb), all_combinations_unique)))
 
