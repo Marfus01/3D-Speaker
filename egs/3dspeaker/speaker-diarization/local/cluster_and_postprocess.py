@@ -1111,8 +1111,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
         alabels_potential_list = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
-        vlabels_mf_potential_list = None
+        vlabels_unreliable_metrics, vlabels_mf_potential_list = None, None
         if 'mid_frame' in hmm_visual_info_type:
+            vlabels_unreliable_metrics = get_unreliable_metrics(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf)
             vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=8) # of the same length as vlabels_mf_processed
             for i in range(len(vlabels_mf_processed_input)):
                 if vlabels_mf_processed_input[i] != -1:
@@ -1121,6 +1122,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         del audio_embeddings
 
         # 保存一些有用变量，供后续直接对模型预测结果进行HMM平滑时使用
+        np.save(os.path.join(result_dir, 'vlabels_unreliable_metrics.npy'), vlabels_unreliable_metrics)
         alabels_processed_init = copy.deepcopy(alabels_processed)  # 保存未经过HMM平滑的speaker labels
         alabels_unreliable_metrics_init = copy.deepcopy(alabels_unreliable_metrics)  # 保存未经过HMM平滑的speaker unreliable metrics
         useful_var_dic = {}
@@ -1137,6 +1139,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
             useful_var_dic['aligned_mask_mf'] = aligned_mask_mf
             useful_var_dic['vlabels_mf_processed'] = vlabels_mf_processed
+            useful_var_dic['vlabels_unreliable_metrics'] = vlabels_unreliable_metrics
             useful_var_dic['vlabels_mf_potential_list'] = vlabels_mf_potential_list
         useful_var_path = os.path.join(result_dir, 'useful_var_dic.pkl')
         with open(useful_var_path, 'wb') as f:

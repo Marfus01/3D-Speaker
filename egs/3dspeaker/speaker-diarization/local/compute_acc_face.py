@@ -49,13 +49,13 @@ def main(args):
         face_sizes = df.apply(lambda row: (row['x2'] - row['x1']) * (row['y2'] - row['y1']), axis=1)
 
         # 3. 获取所有有标注数据的聚类标签
-        cluster_labels = [cluster_dic.get(k, -2) for k in keys]
-        valid_idx = [i for i, c in enumerate(cluster_labels) if c != -2]
+        cluster_labels = [cluster_dic.get(k, -4) for k in keys]
+        valid_idx = [i for i, c in enumerate(cluster_labels) if c != -4]
         if len(valid_idx) < len(keys):
           missing_keys = [keys[i] for i in range(len(keys)) if i not in valid_idx]
           missing_keys_num = len(missing_keys)
           total_keys_num = len(keys)
-          print(f"Warning: {missing_keys_num} out of {total_keys_num} keys in the reference xlsx are missing in {json_file}.")
+          print(f"Warning: {missing_keys_num} out of {total_keys_num} keys in the reference xlsx are missing in {json_file}. The first 10 missing keys are: {missing_keys[:10]}")
           keys = [keys[i] for i in valid_idx]
           face_labels = [face_labels[i] for i in valid_idx]
           cluster_labels = [cluster_labels[i] for i in valid_idx]
@@ -69,7 +69,7 @@ def main(args):
         if flag_has_neg1: # 将 -1 映射到最后一个整数
             unique_cluster_labels.remove(-1)
             cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
-            cluster_label_mapping[-1] = max(unique_cluster_labels) + 1 if unique_cluster_labels else 0
+            cluster_label_mapping[-1] = len(unique_cluster_labels) if unique_cluster_labels else 0
         else:
             cluster_label_mapping = {label: idx for idx, label in enumerate(unique_cluster_labels)}
         ## Map cluster_labels to consecutive integers
@@ -127,8 +127,35 @@ def main(args):
             if idxs:
                 acc = cal_accuracy_onehot(face_labels_onehot[idxs], cluster_pred[idxs])
                 results[f'accuracy_{name}'] = acc
+        # 7.3 打印各个聚类簇中不同真实标签的比例
+        cluster_label_mapping_rev = {v: k for k, v in cluster_label_mapping.items()}
+        sorted_cluster_ids = sorted([cluster_label_mapping_rev[cluster_id] for cluster_id in set(cluster_labels)])
+        pred_wrong_keys_all = {}
+        for cluster_id_ori in sorted_cluster_ids:
+            cluster_id = cluster_label_mapping[cluster_id_ori]
+            idxs = [i for i in range(len(cluster_labels)) if cluster_labels[i] == cluster_id]
+            total_in_cluster = len(idxs)
+            if idxs:
+                true_labels_in_cluster = [face_labels[i] for i in idxs]
+                label_counts = {name: true_labels_in_cluster.count(name) for name in set(true_labels_in_cluster)}
+                label_ratios = {name: count / total_in_cluster for name, count in label_counts.items()}
+                label_ratios = dict(sorted(label_ratios.items(), key=lambda item: item[1], reverse=True))
+                pred_wrong_keys, pred_wrong_keys_example = [], {}
+                for name, count in label_counts.items():
+                    if count != max(label_counts.values()):
+                        indices = [i for i in idxs if face_labels[i] == name]
+                        pred_wrong_keys.extend([keys[i] for i in indices])
+                        pred_wrong_keys_example[name] = [keys[i] for i in indices[:3]]
+                
+                non_top_label_counts = len(pred_wrong_keys)
+                pred_wrong_keys_all[cluster_id_ori] = pred_wrong_keys
+                if non_top_label_counts == 0:
+                    print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios)
+                else:
+                    print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios, f"; pred wrong count = {non_top_label_counts}, example keys:", pred_wrong_keys_example)
 
         # 8. 保存结果
+        np.save(os.path.join(args.result_dir, "pred_wrong_keys.npy"), pred_wrong_keys_all)
         if args.mode == 'all':
             filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
         else:
