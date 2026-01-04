@@ -155,7 +155,6 @@ def main(args):
                     print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios, f"; pred wrong count = {non_top_label_counts}, example keys:", pred_wrong_keys_example)
 
         # 8. 保存结果
-        np.save(os.path.join(args.result_dir, "pred_wrong_keys.npy"), pred_wrong_keys_all)
         if args.mode == 'all':
             filename = os.path.basename(json_file).replace('.json', '_accuracy.txt')
         else:
