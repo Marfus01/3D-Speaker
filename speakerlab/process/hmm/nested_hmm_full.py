@@ -290,15 +290,13 @@ class NestedHMM_full():
                     all_combinations = itertools.product(*potential_states_lists[0:4])
                     all_combinations_processed = [tuple(sorted(set(comb))) for comb in all_combinations]
                     all_combinations_unique = list(set(all_combinations_processed))
-                    all_combinations = copy.deepcopy(all_combinations_unique)
                     for i in range(4, n_samples):
-                        new_combinations = []
+                        all_combinations_unique_new = []
                         for state in potential_states_lists[i]:
-                            new_combs = list(map(lambda comb: tuple(sorted(set(comb + (state,)))), all_combinations))
-                            new_combs_unique = list(set(new_combs))
-                            new_combinations.extend(new_combs_unique)
-                        all_combinations = list(set(new_combinations))
-
+                            combs_new = list(map(lambda comb: tuple(sorted(set(comb + (state,)))), all_combinations_unique))
+                            combs_new_unique = list(set(combs_new))
+                            all_combinations_unique_new.extend(combs_new_unique)
+                        all_combinations_unique = copy.deepcopy(list(set(all_combinations_unique_new)))
                 else:
                     all_combinations = itertools.product(*potential_states_lists)
                     # 2. 对每个组合下涵盖的元素去重（set），排序(打乱了sample顺序)，得到可做set比较的tuple
