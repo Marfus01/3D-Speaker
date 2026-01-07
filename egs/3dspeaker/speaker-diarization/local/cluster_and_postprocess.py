@@ -433,19 +433,37 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
 
     # Count occurrences of each unique alabel
     uniq_a_count = {aid: np.sum(alabels == aid) for aid in uniq_a}
-    # Sort alabels by count (descending), then by audio cluster id value (descending)
-    sorted_uniq_a = sorted(uniq_a_count.keys(), key=lambda x: (-uniq_a_count[x], -x))
+    # Sort alabels by count (descending), then by audio cluster id value (ascending)
+    sorted_uniq_a = sorted(uniq_a_count.keys(), key=lambda x: (-uniq_a_count[x], x))
+    if vlabels_mf_aligned is not None:
+        # Count occurrences of each unique vlabel_mf(id already aligned to audio)
+        uniq_mf, uniq_mf_count_arr = np.unique(vlabels_mf_aligned, return_counts=True)
+        uniq_mf_count = {mid: cnt for mid, cnt in zip(uniq_mf, uniq_mf_count_arr) if mid>=0}
+        # Sort mf clusters by count (descending), then by id (ascending)
+        sorted_uniq_mf = sorted(uniq_mf_count.keys(), key=lambda x: (-uniq_mf_count[x], x))
+        print(f"Audio clusters sorted by size: {sorted_uniq_a}")
+        print(f"Mid-frame clusters sorted by size: {sorted_uniq_mf}")
 
-    new_alabels = np.full(len(alabels), -1, dtype=int)  # Default all alabels to -1
-    new_vlabels_vad_aligned = np.full(len(vlabels_vad_aligned), -1, dtype=int)  # Default all vlabels_vad_aligned to -1
+        # gradually increase k and take intersection of top-k from audio & mf lists
+        for k in range(main_actors_num, max(len(sorted_uniq_a), len(sorted_uniq_mf)) + 1):
+            top_a_k, top_m_k = set(sorted_uniq_a[:min(k, len(sorted_uniq_a))]), set(sorted_uniq_mf[:min(k, len(sorted_uniq_mf))])
+            print(f"Top-{k} audio clusters: {top_a_k}, Top-{k} mid-frame clusters: {top_m_k}, Intersection: {top_a_k & top_m_k}")
+            if len(top_a_k & top_m_k) == main_actors_num:
+                top_clusters = list(top_a_k & top_m_k)
+                break
+    else:
+        top_clusters = sorted_uniq_a[:min(2 * main_actors_num, len(sorted_uniq_a), 12)]
+
+    # initialize new labels
+    new_alabels = np.full(len(alabels), -1, dtype=int)
+    new_vlabels_vad_aligned = np.full(len(vlabels_vad_aligned), -1, dtype=int)
     new_vlabels_mf_aligned = None
     if vlabels_mf_aligned is not None:
-        new_vlabels_mf_aligned = np.where(vlabels_mf_aligned <-1, vlabels_mf_aligned, -1).astype(int)  # Default all vlabels_mf_aligned to -1, retain negative labels as is
-        
-    # Retain only the top 2 * main_actors_num clusters
-    # top_clusters = sorted_uniq_a[:2 * main_actors_num]
-    top_clusters = sorted_uniq_a[:min(2 + main_actors_num, len(sorted_uniq_a), 12)]
-    for new_id, old_id in enumerate(top_clusters):
+        new_vlabels_mf_aligned = np.where(vlabels_mf_aligned <-1, vlabels_mf_aligned, -1).astype(int)
+
+    # assign new ids 0,1,... to selected top_clusters (order by audio size descending for consistency)
+    top_clusters_sorted = sorted(top_clusters, key=lambda x: (-uniq_a_count[x], x))
+    for new_id, old_id in enumerate(top_clusters_sorted):
         new_alabels[alabels == old_id] = new_id
         new_vlabels_vad_aligned[vlabels_vad_aligned == old_id] = new_id
         if vlabels_mf_aligned is not None:
@@ -752,15 +770,21 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
         # Check whether the existence label can determine the face label directly
         ## Get all potential labels for current audio segment
         potential_states_all = [item for sublist in vlabels_mf_potential_list_selected for item in sublist]
-        ## Count occurrences of each unique element
-        unique_counts = {label: potential_states_all.count(label) for label in set(potential_states_all)}
-        ## Check if hard matching works
-        all_appear_once = all(unique_counts.get(face_states, 0) == 1 for face_states in appearing_face_states)
-        
-        if all_appear_once:
+        ## Count occurrences of main actor labels appearing in appearing_face_states(ensure that each observed actor links to one face crop only)
+        all_appear_once_main = all(potential_states_all.count(label) == 1 for label in (set(appearing_face_states)-set([n_states - 1])))
+        ## Check whether each observed face crop has at least one label in appearing_face_states
+        match_condition = all(any(label in appearing_face_states for label in sublist) for sublist in vlabels_mf_potential_list_selected)
+        if all_appear_once_main and match_condition:
+            print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels by hard matching based on decoding results.")
+            print(F_hat[audio_idx, :])
+            print(F_decode[audio_idx, :])
+            print(vlabels_mf_potential_list_selected)
+            print([vlabels_mf[mf_idx] for mf_idx in mf_indices_selected])
             # Hard matching succeeds
             for i, mf_indice in enumerate(mf_indices_selected):
                 vlabel_mf_new = list(set(appearing_face_states).intersection(set(vlabels_mf_potential_list_selected[i])))
+                if n_states - 1 in vlabel_mf_new and len(vlabel_mf_new) > 1:
+                    vlabel_mf_new.remove(n_states - 1)
                 assert len(vlabel_mf_new) == 1, f"Hard matching should result in one label, but got {vlabel_mf_new}"
                 vlabel_mf_new = vlabel_mf_new[0]
                 
@@ -1077,10 +1101,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
         alabels, vlabels_vad_arrange_dic = cluster(audio_embeddings, visual_embeddings_vad, audio_times, visual_times_vad, config, alabels, vlabels_vad)
         del visual_embeddings_vad
-        alabels_save = reset_cluster_ids(copy.deepcopy(alabels))
-        summary_cluster_results(alabels_save, modal_type='audio_vision_vad')
-        save_cluster_results_audio(alabels_save, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
+        summary_cluster_results(alabels, modal_type='audio_vision_vad')
+        save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
         if not hmm_flag:
+            alabels_save = reset_cluster_ids(copy.deepcopy(alabels))
             out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad.json')
             save_cluster_results_audio(alabels_save, audio_seg_ids, out_json)
             return 
@@ -1103,31 +1127,34 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             save_cluster_results_vision_mf(vlabels_mf_aligned, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
                                         os.path.join(result_dir, f'cluster_results_faces_mid_frame_vision-audio_aligned.json'))
 
-        ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
-        alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
-        vlabels_mf_processed_input = None
         ## 处理之前未能与语音簇对齐的 mid-frame 视觉簇: 尝试根据人脸-说话人共现关系，做进一步的对齐
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic = get_mf2audio_align_dic(audio_seg_ids, alabels_processed, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf)
+            uniq_a, uniq_a_counts = np.unique(copy.deepcopy(alabels), return_counts=True)
+            main_speakers = uniq_a[np.argsort(-uniq_a_counts)[:min(2 *  config.main_actors_num, len(uniq_a_counts), 12)]]  # top main_actors_num audio clusters
+            alabels_temp = np.where(np.isin(copy.deepcopy(alabels), main_speakers), copy.deepcopy(alabels), -1)  # only keep main speaker labels, others set to -1
+            vlabels_mf_aligned_dic, _ = get_mf2audio_align_dic(audio_seg_ids, alabels_temp, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf)
             if len(vlabels_mf_aligned_dic) > 0:
                 print(f"[INFO] The mid-frame visual clusters aligned to audio clusters according to face-speaker co-occurance are: {vlabels_mf_aligned_dic}.")
                 # 依据共现关系，补充对齐之前未能对齐的 mid-frame 视觉簇，并与之前对齐的结果合并
-                vlabels_mf_processed_new = np.zeros_like(vlabels_mf, dtype=np.int32)
-                vlabels_mf_processed_new[aligned_mask_mf] = vlabels_mf_processed
-                vlabels_mf_processed_more, _, aligned_mask_mf_more = extract_aligned_vlabels_results(vlabels_mf[~aligned_mask_mf], vlabels_mf_aligned_dic, None)  # 无需再 process, vlabels_mf_processed_more 的标签一定在 alabels_processed 中
+                vlabels_mf_aligned_new = np.zeros_like(vlabels_mf, dtype=np.int32)
+                vlabels_mf_aligned_new[aligned_mask_mf] = vlabels_mf_aligned
+                vlabels_mf_aligned_more, _, aligned_mask_mf_more = extract_aligned_vlabels_results(vlabels_mf[~aligned_mask_mf], vlabels_mf_aligned_dic, None)  # 无需再 process, vlabels_mf_processed_more 的标签一定在 alabels_processed 中
                 unaligned_indices_to_update = np.where(~aligned_mask_mf)[0][aligned_mask_mf_more]
-                vlabels_mf_processed_new[unaligned_indices_to_update] = vlabels_mf_processed_more
+                vlabels_mf_aligned_new[unaligned_indices_to_update] = vlabels_mf_aligned_more
                 aligned_mask_mf[unaligned_indices_to_update] = True
-                vlabels_mf_processed = copy.deepcopy(vlabels_mf_processed_new[aligned_mask_mf])
+                vlabels_mf_aligned = copy.deepcopy(vlabels_mf_aligned_new[aligned_mask_mf])
                 audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-            
-            if len(vlabels_mf_major_aligned_dic) > 0: # 选用major是为了保证vad的高质量。
-                print(f"[INFO] The major mid-frame visual clusters aligned to audio clusters according to face-speaker co-occurance are: {vlabels_mf_major_aligned_dic}.")
+
                 # 依据共现关系，补充对齐之前未能对齐的 vad 视觉簇，并与之前对齐的结果合并
-                vlabels_vad_processed_more, visual_times_vad_aligned_more, _ = extract_aligned_vlabels_results(vlabels_vad[~aligned_mask_vad], vlabels_mf_major_aligned_dic, visual_times_vad[~aligned_mask_vad]) # 无需再 process, vlabels_vad_processed_more 的标签一定在 alabels_processed 中
-                vlabels_vad_processed = np.concatenate((vlabels_vad_processed, vlabels_vad_processed_more))
+                vlabels_vad_aligned_more, visual_times_vad_aligned_more, _ = extract_aligned_vlabels_results(vlabels_vad[~aligned_mask_vad], vlabels_mf_aligned_dic, visual_times_vad[~aligned_mask_vad]) # 无需再 process, vlabels_vad_processed_more 的标签一定在 alabels_processed 中
+                vlabels_vad_aligned = np.concatenate((vlabels_vad_aligned, vlabels_vad_aligned_more))
                 visual_times_vad_aligned =  np.concatenate((visual_times_vad_aligned, visual_times_vad_aligned_more))
-            
+
+
+        ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
+        alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
+        vlabels_mf_processed_input = None
+        if 'mid_frame' in hmm_visual_info_type:
             ## 将经过两次对齐处理后，仍未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm只用完全对齐的部分sample）
             vlabels_mf_processed_all = np.zeros_like(vlabels_mf, dtype=np.int32)
             vlabels_mf_processed_all[aligned_mask_mf] = vlabels_mf_processed # of the same length as original vlabels_mf
@@ -1156,12 +1183,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
         vlabels_mf_potential_list = None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=8) # of the same length as vlabels_mf_processed
-            vlabels_mf_potential_list_top2 = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=4) # of the same length as vlabels_mf_processed
-            for i in range(len(vlabels_mf_processed_input)):
-                if vlabels_mf_processed_all[i] not in [-2, -3]:  # already aligned with audio
-                    # vlabels_mf_potential_list[i] = [vlabels_mf_processed_input[i]]  # only unaligned samples will make error
-                    vlabels_mf_potential_list[i] = vlabels_mf_potential_list_top2[i]
+            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=len(np.unique(vlabels_mf_processed_input))) # of the same length as vlabels_mf_processed
             del visual_embeddings_mf
             
             # Count occurrences of unique integers in vlabels_mf_potential_list
@@ -1318,23 +1340,31 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
 
         change_pos = np.where(vlabels_mf_processed_all <= -2)[0]
         print(f"Max number in selective change: {len(change_pos)}")
-        vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list, hard_matching_only=False)
-        # save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-        #                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
-        save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
-        vlabels_mf_corrected_selected = copy.deepcopy(vlabels_mf_processed_input)
-        vlabels_mf_corrected_selected[change_pos] = vlabels_mf_corrected[change_pos]
-        save_cluster_results_vision_mf(vlabels_mf_corrected_selected, audio_seg_ids_mf, face_idxs_mf,
-                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_selected_nested_hmm_full.json'))
-        
-        vlabels_mf_corrected_hard = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list, hard_matching_only=True)
-        save_cluster_results_vision_mf(vlabels_mf_corrected_hard, audio_seg_ids_mf, face_idxs_mf,
-                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_hard_nested_hmm_full.json'))
-        vlabels_mf_corrected_hard_selected = copy.deepcopy(vlabels_mf_processed_input)
-        vlabels_mf_corrected_hard_selected[change_pos] = vlabels_mf_corrected_hard[change_pos]
-        save_cluster_results_vision_mf(vlabels_mf_corrected_hard_selected, audio_seg_ids_mf, face_idxs_mf,
-                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_hard_selected_nested_hmm_full.json'))
+        os.makedirs(os.path.join(result_dir, 'mid_frame_face_labels_correction'), exist_ok=True)
+        assert np.all(np.array([len(sublist) for sublist in vlabels_mf_potential_list])==F_decode.shape[1]), f"Length of vlabels_mf_potential_list should be equal to number of states in F_decode(={F_decode.shape[1]})."
+        for potential_list_size_major in range(1, F_decode.shape[1]+1):
+            print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
+            for potential_list_size_minor in range(potential_list_size_major, F_decode.shape[1]+1):
+                print(f"[INFO] Try potential list size(minor) {potential_list_size_minor} for mid-frame face labels correction.")
+                vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
+                for i in range(len(vlabels_mf_potential_list_correct)):
+                    if vlabels_mf_processed_all[i] not in [-2, -3]:
+                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:potential_list_size_major]
+                    else:
+                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:potential_list_size_minor]
+
+                vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct, hard_matching_only=False)
+                # save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+                #                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
+                if potential_list_size_major==F_decode.shape[1] and potential_list_size_minor==F_decode.shape[1]:
+                    save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+                                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
+                save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+                                            os.path.join(result_dir, 'mid_frame_face_labels_correction', f'pseudo_labels_faces_mid_frame(major={potential_list_size_major}, minor={potential_list_size_minor})_nested_hmm_full.json'))
+                vlabels_mf_corrected_selected = copy.deepcopy(vlabels_mf_processed_input)
+                vlabels_mf_corrected_selected[change_pos] = vlabels_mf_corrected[change_pos]
+                save_cluster_results_vision_mf(vlabels_mf_corrected_selected, audio_seg_ids_mf, face_idxs_mf,
+                                            os.path.join(result_dir, 'mid_frame_face_labels_correction', f'pseudo_labels_faces_mid_frame(major={potential_list_size_major}, minor={potential_list_size_minor})_selected_nested_hmm_full.json'))
 
 def main():
     args = parser.parse_args()

@@ -157,12 +157,12 @@ def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align
         sim_matrix_sample = cosine_similarity(source_embeddings, target_centroids)
         for i in range(sim_matrix_sample.shape[0]):  # current source sample
             ## Get indices of top-k most similar target clusters for current source sample
-            top_k_indices = np.argsort(sim_matrix_sample[i])[-candi_align_cluster_num:]
+            top_k_indices = np.argsort(sim_matrix_sample[i])[::-1][:candi_align_cluster_num]    # descending order
             # Map indices back to target labels
-            top_k_labels = [reverse_target_label_map[idx] for idx in top_k_indices]
-            # Add current aligned label, then deduplicate
-            merged_labels = set(top_k_labels + [aligned_source_labels[i]])
-            candi_aligned_source_labels.append(list(merged_labels))
+            top_k_labels = [reverse_target_label_map[idx] for idx in top_k_indices] # each element is unque
+            # always keep the aligned label at first position
+            merged_labels = [aligned_source_labels[i]] + [label for label in top_k_labels if label != aligned_source_labels[i]]
+            candi_aligned_source_labels.append(merged_labels)
     else:
         candi_aligned_source_labels = [[aligned_source_labels[i]] for i in range(len(aligned_source_labels))]
 
