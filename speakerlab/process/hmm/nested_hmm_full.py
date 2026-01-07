@@ -362,8 +362,13 @@ class NestedHMM_full():
         log_likelihood = 0.0
         
         forward_time = 0.0
+        forward_basic_time, forward_sum_time, forward_logsumexp_time = 0.0, 0.0, 0.0
         backward_time = 0.0
+        backward_basic_time, backward_sum_time, backward_logsumexp_time = 0.0, 0.0, 0.0
         accumulate_time = 0.0
+        accumu_basic_time, accumu_sum_time = 0.0, 0.0
+        accumu_face_trans_time, accumu_speaker_trans_time = 0.0, 0.0
+        accumu_speaker_emis_time, accumu_face_emis_time = 0.0, 0.0
         
         start_idx = 0
         for length in lengths:
@@ -378,13 +383,19 @@ class NestedHMM_full():
 
             # 前向算法
             start_time = time.time()
-            fwd_lattice = self._do_forward_pass(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
+            fwd_lattice, forward_basic_time_seq, forward_sum_time_seq, forward_logsumexp_time_seq = self._do_forward_pass(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
             forward_time += time.time() - start_time
+            forward_basic_time += forward_basic_time_seq
+            forward_sum_time += forward_sum_time_seq
+            forward_logsumexp_time += forward_logsumexp_time_seq
             
             # 后向算法
             start_time = time.time()
-            bwd_lattice = self._do_backward_pass(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
+            bwd_lattice, backward_basic_time_seq, backward_sum_time_seq, backward_logsumexp_time_seq = self._do_backward_pass(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
             backward_time += time.time() - start_time
+            backward_basic_time += backward_basic_time_seq
+            backward_sum_time += backward_sum_time_seq
+            backward_logsumexp_time += backward_logsumexp_time_seq
             
             # 计算观测序列段的对数似然 $\bbP(\cI_i^{obs}\vert\btheta^{(s)})$
             # fwd_lattice 在dim=1上稀疏，仅计算潜在状态集合涉及的状态即可
@@ -393,9 +404,15 @@ class NestedHMM_full():
             
             # 更新累积统计量，实现对 i=1,...,m 的求和
             start_time = time.time()
-            stats_updated = self._accumulate_sufficient_statistics(
+            stats_updated, accumu_basic_time_seq, accumu_sum_time_seq, accumu_face_trans_time_seq, accumu_speaker_trans_time_seq, accumu_speaker_emis_time_seq, accumu_face_emis_time_seq = self._accumulate_sufficient_statistics(
                 stats, seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik)
             accumulate_time += time.time() - start_time
+            accumu_basic_time += accumu_basic_time_seq
+            accumu_sum_time += accumu_sum_time_seq
+            accumu_face_trans_time += accumu_face_trans_time_seq
+            accumu_speaker_trans_time += accumu_speaker_trans_time_seq
+            accumu_speaker_emis_time += accumu_speaker_emis_time_seq
+            accumu_face_emis_time += accumu_face_emis_time_seq
             stats = stats_updated
 
             start_idx = end_idx
@@ -403,8 +420,13 @@ class NestedHMM_full():
         stats['log_likelihood'] = log_likelihood
         
         print(f"前向算法总时间: {forward_time:.4f}秒")
+        print(f"前向算法基本计算时间: {forward_basic_time:.4f}秒; 前向算法求和时间: {forward_sum_time:.4f}秒; 前向算法logsumexp时间: {forward_logsumexp_time:.4f}秒")
         print(f"后向算法总时间: {backward_time:.4f}秒")
+        print(f"后向算法基本计算时间: {backward_basic_time:.4f}秒; 后向算法求和时间: {backward_sum_time:.4f}秒; 后向算法logsumexp时间: {backward_logsumexp_time:.4f}秒")
         print(f"累积统计量更新总时间: {accumulate_time:.4f}秒")
+        print(f"累积统计量基本计算时间: {accumu_basic_time:.4f}秒; 累积统计量求和时间: {accumu_sum_time:.4f}秒")
+        print(f"面部转移统计量累积时间: {accumu_face_trans_time:.4f}秒; 说话人转移统计量累积时间: {accumu_speaker_trans_time:.4f}秒")
+        print(f"面部发射统计量累积时间: {accumu_face_emis_time:.4f}秒; 说话人发射统计量累积时间: {accumu_speaker_emis_time:.4f}秒")
         
         return stats
 
@@ -422,6 +444,7 @@ class NestedHMM_full():
         
         # fwd_lattice[t, f, s] = log P(观测到t时刻, 面部配置f, 说话人s)
         fwd_lattice = np.full((n_samples, self.n_face_states, self.n_actors), -np.inf)
+        forward_basic_time, forward_sum_time, forward_logsumexp_time = 0.0, 0.0, 0.0
         
         # 初始时刻
         ## 计算初始时刻所有面部配置发生的概率
@@ -443,6 +466,7 @@ class NestedHMM_full():
             F_idxs_curr = F_potential_idxs[t]
             prev_fwd_lattice_filtered = fwd_lattice[t-1, F_idxs_prev, :] # shape (n_face_states_potential_prev, n_actors), corresponds to prev_face_config and prev_speaker
 
+            start_time = time.time()
             ## 计算 f 所有可能的转移组合的转移概率
             log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_prev, F_idxs_curr)
             log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化
@@ -452,18 +476,23 @@ class NestedHMM_full():
             ## 计算当前时刻所有可能隐藏状态对应的观测概率
             l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
             log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[t], S_hat_onehot[t], F_idxs_curr, l_config_t)
+            forward_basic_time += time.time() - start_time
 
+            start_time = time.time()
             ## 计算当前时刻所有可能的 (f, \varrho)对应的概率log_probs_arr (f_prev, s_prev, f_curr, s_curr)
             log_probs_arr_filtered = (prev_fwd_lattice_filtered[:, :, None, None] +
                                       log_trans_face_filtered[:, None, :, None] + 
                                       np.transpose(log_trans_speaker_filtered, (0, 2, 1))[None, :, :, :] + 
                                       log_face_emissions_filtered[None, None, :, None] + log_speaker_emissions[None, None, None, :])
+            forward_sum_time += time.time() - start_time
 
+            start_time = time.time()
             ## 对上一时刻的 (f', \varrho') 求和，更新前向概率
             ### 对于不在F_idxs_prev中的prev_f，prev_fwd_lattice中对应行全为 -np.inf，因此不考虑也不会影响结果
             fwd_lattice[t, F_idxs_curr, :] = logsumexp(log_probs_arr_filtered, axis=(0,1))
+            forward_logsumexp_time += time.time() - start_time
         
-        return fwd_lattice
+        return fwd_lattice, forward_basic_time, forward_sum_time, forward_logsumexp_time
 
     def _do_backward_pass(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
         """
@@ -479,6 +508,7 @@ class NestedHMM_full():
         
         # bwd_lattice[t, f, s] = log P(t+1时刻之后的观测 | t时刻面部配置f, 说话人s)
         bwd_lattice = np.full((n_samples, self.n_face_states, self.n_actors), -np.inf)
+        bwd_basic_time, bwd_sum_time, bwd_logsumexp_time = 0.0, 0.0, 0.0
         
         # 终止时刻
         bwd_lattice[-1, :, :] = 0.0
@@ -489,6 +519,7 @@ class NestedHMM_full():
             F_idxs_curr = F_potential_idxs[t]
             next_bwd_lattice_filtered = bwd_lattice[t+1, F_idxs_next, :] # shape (n_face_states_potential_next, n_actors), corresponds to next_face_config and next_speaker
 
+            start_time = time.time()
             ## 计算 f 所有可能的转移组合的转移概率
             log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_curr, F_idxs_next)
             log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化
@@ -498,16 +529,21 @@ class NestedHMM_full():
             ## 计算当前时刻所有可能隐藏状态对应的观测概率
             l_config_t1 = audio_dur_grps_onehot[t+1] if audio_dur_grps_onehot is not None else None
             log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[t+1], S_hat_onehot[t+1], F_idxs_next, l_config_t1)
+            bwd_basic_time += time.time() - start_time
 
+            start_time = time.time()
             ## 计算当前时刻所有可能的 (f, \varrho)对应的概率log_probs_arr (f_curr, s_curr, f_next, s_next)
             log_probs_arr_filtered = (next_bwd_lattice_filtered[None, None, :, :] +
                                       log_trans_face_filtered[:, None, :, None] +
                                       np.transpose(log_trans_speaker_filtered, (0, 2, 1))[None, :, :, :] +
                                       log_face_emissions_filtered[None, None, :, None] + log_speaker_emissions[None, None, None, :])
+            bwd_sum_time += time.time() - start_time
+            start_time = time.time()
             ## 对下一时刻的 (f', \varrho') 求和，更新后向概率
             bwd_lattice[t, F_idxs_curr, :] = logsumexp(log_probs_arr_filtered, axis=(2,3))
+            bwd_logsumexp_time += time.time() - start_time
         
-        return bwd_lattice
+        return bwd_lattice, bwd_basic_time, bwd_sum_time, bwd_logsumexp_time
 
     def _compute_face_initial_probs(self):
         """
@@ -609,9 +645,13 @@ class NestedHMM_full():
         """
         n_samples = len(S_hat_onehot)
         stats_updated = copy.deepcopy(stats)
+        accumu_basic_time, accumu_sum_time = 0.0, 0.0
+        accumu_face_trans_time, accumu_speaker_trans_time = 0.0, 0.0
+        accumu_speaker_emis_time, accumu_face_emis_time = 0.0, 0.0
         
         # 计算后验概率
         for t in range(n_samples):
+            start_time = time.time()
             F_idxs_prev = F_potential_idxs[t-1] if t > 0 else None
             F_idxs_curr = F_potential_idxs[t]
             F_idxs_curr_key = tuple(F_idxs_curr)    # have been sorted in candidate_sets2idxs()
@@ -619,6 +659,7 @@ class NestedHMM_full():
             log_gamma_filtered = fwd_lattice[t, F_idxs_curr] + bwd_lattice[t, F_idxs_curr] - seq_loglik
             gamma_filtered = np.exp(log_gamma_filtered)   # shape (n_face_states_potential, n_actors)
             gamma_faces_filtered = gamma_filtered.sum(axis=1)  # shape: (n_face_states_potential,)，提前对speaker求和，方便后续计算面部统计量
+            accumu_basic_time += time.time() - start_time
 
             # 将协变量从one-hot 转为 index
             active_x = self.X2index(X_onehot[t])        
@@ -633,6 +674,7 @@ class NestedHMM_full():
             
             # 累积转移统计量
             if t > 0:
+                start_time = time.time()
                 ## 计算 f 所有可能的转移组合的转移概率
                 log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_prev, F_idxs_curr)
                 log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化
@@ -641,13 +683,17 @@ class NestedHMM_full():
                 ## 计算对数转移后验概率 xi[t-1, f_prev, s_prev, f_curr, s_curr]
                 l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
                 log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[t], S_hat_onehot[t], F_idxs_curr, l_config_t)
+                accumu_basic_time += time.time() - start_time
 
+                start_time = time.time()
                 log_xi_arr_filtered = (fwd_lattice[t-1, F_idxs_prev, :][:, :, None, None] + log_trans_face_filtered[:, None, :, None] +
                               np.transpose(log_trans_speaker_filtered, (0, 2, 1))[None, :, :, :] +
                               log_face_emissions_filtered[None, None, :, None] + log_speaker_emissions[None, None, None, :] +
                               bwd_lattice[t, F_idxs_curr, :][None, None, :, :] - seq_loglik) 
                 xi_arr_filtered = np.exp(log_xi_arr_filtered) # 求和式中的每一项
+                accumu_sum_time += time.time() - start_time
 
+                start_time = time.time()
                 ## 计算面部转移统计量 $\bbE\left[\bbN(F_{\cdot,\cdot-1,\varrho}=\delta,F_{\cdot,\cdot,\varrho}=\delta' \vert \btheta^{(s)})\right]$
                 face_transition_weights_filtered = xi_arr_filtered.sum(axis=(1, 3))  # shape: (n_face_states_potential_prev, n_face_states_potential_curr)
                 if F_idxs_curr_key not in stats_updated['face_transition_counts']:
@@ -660,11 +706,15 @@ class NestedHMM_full():
                 face_transition_weights_filtered_new[[F_idxs_prev_new.index(k) for k in F_idxs_prev], :] += face_transition_weights_filtered
                 ### 更新字典
                 stats_updated['face_transition_counts'][F_idxs_curr_key] = [F_idxs_prev_new, face_transition_weights_filtered_new]
+                accumu_face_trans_time += time.time() - start_time
 
+                start_time = time.time()
                 ## 存储用于说话人转移概率优化的信息，[f_curr, s_prev, s_curr]
                 stats_updated['speaker_transition_counts'][F_idxs_curr, :, :, active_x] += np.transpose(xi_arr_filtered.sum(axis=0), (1, 0, 2))  # sum over prev_f_idx。# 未更新的行对应的条件概率都为0（因为F的转移概率稀疏）
+                accumu_speaker_trans_time += time.time() - start_time
 
             # 累积发射统计量
+            start_time = time.time()
             ## 说话人发射统计量
             speaker_obs = np.argmax(S_hat_onehot[t]) # 说话人期望计算式中的 $\varrho'$
             if self.n_audio_dur_grps is None:
@@ -674,7 +724,9 @@ class NestedHMM_full():
                 # 使用时长分组
                 l_class = np.argmax(audio_dur_grps_onehot[t])  # 时长分组索引
                 stats_updated['speaker_emission_counts'][l_class, :, speaker_obs] += gamma_filtered.sum(axis=0)
+            accumu_speaker_emis_time += time.time() - start_time
 
+            start_time = time.time()
             ## 面部发射统计量
             actor_idxs = np.arange(self.n_actors)
             face_states = np.array([0, 1])
@@ -682,13 +734,14 @@ class NestedHMM_full():
             mask = (face_configs_arr_curr[:, :, None] == face_states[None, None, :])    # (n_face_states_potential, n_actors, 2)
             face_emission_counts_delta = np.einsum('i,ijk->jk', gamma_faces_filtered, mask) # (n_actors, 2)
             stats_updated['face_emission_counts'][actor_idxs[:, None], face_states[None, :], F_hat[t, actor_idxs][:, None]] += face_emission_counts_delta   # update all stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] at once. actor \in [0, n_actors-1], face_state \in [0,1]
+            accumu_face_emis_time += time.time() - start_time
             # for actor in range(self.n_actors):  # 人脸期望式中的 $\varrho$
             #     for face_state in [0, 1]:  # 人脸期望式中的 $\delta$
             #         mask_filtered = (self.face_configs_arr[F_idxs_curr, actor] == face_state)
                     # assert np.isclose(face_emission_counts_delta[actor, face_state], gamma_faces_filtered[mask_filtered].sum()), f"Mismatch in face emission counts for actor {actor}, face_state {face_state}: {face_emission_counts_delta[actor, face_state]} vs {gamma_faces_filtered[mask_filtered].sum()}"
                     # stats_updated['face_emission_counts'][actor, face_state, F_hat[t, actor]] += gamma_faces_filtered[mask_filtered].sum()
 
-        return stats_updated
+        return stats_updated, accumu_basic_time, accumu_sum_time, accumu_face_trans_time, accumu_speaker_trans_time, accumu_speaker_emis_time, accumu_face_emis_time
 
     def _do_mstep(self, stats, B_S_diag_min, B_F_diag_min, lengths):
         """M步：更新参数"""
@@ -1231,6 +1284,7 @@ class NestedHMM_full():
         # 初始化输出数组
         face_states = np.zeros_like(F_hat, dtype=int)
         speaker_states = np.zeros(S_hat_onehot.shape[0], dtype=int)
+        predict_forward_basic_time, predict_forward_forloop_time, predict_backward_time = 0.0, 0.0, 0.0
         
         start_idx = 0
         for seq_len in lengths:
@@ -1244,7 +1298,10 @@ class NestedHMM_full():
             seq_audio_dur_grps_onehot = audio_dur_grps_onehot[start_idx:end_idx] if audio_dur_grps_onehot is not None else None
 
             # 使用维特比算法预测
-            seq_face_states, seq_speaker_states = self._viterbi(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
+            seq_face_states, seq_speaker_states, seq_predict_forward_basic_time, seq_predict_forward_forloop_time, seq_predict_backward_time = self._viterbi(seq_S_hat_onehot, seq_F_hat, seq_X_onehot, seq_F_potential_idxs, seq_audio_dur_grps_onehot)
+            predict_forward_basic_time += seq_predict_forward_basic_time
+            predict_forward_forloop_time += seq_predict_forward_forloop_time
+            predict_backward_time += seq_predict_backward_time
             
             # 存储结果
             face_states[start_idx:end_idx] = seq_face_states
@@ -1252,6 +1309,7 @@ class NestedHMM_full():
             
             start_idx = end_idx
             
+        print(f"Viterbi prediction times: forward basic {predict_forward_basic_time:.4f}s, forward for-loop {predict_forward_forloop_time:.4f}s, backward {predict_backward_time:.4f}s")
         return face_states, speaker_states
 
     def _viterbi(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
@@ -1279,6 +1337,7 @@ class NestedHMM_full():
             预测的说话人状态序列
         """
         n_frames = S_hat_onehot.shape[0]
+        predict_forward_basic_time, predict_forward_forloop_time, predict_backward_time = 0.0, 0.0, 0.0
         
         # 初始化维特比表格 $\delta_{t}(f,s)$ 与回溯路径 $\psi_{t}(f,s)$
         ## $\delta_{t}(f,s)$: 在时刻t，面部配置f，说话人s的最大概率的对数
@@ -1305,6 +1364,7 @@ class NestedHMM_full():
         for t in range(1, n_frames):
             F_idxs_prev = F_potential_idxs[t-1]
             F_idxs_curr = F_potential_idxs[t]
+            start_time = time.time()
             ## 计算 f 所有可能的转移组合的转移概率
             log_trans_face_filtered = self._compute_face_transition_probs(F_idxs_prev, F_idxs_curr)
             log_trans_face_filtered = log_trans_face_filtered - logsumexp(log_trans_face_filtered, axis=1)[:, None]  # 归一化
@@ -1314,7 +1374,9 @@ class NestedHMM_full():
             ## 计算当前时刻每个隐藏状态对应的观测概率P(F_hat_t | F_t)*P(S_hat_t | S_t)
             l_config_t = audio_dur_grps_onehot[t] if audio_dur_grps_onehot is not None else None
             log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs(F_hat[t], S_hat_onehot[t], F_idxs_curr, l_config_t)
+            predict_forward_basic_time += time.time() - start_time
 
+            start_time = time.time()
             # 计算每个当前状态对应的 $\delta_{t}(f,s)$
             prev_viterbi = viterbi[t-1, F_idxs_prev, :]  # (f_prev, s_prev)         
             for i, f_idx in enumerate(F_idxs_curr):
@@ -1331,12 +1393,13 @@ class NestedHMM_full():
                 ## 确定 $\psi_{t}(f,s)$
                 path_face[t, f_idx, :] = np.array([F_idxs_prev[idx] for idx in best_prev_f_idx])  # 映射回原始索引
                 path_speaker[t, f_idx, :] = best_prev_s
-
+            predict_forward_forloop_time += time.time() - start_time
         # 找到最优路径的结束状态 $i_T^\ast$: best_end_f, best_end_s
         last_viterbi = viterbi[n_frames-1, :, :]  # shape (n_face_states, n_actors)
         best_end_flat = np.argmax(last_viterbi)
         best_end_f, best_end_s = np.unravel_index(best_end_flat, last_viterbi.shape)
         
+        start_time = time.time()
         # 回溯最优路径
         face_states = np.zeros((n_frames, self.n_actors), dtype=int)
         speaker_states = np.zeros(n_frames, dtype=int)
@@ -1353,5 +1416,6 @@ class NestedHMM_full():
                 prev_s = path_speaker[t, curr_f, curr_s]
                 curr_f = prev_f
                 curr_s = prev_s
-        
-        return face_states, speaker_states
+        predict_backward_time += time.time() - start_time
+
+        return face_states, speaker_states, predict_forward_basic_time, predict_forward_forloop_time, predict_backward_time
