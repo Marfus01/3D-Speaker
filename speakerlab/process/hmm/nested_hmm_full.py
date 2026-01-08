@@ -729,7 +729,18 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    B_F_diag_max = 0.99
+                    
+                    if actor < self.n_actors -1: # main actors
+                        if state == 0:
+                            B_F_diag_max = 0.99
+                        else:
+                            B_F_diag_max = 0.85
+                    else:
+                        if state == 0:
+                            B_F_diag_max = 0.85
+                        else:
+                            B_F_diag_max = 0.90
+
                     if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
                         B_F_diag_max_flag = True
                         self.B_F_[actor, state, state] = B_F_diag_max
@@ -738,7 +749,7 @@ class NestedHMM_full():
                     # self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
                     self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
             if B_F_diag_max_flag:
-                print(f"Warning: Some face emission probabilities exceeded the maximum diagonal limit={B_F_diag_max} and were adjusted accordingly.")
+                print(f"Warning: Some face emission probabilities exceeded the maximum diagonal limit and were adjusted accordingly.")
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:

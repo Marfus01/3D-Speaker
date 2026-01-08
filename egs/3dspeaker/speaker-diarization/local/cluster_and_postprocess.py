@@ -1327,22 +1327,23 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         change_pos = np.where(vlabels_mf_processed_all <= -2)[0]
         print(f"Max number in selective change: {len(change_pos)}")
         os.makedirs(os.path.join(result_dir, 'mid_frame_face_labels_correction'), exist_ok=True)
-        assert np.all(np.array([len(sublist) for sublist in vlabels_mf_potential_list])==F_decode.shape[1]), f"Length of vlabels_mf_potential_list should be equal to number of states in F_decode(={F_decode.shape[1]})."
-        for potential_list_size_major in range(1, F_decode.shape[1]+1):
+        potential_list_size_max = max([len(sublist) for sublist in vlabels_mf_potential_list])
+        for potential_list_size_major in range(1, potential_list_size_max+1):
             print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
-            for potential_list_size_minor in range(potential_list_size_major, F_decode.shape[1]+1):
+            for potential_list_size_minor in range(potential_list_size_major, potential_list_size_max+1):
                 print(f"[INFO] Try potential list size(minor) {potential_list_size_minor} for mid-frame face labels correction.")
                 vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
                 for i in range(len(vlabels_mf_potential_list_correct)):
+                    list_size = len(vlabels_mf_potential_list_correct[i])
                     if vlabels_mf_processed_all[i] not in [-2, -3]:
-                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:potential_list_size_major]
+                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:min(list_size, potential_list_size_major)]
                     else:
-                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:potential_list_size_minor]
+                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:min(list_size, potential_list_size_minor)]
 
                 vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct, hard_matching_only=False)
                 # save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
                 #                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
-                if potential_list_size_major==F_decode.shape[1] and potential_list_size_minor==F_decode.shape[1]:
+                if potential_list_size_major==potential_list_size_max and potential_list_size_minor==potential_list_size_max:
                     save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
                                                 os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
                 save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
