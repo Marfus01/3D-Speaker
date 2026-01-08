@@ -5,7 +5,6 @@ import argparse
 import numpy as np
 import pandas as pd
 from acc_utils import *
-from sklearn.metrics import confusion_matrix
 
 def main(args):
     os.makedirs(args.result_dir, exist_ok=True)
@@ -121,17 +120,6 @@ def main(args):
             if idx:
                 acc = cal_accuracy_onehot(face_labels_onehot[idx], cluster_pred[idx])
                 results[f'group_{i}_accuracy'] = acc
-        # 7.1 绘制混淆矩阵
-        if "mid_frame_processed_all" in os.path.basename(json_file):
-            # Compute confusion matrix
-            cm = confusion_matrix(np.argmax(face_labels_onehot, axis=1), np.argmax(cluster_pred, axis=1))
-            # Save the confusion matrix to a file
-            cm_filename = os.path.join(args.result_dir, "confusion_matrix.txt")
-            with open(cm_filename, 'w') as f:
-                for row in cm:
-                    f.write(' '.join(map(str, row)) + '\n')
-            print("Confusion matrix saved to", cm_filename)
-        
         # 7.2 按真实人脸计算 accuracy
         name2idx_sorted = sorted(name2idx.items(), key=lambda x:  face_labels_onehot[:, x[1]].sum(), reverse=True)  # 按说话人出现次数排序
         for name, idx in name2idx_sorted:
