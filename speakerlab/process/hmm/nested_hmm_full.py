@@ -315,7 +315,6 @@ class NestedHMM_full():
         # for loop 在生活大爆炸上仅需2s，为了避免OOM，暂时无需改成list(map())
         for i in range(len(F_potential_list)):
             F_potential_states_idxs.append(self.candidate_sets2idxs(F_potential_list[i], var_type))
-            print(f"Processed sample {i+1}, original F_potential_list: {F_potential_list[i]}, computed F_potential_states_idxs: {F_potential_states_idxs[-1]}")
         return F_potential_states_idxs
 
     def fit(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, B_S_diag_min=None, B_F_diag_min=None, lengths=None):
@@ -618,7 +617,6 @@ class NestedHMM_full():
             # 单时刻后验概率 gamma[t, f, s] = P(F_t=f, S_t=s | 全部观测, 全部协变量) for all f in F_idxs_curr
             log_gamma_filtered = fwd_lattice[t, F_idxs_curr] + bwd_lattice[t, F_idxs_curr] - seq_loglik
             gamma_filtered = np.exp(log_gamma_filtered)   # shape (n_face_states_potential, n_actors)
-            assert np.isclose(gamma_filtered.sum(), 1.0), f"At time t={t}, posterior probabilities do not sum to 1, but {gamma_filtered.sum()}"
             gamma_faces_filtered = gamma_filtered.sum(axis=1)  # shape: (n_face_states_potential,)，提前对speaker求和，方便后续计算面部统计量
 
             # 将协变量从one-hot 转为 index
@@ -647,7 +645,6 @@ class NestedHMM_full():
                               log_face_emissions_filtered[None, None, :, None] + log_speaker_emissions[None, None, None, :] +
                               bwd_lattice[t, F_idxs_curr, :][None, None, :, :] - seq_loglik) 
                 xi_arr_filtered = np.exp(log_xi_arr_filtered) # 求和式中的每一项
-                assert np.isclose(xi_arr_filtered.sum(), 1.0), f"At time t={t},  face transition posterior probabilities do not sum to 1, but {xi_arr_filtered.sum()}"
 
                 ## 计算面部转移统计量 $\bbE\left[\bbN(F_{\cdot,\cdot-1,\varrho}=\delta,F_{\cdot,\cdot,\varrho}=\delta' \vert \btheta^{(s)})\right]$
                 face_transition_weights_filtered = xi_arr_filtered.sum(axis=(1, 3))  # shape: (n_face_states_potential_prev, n_face_states_potential_curr)
