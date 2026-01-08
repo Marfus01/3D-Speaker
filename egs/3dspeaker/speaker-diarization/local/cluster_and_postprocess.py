@@ -435,24 +435,7 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
     uniq_a_count = {aid: np.sum(alabels == aid) for aid in uniq_a}
     # Sort alabels by count (descending), then by audio cluster id value (ascending)
     sorted_uniq_a = sorted(uniq_a_count.keys(), key=lambda x: (-uniq_a_count[x], x))
-    if vlabels_mf_aligned is not None:
-        # Count occurrences of each unique vlabel_mf(id already aligned to audio)
-        uniq_mf, uniq_mf_count_arr = np.unique(vlabels_mf_aligned, return_counts=True)
-        uniq_mf_count = {mid: cnt for mid, cnt in zip(uniq_mf, uniq_mf_count_arr) if mid>=0}
-        # Sort mf clusters by count (descending), then by id (ascending)
-        sorted_uniq_mf = sorted(uniq_mf_count.keys(), key=lambda x: (-uniq_mf_count[x], x))
-        print(f"Audio clusters sorted by size: {sorted_uniq_a}")
-        print(f"Mid-frame clusters sorted by size: {sorted_uniq_mf}")
-
-        # gradually increase k and take intersection of top-k from audio & mf lists
-        for k in range(main_actors_num, max(len(sorted_uniq_a), len(sorted_uniq_mf)) + 1):
-            top_a_k, top_m_k = set(sorted_uniq_a[:min(k, len(sorted_uniq_a))]), set(sorted_uniq_mf[:min(k, len(sorted_uniq_mf))])
-            print(f"Top-{k} audio clusters: {top_a_k}, Top-{k} mid-frame clusters: {top_m_k}, Intersection: {top_a_k & top_m_k}")
-            if len(top_a_k & top_m_k) >= max(main_actors_num, 7): # may include more than main_actors_num clusters
-                top_clusters = list(top_a_k & top_m_k)
-                break
-    else:
-        top_clusters = sorted_uniq_a[:min(2 * main_actors_num, len(sorted_uniq_a), 12)]
+    top_clusters = sorted_uniq_a[:min(2 + main_actors_num, len(sorted_uniq_a), 12)]
 
     # initialize new labels
     new_alabels = np.full(len(alabels), -1, dtype=int)
@@ -771,10 +754,13 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
         ## Get all potential labels for current audio segment
         potential_states_all = [item for sublist in vlabels_mf_potential_list_selected for item in sublist]
         ## Count occurrences of main actor labels appearing in appearing_face_states(ensure that each observed actor links to one face crop only)
-        all_appear_once_main = all(potential_states_all.count(label) == 1 for label in (set(appearing_face_states)-set([n_states - 1])))
+        appearing_face_states_mainset = set(appearing_face_states)-set([n_states - 1])
+        all_appear_once_main = all(potential_states_all.count(label) == 1 for label in appearing_face_states_mainset)
         ## Check whether each observed face crop has at least one label in appearing_face_states
         match_condition = all(any(label in appearing_face_states for label in sublist) for sublist in vlabels_mf_potential_list_selected)
-        if all_appear_once_main and match_condition:
+        ## Check whether all appearing_face_states are covered by potential labels
+        match_condition2= sum([any(label in appearing_face_states_mainset for label in sublist) for sublist in vlabels_mf_potential_list_selected]) == len(appearing_face_states_mainset)
+        if all_appear_once_main and match_condition and match_condition2:
             print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels by hard matching based on decoding results.")
             print(F_hat[audio_idx, :])
             print(F_decode[audio_idx, :])
