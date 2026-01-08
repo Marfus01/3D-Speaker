@@ -428,7 +428,7 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
     assert all(label >= 0 for label in set(uniq_a)), "alabels contains negative labels."
     assert set(uniq_v).issubset(set(uniq_a)), "vlabels_aligned contains labels not present in alabels: {}".format(set(uniq_v) - set(uniq_a))
     if vlabels_mf_aligned is not None:
-        assert all(label <0 or label in uniq_v for label in set(vlabels_mf_aligned)), "vlabels_mf_aligned contains labels not present in vlabels_vad_aligned: {}".format(set(vlabels_mf_aligned) - set(uniq_v) - set(label for label in set(vlabels_mf_aligned) if label <0))
+        assert all(label <0 or label in uniq_a for label in set(vlabels_mf_aligned)), "vlabels_mf_aligned contains labels not present in alabels: {}".format(set(vlabels_mf_aligned) - set(uniq_a) - set(label for label in set(vlabels_mf_aligned) if label <0))
         assert -1 not in set(vlabels_mf_aligned), "vlabels_mf_aligned contains -1 label."
 
     # Count occurrences of each unique alabel
@@ -448,7 +448,7 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
         for k in range(main_actors_num, max(len(sorted_uniq_a), len(sorted_uniq_mf)) + 1):
             top_a_k, top_m_k = set(sorted_uniq_a[:min(k, len(sorted_uniq_a))]), set(sorted_uniq_mf[:min(k, len(sorted_uniq_mf))])
             print(f"Top-{k} audio clusters: {top_a_k}, Top-{k} mid-frame clusters: {top_m_k}, Intersection: {top_a_k & top_m_k}")
-            if len(top_a_k & top_m_k) == main_actors_num:
+            if len(top_a_k & top_m_k) >= max(main_actors_num, 7): # may include more than main_actors_num clusters
                 top_clusters = list(top_a_k & top_m_k)
                 break
     else:
@@ -1132,7 +1132,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             uniq_a, uniq_a_counts = np.unique(copy.deepcopy(alabels), return_counts=True)
             main_speakers = uniq_a[np.argsort(-uniq_a_counts)[:min(2 *  config.main_actors_num, len(uniq_a_counts), 12)]]  # top main_actors_num audio clusters
             alabels_temp = np.where(np.isin(copy.deepcopy(alabels), main_speakers), copy.deepcopy(alabels), -1)  # only keep main speaker labels, others set to -1
-            vlabels_mf_aligned_dic, _ = get_mf2audio_align_dic(audio_seg_ids, alabels_temp, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf)
+            vlabels_mf_aligned_dic, vlabels_mf_major_aligned_dic = get_mf2audio_align_dic(audio_seg_ids, alabels_temp, audio_seg_ids_mf, vlabels_mf, aligned_mask_mf)
             if len(vlabels_mf_aligned_dic) > 0:
                 print(f"[INFO] The mid-frame visual clusters aligned to audio clusters according to face-speaker co-occurance are: {vlabels_mf_aligned_dic}.")
                 # 依据共现关系，补充对齐之前未能对齐的 mid-frame 视觉簇，并与之前对齐的结果合并
@@ -1144,9 +1144,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                 aligned_mask_mf[unaligned_indices_to_update] = True
                 vlabels_mf_aligned = copy.deepcopy(vlabels_mf_aligned_new[aligned_mask_mf])
                 audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-
+            if len(vlabels_mf_major_aligned_dic) > 0: # 选用major是为了保证vad的高质量。
                 # 依据共现关系，补充对齐之前未能对齐的 vad 视觉簇，并与之前对齐的结果合并
-                vlabels_vad_aligned_more, visual_times_vad_aligned_more, _ = extract_aligned_vlabels_results(vlabels_vad[~aligned_mask_vad], vlabels_mf_aligned_dic, visual_times_vad[~aligned_mask_vad]) # 无需再 process, vlabels_vad_processed_more 的标签一定在 alabels_processed 中
+                vlabels_vad_aligned_more, visual_times_vad_aligned_more, _ = extract_aligned_vlabels_results(vlabels_vad[~aligned_mask_vad], vlabels_mf_major_aligned_dic, visual_times_vad[~aligned_mask_vad]) # 无需再 process, vlabels_vad_processed_more 的标签一定在 alabels_processed 中
                 vlabels_vad_aligned = np.concatenate((vlabels_vad_aligned, vlabels_vad_aligned_more))
                 visual_times_vad_aligned =  np.concatenate((visual_times_vad_aligned, visual_times_vad_aligned_more))
 
