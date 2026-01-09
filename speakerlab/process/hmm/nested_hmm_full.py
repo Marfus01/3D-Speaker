@@ -6,6 +6,14 @@ from sklearn.utils import check_random_state
 from concurrent.futures import ProcessPoolExecutor
 from .monitor import ConvergenceMonitor
 
+# GPU support
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+
 
 class NestedHMM_full():
     """
@@ -30,7 +38,7 @@ class NestedHMM_full():
     """
     
     def __init__(self, n_actors, n_iter=100, tol=1e-2, verbose=False,
-                 params="abcdefghij", n_audio_dur_grps=None, random_state=None):
+                 params="abcdefghij", n_audio_dur_grps=None, random_state=None, use_gpu=True):
         self.n_actors = n_actors    # 演员数量
         self.n_face_states = 2 ** n_actors  # 面部状态数量 (每个演员有2个状态)
         self.n_iter = n_iter    # 最大迭代次数
@@ -42,11 +50,30 @@ class NestedHMM_full():
             if 'l' not in self.params:
                 self.params += 'l'
         self.random_state = random_state
+        
+        # GPU配置
+        self.use_gpu = use_gpu and TORCH_AVAILABLE
+        if self.use_gpu:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            if self.device.type == 'cpu':
+                print("Warning: GPU requested but not available. Using CPU.")
+                self.use_gpu = False
+            else:
+                print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            self.device = None
+            if use_gpu and not TORCH_AVAILABLE:
+                print("Warning: GPU requested but torch not available. Using CPU.")
 
         # 添加缓存变量，避免反复计算
         ## 所有可能的面部配置和协变量配置
         self.face_configs_arr = np.array(self._enumerate_face_configs()) # shape (n_face_states, n_actors)。每行对应 row_index 在self.n_actors位下的二进制表示
         self.X_arr = np.vstack([np.eye(self.n_actors), np.zeros((1, self.n_actors))])  # shape (n_actors+1, n_actors), 每行表示一个one-hot编码的协变量配置或全零配置
+
+        # GPU缓存
+        if self.use_gpu:
+            self.face_configs_arr_gpu = torch.tensor(self.face_configs_arr, dtype=torch.float32, device=self.device)
+            self.X_arr_gpu = torch.tensor(self.X_arr, dtype=torch.float32, device=self.device)
 
         # 创建监控器
         self.monitor_ = ConvergenceMonitor(tol, n_iter, verbose)
@@ -187,6 +214,62 @@ class NestedHMM_full():
             assert self.n_audio_dur_grps is not None, "n_audio_dur_grps must be specified when 'l' is in params."
             self.iota_ = random_state.uniform(0, 1, self.n_audio_dur_grps)
             self.iota_ -= self.iota_[0]  # 固定第一个分组的logit为0，作为基准
+
+    def _move_params_gpu2cpu(self):
+        """将GPU上的参数同步回CPU"""
+        if not self.use_gpu:
+            return
+        
+        if 'a' in self.params:
+            self.alpha_ = self.alpha_.cpu().numpy()
+        if 'b' in self.params:
+            self.A_F_ = self.A_F_.cpu().numpy()
+        if 'c' in self.params:
+            self.beta_ = self.beta_.cpu().numpy()
+        if 'd' in self.params:
+            self.gamma1_ = self.gamma1_.cpu().numpy()
+        if 'e' in self.params:
+            self.A_S_ = self.A_S_.cpu().numpy()
+        if 'f' in self.params:
+            self.gamma2_ = self.gamma2_.cpu().numpy()
+        if 'g' in self.params:
+            self.B_F_ = self.B_F_.cpu().numpy()
+        if 'h' in self.params:
+            self.B_S_ = self.B_S_.cpu().numpy()
+        if 'i' in self.params:
+            self.eta1_ = self.eta1_.cpu().numpy()
+        if 'j' in self.params:
+            self.eta2_ = self.eta2_.cpu().numpy()
+        if 'l' in self.params:
+            self.iota_ = self.iota_.cpu().numpy()
+
+    def _move_params_cpu2gpu(self):
+        """将CPU上的参数同步到GPU"""
+        if not self.use_gpu:
+            return
+        
+        if 'a' in self.params:
+            self.alpha_ = torch.tensor(self.alpha_, dtype=torch.float32, device=self.device)
+        if 'b' in self.params:
+            self.A_F_ = torch.tensor(self.A_F_, dtype=torch.float32, device=self.device)
+        if 'c' in self.params:
+            self.beta_ = torch.tensor(self.beta_, dtype=torch.float32, device=self.device)
+        if 'd' in self.params:
+            self.gamma1_ = torch.tensor(self.gamma1_, dtype=torch.float32, device=self.device)
+        if 'e' in self.params:
+            self.A_S_ = torch.tensor(self.A_S_, dtype=torch.float32, device=self.device)
+        if 'f' in self.params:
+            self.gamma2_ = torch.tensor(self.gamma2_, dtype=torch.float32, device=self.device)
+        if 'g' in self.params:
+            self.B_F_ = torch.tensor(self.B_F_, dtype=torch.float32, device=self.device)
+        if 'h' in self.params:
+            self.B_S_ = torch.tensor(self.B_S_, dtype=torch.float32, device=self.device)
+        if 'i' in self.params:
+            self.eta1_ = torch.tensor(self.eta1_, dtype=torch.float32, device=self.device)
+        if 'j' in self.params:
+            self.eta2_ = torch.tensor(self.eta2_, dtype=torch.float32, device=self.device)
+        if 'l' in self.params:
+            self.iota_ = torch.tensor(self.iota_, dtype=torch.float32, device=self.device)
 
     def save_params(self, path):
         """
@@ -418,6 +501,15 @@ class NestedHMM_full():
             - audio_dur_grps_onehot: 语音时长分组，形状 (n_samples, n_audio_dur_grps)，one-hot编码，可为None
             - return: fwd_lattice, 形状 (n_samples, n_face_states, n_actors), (t, f_idx, s) 表示时刻t面部配置为f_idx，说话人为s的对数概率 $ \log (\bbU_{i,t}(f,\varrho))$
         """
+        if self.use_gpu:
+            return self._do_forward_pass_gpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+        else:
+            return self._do_forward_pass_cpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+    
+    def _do_forward_pass_cpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        前向算法计算前向概率的对数 (CPU版本)
+        """
         n_samples = len(S_hat_onehot)
         
         # fwd_lattice[t, f, s] = log P(观测到t时刻, 面部配置f, 说话人s)
@@ -464,6 +556,72 @@ class NestedHMM_full():
         
         return fwd_lattice
 
+    def _do_forward_pass_gpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        前向算法计算前向概率的对数 (GPU加速版本)
+        """
+        n_samples = len(S_hat_onehot)
+        
+        # 将数据转移到GPU
+        self._move_params_cpu2gpu()
+        S_hat_gpu = torch.tensor(S_hat_onehot, dtype=torch.float32, device=self.device)
+        F_hat_gpu = torch.tensor(F_hat, dtype=torch.float32, device=self.device)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_gpu = torch.tensor(audio_dur_grps_onehot, dtype=torch.float32, device=self.device)
+        else:
+            audio_dur_grps_gpu = None
+        
+        # fwd_lattice[t, f, s] = log P(观测到t时刻, 面部配置f, 说话人s)
+        fwd_lattice = torch.full((n_samples, self.n_face_states, self.n_actors), float('-inf'), dtype=torch.float32, device=self.device)
+        
+        # 初始时刻
+        ## 计算初始时刻所有面部配置发生的概率
+        F_idxs_init = F_potential_idxs[0]
+        log_face_probs = self._compute_face_initial_probs_gpu()
+        log_face_probs_filtered = log_face_probs[F_idxs_init]
+        log_face_probs_filtered = log_face_probs_filtered - torch.logsumexp(log_face_probs_filtered, dim=0)
+        ## 计算初始时刻所有说话人发生的概率
+        active_x = self.X2index(X_onehot[0])
+        log_speaker_probs_filtered = self._compute_speaker_initial_probs_gpu(F_idxs_init, active_x)
+        ## 计算初始时刻所有可能隐藏状态对应的观测概率
+        l_config_0 = audio_dur_grps_gpu[0] if audio_dur_grps_gpu is not None else None
+        log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+            F_hat_gpu[0], S_hat_gpu[0], F_idxs_init, l_config_0)
+        fwd_lattice[0, F_idxs_init, :] = (log_face_probs_filtered.unsqueeze(1) + 
+                                          log_speaker_probs_filtered + 
+                                          log_face_emissions_filtered.unsqueeze(1) + 
+                                          log_speaker_emissions.unsqueeze(0))
+        
+        # 递推
+        for t in range(1, n_samples):
+            F_idxs_prev = F_potential_idxs[t-1]
+            F_idxs_curr = F_potential_idxs[t]
+            prev_fwd_lattice_filtered = fwd_lattice[t-1, F_idxs_prev, :]
+            
+            ## 计算 f 所有可能的转移组合的转移概率
+            log_trans_face_filtered = self._compute_face_transition_probs_gpu(F_idxs_prev, F_idxs_curr)
+            active_x = self.X2index(X_onehot[t])
+            log_trans_speaker_filtered = self._compute_speaker_transition_probs_gpu(F_idxs_curr, active_x)
+            ## 计算当前时刻所有可能隐藏状态对应的观测概率
+            l_config_t = audio_dur_grps_gpu[t] if audio_dur_grps_gpu is not None else None
+            log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+                F_hat_gpu[t], S_hat_gpu[t], F_idxs_curr, l_config_t)
+            
+            ## 计算当前时刻所有可能的 (f, \varrho)对应的概率log_probs_arr (f_prev, s_prev, f_curr, s_curr)
+            log_probs_arr_filtered = (prev_fwd_lattice_filtered.unsqueeze(2).unsqueeze(3) +
+                                      log_trans_face_filtered.unsqueeze(1).unsqueeze(3) +
+                                      log_trans_speaker_filtered.permute(0, 2, 1).unsqueeze(0) +
+                                      log_face_emissions_filtered.unsqueeze(0).unsqueeze(1).unsqueeze(3) +
+                                      log_speaker_emissions.unsqueeze(0).unsqueeze(1).unsqueeze(2))
+            
+            # 使用logsumexp求和
+            fwd_lattice[t, F_idxs_curr, :] = torch.logsumexp(log_probs_arr_filtered, dim=(0, 1))
+        
+        # 转回CPU
+        self._move_params_gpu2cpu()
+        torch.cuda.empty_cache()
+        return fwd_lattice.cpu().numpy()
+
     def _do_backward_pass(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
         """
         后向算法计算后向概率的对数
@@ -473,6 +631,15 @@ class NestedHMM_full():
             - F_potential_idxs: 面部观测的候选状态集合索引列表，长度为 n_samples，每个元素是一个列表，记载该样本的所有候选状态索引
             - audio_dur_grps_onehot: 语音时长分组，形状 (n_samples, n_audio_dur_grps)，one-hot编码，可为None
             - return: bwd_lattice, 形状 (n_samples, n_face_states, n_actors), (t, f_idx, s) 表示时刻t面部配置为f_idx，说话人为s的对数概率 $ \log (\bbV_{i,t}(f,\varrho))$
+        """
+        if self.use_gpu:
+            return self._do_backward_pass_gpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+        else:
+            return self._do_backward_pass_cpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+    
+    def _do_backward_pass_cpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        后向算法计算后向概率的对数 (CPU版本)
         """
         n_samples = len(S_hat_onehot)
         
@@ -506,6 +673,55 @@ class NestedHMM_full():
             bwd_lattice[t, F_idxs_curr, :] = logsumexp(log_probs_arr_filtered, axis=(2,3))
         
         return bwd_lattice
+
+    def _do_backward_pass_gpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        后向算法计算后向概率的对数 (GPU加速版本)
+        """
+        n_samples = len(S_hat_onehot)
+        
+        # 将数据转移到GPU
+        self._move_params_cpu2gpu()
+        S_hat_gpu = torch.tensor(S_hat_onehot, dtype=torch.float32, device=self.device)
+        F_hat_gpu = torch.tensor(F_hat, dtype=torch.float32, device=self.device)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_gpu = torch.tensor(audio_dur_grps_onehot, dtype=torch.float32, device=self.device)
+        else:
+            audio_dur_grps_gpu = None
+        
+        # bwd_lattice[t, f, s] = log P(t+1时刻之后的观测 | t时刻面部配置f, 说话人s)
+        bwd_lattice = torch.full((n_samples, self.n_face_states, self.n_actors), float('-inf'), device=self.device)
+
+        # 终止时刻
+        bwd_lattice[-1, :, :] = 0.0
+        
+        # 反向递推
+        for t in range(n_samples - 2, -1, -1):
+            F_idxs_next = F_potential_idxs[t+1]
+            F_idxs_curr = F_potential_idxs[t]
+            next_bwd_lattice_filtered = bwd_lattice[t+1, F_idxs_next, :]
+            
+            ## 计算 f 所有可能的转移组合的转移概率
+            log_trans_face_filtered = self._compute_face_transition_probs_gpu(F_idxs_curr, F_idxs_next)
+            active_x = self.X2index(X_onehot[t+1])
+            log_trans_speaker_filtered = self._compute_speaker_transition_probs_gpu(F_idxs_next, active_x)
+            ## 计算当前时刻所有可能隐藏状态对应的观测概率
+            l_config_t1 = audio_dur_grps_gpu[t+1] if audio_dur_grps_gpu is not None else None
+            log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+                F_hat_gpu[t+1], S_hat_gpu[t+1], F_idxs_next, l_config_t1)
+            
+            ## 计算当前时刻所有可能的 (f, \varrho)对应的概率log_probs_arr (f_curr, s_curr, f_next, s_next)
+            log_probs_arr_filtered = (next_bwd_lattice_filtered.unsqueeze(0).unsqueeze(1) +
+                                      log_trans_face_filtered.unsqueeze(1).unsqueeze(3) +
+                                      log_trans_speaker_filtered.permute(0, 2, 1).unsqueeze(0) +
+                                      log_face_emissions_filtered.unsqueeze(0).unsqueeze(1).unsqueeze(3) +
+                                      log_speaker_emissions.unsqueeze(0).unsqueeze(1).unsqueeze(2))
+            ## 对下一时刻的 (f', \varrho') 求和，更新后向概率
+            bwd_lattice[t, F_idxs_curr, :] = torch.logsumexp(log_probs_arr_filtered, dim=(2, 3))
+        
+        self._move_params_gpu2cpu()
+        torch.cuda.empty_cache()
+        return bwd_lattice.cpu().numpy()
 
     def _compute_face_initial_probs(self):
         """
@@ -582,6 +798,73 @@ class NestedHMM_full():
         
         return log_face_emissions, log_speaker_emissions
 
+    # GPU加速版本的helper函数
+    def _compute_face_initial_probs_gpu(self):
+        """
+        计算所有面部配置的初始概率 (GPU版本)
+        """
+        log_probs_factors = (torch.log(self.alpha_).unsqueeze(0) * self.face_configs_arr_gpu + 
+                            torch.log(1 - self.alpha_).unsqueeze(0) * (1 - self.face_configs_arr_gpu))
+        log_probs = log_probs_factors.sum(dim=1)
+        return log_probs
+
+    def _compute_face_transition_probs_gpu(self, F_idxs_potential_prev=None, F_idxs_potential_curr=None):
+        """
+        计算面部配置的转移概率 (GPU版本)
+        """
+        if F_idxs_potential_prev is None:
+            F_idxs_potential_prev = torch.arange(self.n_face_states, device=self.device).long()
+        if F_idxs_potential_curr is None:
+            F_idxs_potential_curr = torch.arange(self.n_face_states, device=self.device).long()
+        
+        face_configs_prev = self.face_configs_arr_gpu[F_idxs_potential_prev].long()
+        face_configs_curr = self.face_configs_arr_gpu[F_idxs_potential_curr].long()
+        actors = torch.arange(self.n_actors, device=self.device).long()
+        
+        probs_factors = self.A_F_[actors.unsqueeze(1).unsqueeze(2), face_configs_prev.T.unsqueeze(2), face_configs_curr.T.unsqueeze(1)]
+        log_probs = torch.log(probs_factors).sum(dim=0)
+        log_probs = log_probs - torch.logsumexp(log_probs, dim=1, keepdim=True)
+        return log_probs
+
+    def _compute_speaker_initial_probs_gpu(self, F_idxs_potential, active_x):
+        """
+        计算说话人初始概率 (GPU版本)
+        """
+        logits = self.beta_.unsqueeze(0) + self.gamma1_ * self.face_configs_arr_gpu[F_idxs_potential] + self.eta1_ * self.X_arr_gpu[active_x].unsqueeze(0)
+        log_probs = logits - torch.logsumexp(logits, dim=1, keepdim=True)
+        return log_probs
+
+    def _compute_speaker_transition_probs_gpu(self, F_idxs_potential, active_x):
+        """
+        计算说话人转移概率 (GPU版本)
+        """
+        logits = (self.A_S_.unsqueeze(2) + 
+                  self.gamma2_ * self.face_configs_arr_gpu[F_idxs_potential].T.unsqueeze(0) +
+                  self.eta2_ * self.X_arr_gpu[active_x].unsqueeze(0).unsqueeze(2))
+        log_probs = logits - torch.logsumexp(logits, dim=1, keepdim=True)
+        return log_probs
+
+    def _compute_emission_probs_gpu(self, f_hat, s_hat, F_idxs_potential, l_config=None):
+        """
+        计算发射概率 (GPU版本)
+        """
+        # 面部发射概率
+        actors = torch.arange(self.n_actors, device=self.device).long()
+        face_emissions = self.B_F_[actors.unsqueeze(0), self.face_configs_arr_gpu[F_idxs_potential].long(), f_hat.long().unsqueeze(0)]
+        log_face_emissions = torch.log(face_emissions).sum(dim=1)
+        
+        # 说话人发射概率
+        speaker_obs = torch.argmax(s_hat).item()
+        if self.n_audio_dur_grps is None:
+            log_speaker_emissions = torch.log(self.B_S_[:, speaker_obs])
+        else:
+            l_class = torch.argmax(l_config).item()
+            logits = self.B_S_ + torch.diag(torch.full((self.n_actors,), self.iota_[l_class], device=self.device))
+            log_probs = logits - torch.logsumexp(logits, dim=1, keepdim=True)
+            log_speaker_emissions = log_probs[:, speaker_obs]
+        
+        return log_face_emissions, log_speaker_emissions
+
     def _initialize_sufficient_statistics(self):
         """
         初始化充分统计量，也即 M 步用到的期望值
@@ -602,9 +885,44 @@ class NestedHMM_full():
         
         return sufficient_stats
 
+    def _move_sufficient_statistics_cpu2gpu(self, stats):
+        """
+        将充分统计量从CPU转移到GPU
+        """
+        stats_gpu = copy.deepcopy(stats)
+        stats_gpu['face_initial_counts'] = {k: torch.tensor(v, dtype=torch.float32, device=self.device) for k, v in stats['face_initial_counts'].items()}
+        stats_gpu['face_transition_counts'] = {k: (v[0], torch.tensor(v[1], dtype=torch.float32, device=self.device)) for k, v in stats['face_transition_counts'].items()}
+        stats_gpu['speaker_initial_counts'] = torch.tensor(stats['speaker_initial_counts'], dtype=torch.float32, device=self.device)
+        stats_gpu['speaker_transition_counts'] = torch.tensor(stats['speaker_transition_counts'], dtype=torch.float32, device=self.device)
+        stats_gpu['face_emission_counts'] = torch.tensor(stats['face_emission_counts'], dtype=torch.float32, device=self.device)
+        stats_gpu['speaker_emission_counts'] = torch.tensor(stats['speaker_emission_counts'], dtype=torch.float32, device=self.device)
+        return stats_gpu
+    
+    def _move_sufficient_statistics_gpu2cpu(self, stats_gpu):
+        """
+        将充分统计量从GPU转移到CPU
+        """
+        stats = copy.deepcopy(stats_gpu)
+        stats['face_initial_counts'] = {k: v.cpu().numpy() for k, v in stats_gpu['face_initial_counts'].items()}
+        stats['face_transition_counts'] = {k: (v[0], v[1].cpu().numpy()) for k, v in stats_gpu['face_transition_counts'].items()}
+        stats['speaker_initial_counts'] = stats_gpu['speaker_initial_counts'].cpu().numpy()
+        stats['speaker_transition_counts'] = stats_gpu['speaker_transition_counts'].cpu().numpy()
+        stats['face_emission_counts'] = stats_gpu['face_emission_counts'].cpu().numpy()
+        stats['speaker_emission_counts'] = stats_gpu['speaker_emission_counts'].cpu().numpy()
+        return stats
+
     def _accumulate_sufficient_statistics(self, stats, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik):
         """
         更新累积充分统计量 stats，以便于后续执行参数更新
+        """
+        if self.use_gpu:
+            return self._accumulate_sufficient_statistics_gpu(stats, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik)
+        else:
+            return self._accumulate_sufficient_statistics_cpu(stats, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik)
+    
+    def _accumulate_sufficient_statistics_cpu(self, stats, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik):
+        """
+        更新累积充分统计量 stats，以便于后续执行参数更新 (CPU版本)
         """
         n_samples = len(S_hat_onehot)
         stats_updated = copy.deepcopy(stats)
@@ -693,6 +1011,106 @@ class NestedHMM_full():
 
         return stats_updated
 
+    def _accumulate_sufficient_statistics_gpu(self, stats, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot, fwd_lattice, bwd_lattice, seq_loglik):
+        """
+        更新累积充分统计量 stats (GPU加速版本)
+        """
+        n_samples = len(S_hat_onehot)
+        stats_updated_gpu = self._move_sufficient_statistics_cpu2gpu(stats)
+        self._move_params_cpu2gpu()
+        
+        # 将lattice移动到GPU
+        fwd_lattice_gpu = torch.tensor(fwd_lattice, dtype=torch.float32, device=self.device)
+        bwd_lattice_gpu = torch.tensor(bwd_lattice, dtype=torch.float32, device=self.device)
+        S_hat_gpu = torch.tensor(S_hat_onehot, dtype=torch.float32, device=self.device)
+        F_hat_gpu = torch.tensor(F_hat, dtype=torch.float32, device=self.device)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_gpu = torch.tensor(audio_dur_grps_onehot, dtype=torch.float32, device=self.device)
+        else:
+            audio_dur_grps_gpu = None
+        
+        # 计算后验概率
+        for t in range(n_samples):
+            F_idxs_prev = F_potential_idxs[t-1] if t > 0 else None
+            F_idxs_curr = F_potential_idxs[t]
+            F_idxs_curr_key = tuple(F_idxs_curr)
+            # 单时刻后验概率 gamma[t, f, s] = P(F_t=f, S_t=s | 全部观测, 全部协变量) for all f in F_idxs_curr
+            log_gamma_filtered = fwd_lattice_gpu[t, F_idxs_curr] + bwd_lattice_gpu[t, F_idxs_curr] - seq_loglik
+            gamma_filtered = torch.exp(log_gamma_filtered)
+            gamma_faces_filtered = gamma_filtered.sum(dim=1)
+            
+            # 将协变量从one-hot 转为 index
+            active_x = self.X2index(X_onehot[t])
+            # 累积初始统计量
+            if t == 0:
+                if F_idxs_curr_key not in stats_updated_gpu['face_initial_counts']:
+                    stats_updated_gpu['face_initial_counts'][F_idxs_curr_key] = torch.zeros((len(F_idxs_curr)), device=self.device)
+                stats_updated_gpu['face_initial_counts'][F_idxs_curr_key] += gamma_faces_filtered
+                stats_updated_gpu['speaker_initial_counts'][F_idxs_curr, :, active_x] += gamma_filtered
+            
+            # 累积转移统计量
+            if t > 0:
+                ## 计算 f 所有可能的转移组合的转移概率
+                log_trans_face_filtered = self._compute_face_transition_probs_gpu(F_idxs_prev, F_idxs_curr)
+                ## 计算在可能的f下，各种说话人转移情况的概率
+                log_trans_speaker_filtered = self._compute_speaker_transition_probs_gpu(F_idxs_curr, active_x)
+                ## 计算对数转移后验概率 xi[t-1, f_prev, s_prev, f_curr, s_curr]
+                l_config_t = audio_dur_grps_gpu[t] if audio_dur_grps_gpu is not None else None
+                log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+                    F_hat_gpu[t], S_hat_gpu[t], F_idxs_curr, l_config_t)
+                
+                log_xi_arr_filtered = (fwd_lattice_gpu[t-1, F_idxs_prev, :].unsqueeze(2).unsqueeze(3) +
+                                      log_trans_face_filtered.unsqueeze(1).unsqueeze(3) +
+                                      log_trans_speaker_filtered.permute(0, 2, 1).unsqueeze(0) +
+                                      log_face_emissions_filtered.unsqueeze(0).unsqueeze(1).unsqueeze(3) +
+                                      log_speaker_emissions.unsqueeze(0).unsqueeze(1).unsqueeze(2) +
+                                      bwd_lattice_gpu[t, F_idxs_curr, :].unsqueeze(0).unsqueeze(1) - seq_loglik)
+                xi_arr_filtered_gpu = torch.exp(log_xi_arr_filtered)
+                
+                ## 计算面部转移统计量 $\bbE\left[\bbN(F_{\cdot,\cdot-1,\varrho}=\delta,F_{\cdot,\cdot,\varrho}=\delta' \vert \btheta^{(s)})\right]$
+                face_transition_weights_filtered = xi_arr_filtered_gpu.sum(dim=(1, 3))
+                if F_idxs_curr_key not in stats_updated_gpu['face_transition_counts']:
+                    stats_updated_gpu['face_transition_counts'][F_idxs_curr_key] = [F_idxs_prev, face_transition_weights_filtered]
+                else: ### 合并已有的转移统计量
+                    F_idxs_prev_old, face_transition_weights_filtered_old = stats_updated_gpu['face_transition_counts'][F_idxs_curr_key]
+                    if set(F_idxs_prev_old) == set(F_idxs_prev):
+                        # 两次出现的 F_idxs_prev 相同，直接相加
+                        face_transition_weights_filtered_new = face_transition_weights_filtered_old + face_transition_weights_filtered
+                        stats_updated_gpu['face_transition_counts'][F_idxs_curr_key] = [F_idxs_prev, face_transition_weights_filtered_new]
+                    else:
+                        F_idxs_prev_new = list(sorted(set(F_idxs_prev_old).union(set(F_idxs_prev))))
+                        face_transition_weights_filtered_new = torch.zeros((len(F_idxs_prev_new), len(F_idxs_curr)), device=self.device)
+                        face_transition_weights_filtered_new[[F_idxs_prev_new.index(k) for k in F_idxs_prev_old], :] += face_transition_weights_filtered_old
+                        face_transition_weights_filtered_new[[F_idxs_prev_new.index(k) for k in F_idxs_prev], :] += face_transition_weights_filtered
+                        stats_updated_gpu['face_transition_counts'][F_idxs_curr_key] = [F_idxs_prev_new, face_transition_weights_filtered_new]
+                
+                ## 存储用于说话人转移概率优化的信息，[f_curr, s_prev, s_curr]
+                stats_updated_gpu['speaker_transition_counts'][F_idxs_curr, :, :, active_x] += xi_arr_filtered_gpu.sum(dim=0).permute(1, 0, 2)
+            
+            # 累积发射统计量
+            ## 说话人发射统计量
+            speaker_obs = torch.argmax(S_hat_gpu[t]).item()
+            if self.n_audio_dur_grps is None:
+                # 不使用时长分组
+                stats_updated_gpu['speaker_emission_counts'][:, speaker_obs] += gamma_filtered.sum(axis=0)
+            else:
+                # 使用时长分组
+                l_class = torch.argmax(audio_dur_grps_gpu[t]).item()
+                stats_updated_gpu['speaker_emission_counts'][l_class, :, speaker_obs] += gamma_filtered.sum(axis=0)
+            
+            # 面部发射统计量
+            actor_idxs = torch.arange(self.n_actors, device=self.device).long()
+            face_states = torch.tensor([0, 1], device=self.device).long()
+            face_configs_arr_curr = self.face_configs_arr_gpu[F_idxs_curr, :]
+            mask = (face_configs_arr_curr.unsqueeze(2) == face_states.unsqueeze(0).unsqueeze(1)).float()
+            face_emission_counts_delta = (gamma_faces_filtered.unsqueeze(1).unsqueeze(2) * mask).sum(dim=0)
+            stats_updated_gpu['face_emission_counts'][actor_idxs.unsqueeze(1), face_states.unsqueeze(0), F_hat_gpu[t].unsqueeze(1).long()] += face_emission_counts_delta
+        
+        stats_updated = self._move_sufficient_statistics_gpu2cpu(stats_updated_gpu)
+        self._move_params_gpu2cpu()
+        torch.cuda.empty_cache()
+        return stats_updated
+
     def _do_mstep(self, stats, B_S_diag_min, B_F_diag_min, lengths):
         """M步：更新参数"""
         # 更新面部初始概率
@@ -729,7 +1147,7 @@ class NestedHMM_full():
                     if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
                         self.B_F_[actor, state, state] = B_F_diag_min
                         self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    
+                    # 设置对角线最大值限制
                     if actor < self.n_actors -1: # main actors
                         if state == 0:
                             B_F_diag_max = 0.99
@@ -1292,6 +1710,17 @@ class NestedHMM_full():
         speaker_states : array, shape (n_frames,)
             预测的说话人状态序列
         """
+        # cpu version is faster in practice
+        return self._viterbi_cpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+        # if self.use_gpu:
+        #     return self._viterbi_gpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+        # else:
+        #     return self._viterbi_cpu(S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot)
+    
+    def _viterbi_cpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        对单个序列使用维特比算法进行解码 (CPU版本)
+        """
         n_frames = S_hat_onehot.shape[0]
         
         # 初始化维特比表格 $\delta_{t}(f,s)$ 与回溯路径 $\psi_{t}(f,s)$
@@ -1367,4 +1796,103 @@ class NestedHMM_full():
                 curr_f = prev_f
                 curr_s = prev_s
         
+        return face_states, speaker_states
+
+    def _viterbi_gpu(self, S_hat_onehot, F_hat, X_onehot, F_potential_idxs, audio_dur_grps_onehot):
+        """
+        对单个序列使用维特比算法进行解码 (GPU加速版本)
+        """
+        n_frames = S_hat_onehot.shape[0]
+        
+        # 将数据转移到GPU
+        self._move_params_cpu2gpu()
+        S_hat_gpu = torch.tensor(S_hat_onehot, dtype=torch.float32, device=self.device)
+        F_hat_gpu = torch.tensor(F_hat, dtype=torch.float32, device=self.device)
+        if audio_dur_grps_onehot is not None:
+            audio_dur_grps_gpu = torch.tensor(audio_dur_grps_onehot, dtype=torch.float32, device=self.device)
+        else:
+            audio_dur_grps_gpu = None
+        
+        # 初始化维特比表格和路径
+        viterbi = torch.full((n_frames, self.n_face_states, self.n_actors), float('-inf'), device=self.device)
+        path_face = torch.zeros((n_frames, self.n_face_states, self.n_actors), dtype=torch.long, device=self.device)
+        path_speaker = torch.zeros((n_frames, self.n_face_states, self.n_actors), dtype=torch.long, device=self.device)
+        
+        # 初始化
+        F_idxs_init = F_potential_idxs[0]
+        ## 计算对数初始面部隐藏状态概率
+        log_face_probs = self._compute_face_initial_probs_gpu()
+        log_face_probs_filtered = log_face_probs[F_idxs_init]
+        log_face_probs_filtered = log_face_probs_filtered - torch.logsumexp(log_face_probs_filtered, dim=0)
+        ## 计算对数初始说话人隐藏状态概率
+        active_x = self.X2index(X_onehot[0])
+        log_speaker_probs_filtered = self._compute_speaker_initial_probs_gpu(F_idxs_init, active_x)
+        ## 计算对数观测概率 P(F_hat | F)*P(S_hat | S)
+        l_config_0 = audio_dur_grps_gpu[0] if audio_dur_grps_gpu is not None else None
+        log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+            F_hat_gpu[0], S_hat_gpu[0], F_idxs_init, l_config_0)
+        viterbi[0, F_idxs_init, :] = (log_face_probs_filtered.unsqueeze(1) + 
+                                       log_speaker_probs_filtered + 
+                                       log_face_emissions_filtered.unsqueeze(1) + 
+                                       log_speaker_emissions.unsqueeze(0))
+        
+        # 前向传播 t=1到n_frames-1
+        for t in range(1, n_frames):
+            F_idxs_prev = F_potential_idxs[t-1]
+            F_idxs_curr = F_potential_idxs[t]
+            ## 计算 f 所有可能的转移组合的转移概率
+            log_trans_face_filtered = self._compute_face_transition_probs_gpu(F_idxs_prev, F_idxs_curr)
+            ## 计算在可能的f下，各种说话人转移情况的概率
+            active_x = self.X2index(X_onehot[t])
+            log_trans_speaker_filtered = self._compute_speaker_transition_probs_gpu(F_idxs_curr, active_x)
+            ## 计算当前时刻每个隐藏状态对应的观测概率P(F_hat_t | F_t)*P(S_hat_t | S_t)
+            l_config_t = audio_dur_grps_gpu[t] if audio_dur_grps_gpu is not None else None
+            log_face_emissions_filtered, log_speaker_emissions = self._compute_emission_probs_gpu(
+                F_hat_gpu[t], S_hat_gpu[t], F_idxs_curr, l_config_t)
+            
+            # 计算每个当前状态对应的 $\delta_{t}(f,s)$
+            prev_viterbi = viterbi[t-1, F_idxs_prev, :]
+            for i, f_idx in enumerate(F_idxs_curr):
+                # 对当前面部配置,计算所有说话人的得分 (f_prev, s_prev, s_curr)
+                scores = (prev_viterbi.unsqueeze(2) + 
+                         log_trans_face_filtered[:, i].unsqueeze(1).unsqueeze(2) + 
+                         log_trans_speaker_filtered[:, :, i].unsqueeze(0))
+                
+                # 遍历所有可能的前一状态 (f_prev, s_prev)，确定最佳前一状态
+                best_scores, best_indices = torch.max(scores.reshape(-1, self.n_actors), dim=0)
+                best_prev_f_idx, best_prev_s = best_indices // self.n_actors, best_indices % self.n_actors
+                # 更新viterbi和路径
+                ## 确定 $\delta_{t}(f,s)$
+                viterbi[t, f_idx, :] = best_scores + log_face_emissions_filtered[i] + log_speaker_emissions
+                ## 确定 $\psi_{t}(f,s)$
+                path_face[t, f_idx, :] = torch.tensor([F_idxs_prev[idx.item()] for idx in best_prev_f_idx], dtype=torch.long, device=self.device)
+                path_speaker[t, f_idx, :] = best_prev_s
+        
+        # 找到最优结束状态（在GPU上）
+        last_viterbi = viterbi[n_frames-1, :, :]
+        best_end_flat = torch.argmax(last_viterbi)
+        best_end_f = best_end_flat // self.n_actors
+        best_end_s = best_end_flat % self.n_actors
+        
+        # 回溯路径（转回CPU进行）
+        path_face = path_face.cpu().numpy()
+        path_speaker = path_speaker.cpu().numpy()
+        face_states = np.zeros((n_frames, self.n_actors), dtype=int)
+        speaker_states = np.zeros(n_frames, dtype=int)
+        curr_f = best_end_f.item()
+        curr_s = best_end_s.item()
+        
+        for t in range(n_frames-1, -1, -1):
+            # 记录当前状态
+            face_states[t, :] = self.face_configs_arr[curr_f]
+            speaker_states[t] = curr_s
+            # 回溯到前一状态
+            if t > 0:
+                prev_f = path_face[t, curr_f, curr_s]
+                prev_s = path_speaker[t, curr_f, curr_s]
+                curr_f = prev_f
+                curr_s = prev_s
+        
+        self._move_params_gpu2cpu()
+        torch.cuda.empty_cache()
         return face_states, speaker_states
