@@ -435,7 +435,7 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
     uniq_a_count = {aid: np.sum(alabels == aid) for aid in uniq_a}
     # Sort alabels by count (descending), then by audio cluster id value (ascending)
     sorted_uniq_a = sorted(uniq_a_count.keys(), key=lambda x: (-uniq_a_count[x], x))
-    top_clusters = sorted_uniq_a[:min(2 + main_actors_num, len(sorted_uniq_a), 12)]
+    top_clusters = sorted_uniq_a[:min(2 + main_actors_num, len(sorted_uniq_a), 9)]
 
     # initialize new labels
     new_alabels = np.full(len(alabels), -1, dtype=int)
@@ -1170,6 +1170,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         vlabels_mf_potential_list = None
         if 'mid_frame' in hmm_visual_info_type:
             vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=len(np.unique(vlabels_mf_processed_input))) # of the same length as vlabels_mf_processed
+            for i in range(len(vlabels_mf_potential_list)):
+                list_size = len(vlabels_mf_potential_list[i])
+                if vlabels_mf_processed_all[i] not in [-2, -3]:
+                    vlabels_mf_potential_list[i] = vlabels_mf_potential_list[i][:min(list_size, 2)]
+                else:
+                    vlabels_mf_potential_list[i] = vlabels_mf_potential_list[i][:min(list_size, 4)]
             del visual_embeddings_mf
             
             # Count occurrences of unique integers in vlabels_mf_potential_list
