@@ -135,7 +135,9 @@ def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align
         target_embeddings (ndarray): Target embeddings, of shape [M, D].
 
     Returns:
-        list: A list of length N, where each element is a list of candidate aligned target cluster labels for the corresponding source sample.
+        tuple: A tuple of two lists, both of length N:
+            - candi_aligned_source_labels: Each element is a list of candidate aligned target cluster labels.
+            - candi_aligned_source_scores: Each element is a list of cosine_similarity corresponding to the labels.
     """
     if target_labels==None:
         target_labels = copy.deepcopy(aligned_source_labels)
@@ -150,23 +152,31 @@ def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align
     # Remap labels and compute centroids
     remapped_target_labels = np.array([target_label_map[label] for label in target_labels])
     target_centroids = np.array([target_embeddings[remapped_target_labels == j].mean(axis=0) for j in range(len(target_label_map))])
+    # Compute cosine similarity between each source embedding and each target centroid
+    sim_matrix_sample = cosine_similarity(source_embeddings, target_centroids)
 
     if candi_align_cluster_num > 0:
         candi_aligned_source_labels = []
-        # Compute cosine similarity between each source embedding and each target centroid
-        sim_matrix_sample = cosine_similarity(source_embeddings, target_centroids)
+        candi_aligned_source_scores = []
         for i in range(sim_matrix_sample.shape[0]):  # current source sample
             ## Get indices of top-k most similar target clusters for current source sample
             top_k_indices = np.argsort(sim_matrix_sample[i])[::-1][:candi_align_cluster_num]    # descending order
             # Map indices back to target labels
             top_k_labels = [reverse_target_label_map[idx] for idx in top_k_indices] # each element is unque
+            # Get corresponding scores
+            top_k_scores = [sim_matrix_sample[i, idx] for idx in top_k_indices]
             # always keep the aligned label at first position
             merged_labels = [aligned_source_labels[i]] + [label for label in top_k_labels if label != aligned_source_labels[i]]
+            # Compute scores for merged labels
+            merged_scores = [sim_matrix_sample[i, target_label_map[aligned_source_labels[i]]]] + [top_k_scores[idx] for idx, label in enumerate(top_k_labels) if label != aligned_source_labels[i]]
             candi_aligned_source_labels.append(merged_labels)
+            candi_aligned_source_scores.append(merged_scores)
     else:
         candi_aligned_source_labels = [[aligned_source_labels[i]] for i in range(len(aligned_source_labels))]
-
-    return candi_aligned_source_labels
+        # Compute scores for the single aligned label
+        candi_aligned_source_scores = [[sim_matrix_sample[i, target_label_map[aligned_source_labels[i]]]] for i in range(len(aligned_source_labels))]
+    
+    return candi_aligned_source_labels, candi_aligned_source_scores
 
 
 def get_unreliable_metrics(aligned_source_labels, source_embeddings, target_labels=None, target_embeddings=None):

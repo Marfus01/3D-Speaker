@@ -8,13 +8,12 @@ This script is designed to cluster speaker embeddings and generate RTTM result f
 import os
 import sys
 import argparse
-import pickle
+import pickle, itertools
 import pathlib
 import numpy as np
 import copy, time
 from hmmlearn import hmm
 from statistics import median
-from itertools import combinations
 
 current_file_path = os.path.abspath(__file__)
 # 从'local/'回到'speaker-diarization'目录
@@ -703,7 +702,7 @@ def collect_potential_states(audio_seg_ids, n_states, alabels_potential_list=Non
       vlabels_mf_potential_list_new = collect_labels_potential(audio_seg_ids, vlabels_mf_potential_list, n_states, audio_seg_ids_mf)
   return alabels_potential_list_new, vlabels_mf_potential_list_new
 
-def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf, vlabels_mf_potential_list):
+def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf, vlabels_mf_potential_list, vlabels_mf_score_list=None):
     """
     Correct face labels based on decoding results and potential labels.
 
@@ -714,6 +713,7 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
         audio_seg_ids_mf (ndarray): Array of audio segment IDs for mid-frame, shape [M].
         vlabels_mf (ndarray): Original visual labels for mid-frame segments, shape [M].
         vlabels_mf_potential_list (list): List of potential visual labels for mid-frame segments, length M.
+        vlabels_mf_score_list (list, optional): List of scores(higher is better) for potential labels, same structure as vlabels_mf_potential_list.
     Returns:
         ndarray: Corrected visual labels for mid-frame segments, shape [M].
     """
@@ -787,7 +787,7 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
                 # Generate all possible state combinations for this selection
                 candidate_combinations = []
                 # Try all combinations of selecting num_change face crops to modify
-                for combo_indices in combinations(range(len(mf_indices_selected)), num_change): # indices of selected face crops to modify, like (0,1)
+                for combo_indices in itertools.combinations(range(len(mf_indices_selected)), num_change): # indices of selected face crops to modify, like (0,1)
                     
                     def generate_combinations(idx_in_combo, current_states):
                         # 对于 combo_indices 中每个索引对应的人脸，尝试将其状态设置为 vlabels_mf_potential_list_selected 中的每个可能值。
@@ -822,7 +822,51 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
                             vlabels_mf_corrected[mf_indice] = vlabel_mf_new
                             changed_cnt += 1
                     break
+        
+        # Try score-based method if set matching failed and score list is provided
+        if not corrected_flag and vlabels_mf_score_list is not None:
+            observed_face_states_mainset = set(vlabels_mf_obs_selected)-set([n_states - 1])
+            if not observed_face_states_mainset.issubset(set(appearing_face_states_mainset)):
+                continue
+            product_size = np.prod([len(sublist) for sublist in vlabels_mf_potential_list_selected])
+            if product_size > 10000:
+                print("[INFO] Skip score-based correction due to too many mid-frame faces.")
+                continue
 
+            # Get potential lists and score lists for selected mid-frame faces
+            vlabels_mf_score_list_selected = [vlabels_mf_score_list[mf_idx] for mf_idx in mf_indices_selected]
+            # Create label-to-score mapping for each face
+            label_score_maps = []
+            for i in range(len(mf_indices_selected)):
+                label_score_map = {}
+                for label, score in zip(vlabels_mf_potential_list_selected[i], vlabels_mf_score_list_selected[i]):
+                    label_score_map[label] = score
+                label_score_maps.append(label_score_map)
+            
+            # Find combinations that match appearing_face_states
+            combinations_valid = [combination for combination in itertools.product(*vlabels_mf_potential_list_selected) if set(combination) == set(appearing_face_states)]
+            if len(combinations_valid) == 0:
+                continue
+            # Find the combination with the best (max) total score
+            combinationss_valid_scores = list(map(lambda combination: sum(label_score_maps[i][combination[i]] for i in range(len(combination))), combinations_valid))
+            print(f"[DEBUG] Original valid combination scores: {combinationss_valid_scores}")
+            combinationss_valid_best_score = max(combinationss_valid_scores)
+            combinationss_valid_best_index = [i for i, score in enumerate(combinationss_valid_scores) if score == combinationss_valid_best_score]
+            if len(combinationss_valid_best_index) > 1:
+                continue
+            combinationss_valid_scores.remove(combinationss_valid_best_score)
+            combinationss_valid_second_best_score = max(combinationss_valid_scores) if len(combinationss_valid_scores) > 0 else float('-inf')
+            print(f"[DEBUG] Score-based method: best score {combinationss_valid_best_score}, second best score {combinationss_valid_second_best_score}")
+            if combinationss_valid_best_score - combinationss_valid_second_best_score >= 0.05:  # threshold can be adjusted
+                print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels using score-based method.")
+                best_combination = combinations_valid[combinationss_valid_best_index[0]]
+                corrected_flag = True
+                for i, mf_indice in enumerate(mf_indices_selected):
+                    vlabel_mf_new = best_combination[i]
+                    if vlabel_mf_new != vlabels_mf_obs_selected[i]:
+                        vlabels_mf_corrected[mf_indice] = vlabel_mf_new
+                        changed_cnt += 1
+        
         if corrected_flag:
             print(f"[INFO] After correction, mid-frame face labels are {[vlabels_mf_corrected[mf_idx] for mf_idx in mf_indices_selected]}")
         else:
@@ -1168,13 +1212,13 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         ## 获取所有audio samples和前述对齐和重命名处理后，剩余的所有关键帧人脸 samples，并据此创建每个sample潜在对应的聚类簇候选集
         ### 所得候选集中的cluster id除了-1之外，与后面HMM states的state id一一对应。-1对应HMM states中的n_states-1
         ### NOTE: 如果改用一般的align_samples2clusters，将target cluster设置为avd，则需要check后面对于-1的处理
-        alabels_potential_list = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
+        alabels_potential_list, _ = align_samples2clusters(copy.deepcopy(alabels_processed), audio_embeddings,
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
         vlabels_mf_potential_list = None
+        vlabels_mf_score_list = None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=2) # of the same length as vlabels_mf_processed
+            vlabels_mf_potential_list, vlabels_mf_score_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=len(np.unique(vlabels_mf_processed_input))) # of the same length as vlabels_mf_processed
             del visual_embeddings_mf
-            
             # Count occurrences of unique integers in vlabels_mf_potential_list
             all_values = [len(sublist) for sublist in vlabels_mf_potential_list]
             value_counts = {value: all_values.count(value) for value in set(all_values)}
@@ -1330,31 +1374,26 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         change_pos = np.where(vlabels_mf_processed_all <= -2)[0]
         print(f"Max number in selective change: {len(change_pos)}")
         os.makedirs(os.path.join(result_dir, 'mid_frame_face_labels_correction'), exist_ok=True)
-        potential_list_size_max = max([len(sublist) for sublist in vlabels_mf_potential_list])
-        for potential_list_size_major in range(1, potential_list_size_max+1):
-            print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
-            for potential_list_size_minor in range(potential_list_size_major, potential_list_size_max+1):
-                print(f"[INFO] Try potential list size(minor) {potential_list_size_minor} for mid-frame face labels correction.")
-                vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
-                for i in range(len(vlabels_mf_potential_list_correct)):
-                    list_size = len(vlabels_mf_potential_list_correct[i])
-                    if vlabels_mf_processed_all[i] not in [-2, -3]:
-                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:min(list_size, potential_list_size_major)]
-                    else:
-                        vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:min(list_size, potential_list_size_minor)]
+        potential_list_size_major, potential_list_size_minor = 1, (F_decode.shape[1]-1)//2
+        print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
+        print(f"[INFO] Try potential list size(minor) {potential_list_size_minor} for mid-frame face labels correction.")
+        vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
+        vlabels_mf_score_list_correct = copy.deepcopy(vlabels_mf_score_list)
+        for i in range(len(vlabels_mf_potential_list_correct)):
+            assert len(vlabels_mf_potential_list_correct[i]) == len(vlabels_mf_score_list_correct[i]), "Length of vlabels_mf_potential_list_correct and vlabels_mf_score_list_correct should be the same for each sample."
+            list_size = len(vlabels_mf_potential_list_correct[i])
+            list_size_new = min(list_size, potential_list_size_minor) if vlabels_mf_processed_all[i] in [-2, -3] else min(list_size, potential_list_size_major)
+            vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:list_size_new]
+            vlabels_mf_score_list_correct[i] = vlabels_mf_score_list_correct[i][:list_size_new]
 
-                vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct)
-                # save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-                #                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
-                if potential_list_size_major==potential_list_size_max and potential_list_size_minor==potential_list_size_max:
-                    save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-                                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
-                save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-                                            os.path.join(result_dir, 'mid_frame_face_labels_correction', f'pseudo_labels_faces_mid_frame(major={potential_list_size_major}, minor={potential_list_size_minor})_nested_hmm_full.json'))
-                vlabels_mf_corrected_selected = copy.deepcopy(vlabels_mf_processed_input)
-                vlabels_mf_corrected_selected[change_pos] = vlabels_mf_corrected[change_pos]
-                save_cluster_results_vision_mf(vlabels_mf_corrected_selected, audio_seg_ids_mf, face_idxs_mf,
-                                            os.path.join(result_dir, 'mid_frame_face_labels_correction', f'pseudo_labels_faces_mid_frame(major={potential_list_size_major}, minor={potential_list_size_minor})_selected_nested_hmm_full.json'))
+        vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct, vlabels_mf_score_list)
+        # save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+        #                                os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
+        save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
+        vlabels_mf_corrected_part = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct)
+        save_cluster_results_vision_mf(vlabels_mf_corrected_part, audio_seg_ids_mf, face_idxs_mf,
+                                    os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_part_nested_hmm_full.json'))
 
 def main():
     args = parser.parse_args()
