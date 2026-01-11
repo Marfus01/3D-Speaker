@@ -215,6 +215,34 @@ class NestedHMM_full():
             self.iota_ = random_state.uniform(0, 1, self.n_audio_dur_grps)
             self.iota_ -= self.iota_[0]  # 固定第一个分组的logit为0，作为基准
 
+    def print_params(self):
+        """打印模型参数"""
+        print("\n=== 模型参数 ===")
+        if 'c' in self.params:
+            print("说话人初始概率 β 的logits：\n", self.beta_)
+        if 'e' in self.params:
+            print("说话人转移矩阵 A_S_ 的logits：\n", self.A_S_)
+        if 'h' in self.params:
+            if 'l' not in self.params:
+                print("说话人识别混淆矩阵 B_S :\n", self.B_S_)
+            else:
+                print("说话人识别混淆矩阵 B_S 的logits:\n", self.B_S_)
+                print("语音时长分组对说话人识别混淆矩阵的影响 iota_ :\n", self.iota_)
+        if 'i' in self.params:
+            print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", self.eta1_)
+        if 'j' in self.params:
+            print("协变量X取值为1对说话人转移的影响 η2_ :\n", self.eta2_)
+        if 'a' in self.params:
+            print("初始时刻mid-frame中出现各个角色人脸的概率 α ：\n", self.alpha_)
+        if 'b' in self.params:
+            print("mid-frame人脸出现转移矩阵 A_F_ ：\n", self.A_F_)
+        if 'g' in self.params:
+            print("mid-frame人脸识别混淆矩阵 B_F :\n", self.B_F_)
+        if 'd' in self.params:
+            print("中间帧出现某个角色的人脸对说话人初始状态的影响 γ₁_ :\n", self.gamma1_)
+        if 'f' in self.params:
+            print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", self.gamma2_)
+        
     def _move_params_gpu2cpu(self):
         """将GPU上的参数同步回CPU"""
         if not self.use_gpu:
@@ -400,7 +428,7 @@ class NestedHMM_full():
             F_potential_states_idxs.append(self.candidate_sets2idxs(F_potential_list[i], var_type))
         return F_potential_states_idxs
 
-    def fit(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, B_S_diag_min=None, B_F_diag_min=None, lengths=None):
+    def fit(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, set_B_F_diag_limits=False, lengths=None):
         """训练嵌套HMM模型"""
         S_hat_onehot = np.array(S_hat_onehot)
         F_hat = np.array(F_hat)
@@ -430,7 +458,7 @@ class NestedHMM_full():
 
             # M步：更新参数
             start_time = time.time()
-            self._do_mstep(stats, B_S_diag_min, B_F_diag_min, lengths)
+            self._do_mstep(stats, set_B_F_diag_limits)
             mstep_time = time.time() - start_time
 
             print(f"E步耗时: {estep_time:.4f}秒")
@@ -1111,7 +1139,7 @@ class NestedHMM_full():
         torch.cuda.empty_cache()
         return stats_updated
 
-    def _do_mstep(self, stats, B_S_diag_min, B_F_diag_min, lengths):
+    def _do_mstep(self, stats, set_B_F_diag_limits=False):
         """M步：更新参数"""
         # 更新面部初始概率
         if 'a' in self.params:
@@ -1144,25 +1172,22 @@ class NestedHMM_full():
                     else:
                         self.B_F_[actor, state] = np.ones(2) / 2
                         print(f"Warning: Emission probabilities for actor {actor}, state {state} were not updated due to insufficient data. Reset to uniform distribution.")
-                    if B_F_diag_min is not None and self.B_F_[actor, state, state] < B_F_diag_min:
-                        self.B_F_[actor, state, state] = B_F_diag_min
-                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_min
-                    # 设置对角线最大值限制
-                    if actor < self.n_actors -1: # main actors
-                        if state == 0:
-                            B_F_diag_max = 0.99
+                    if set_B_F_diag_limits: # 设置对角线最大值限制
+                        if actor < self.n_actors -1: # main actors
+                            if state == 0:
+                                B_F_diag_max = 0.99
+                            else:
+                                B_F_diag_max = 0.85
                         else:
-                            B_F_diag_max = 0.85
-                    else:
-                        if state == 0:
-                            B_F_diag_max = 0.85
-                        else:
-                            B_F_diag_max = 0.90
+                            if state == 0:
+                                B_F_diag_max = 0.85
+                            else:
+                                B_F_diag_max = 0.90
 
-                    if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
-                        B_F_diag_max_flag = True
-                        self.B_F_[actor, state, state] = B_F_diag_max
-                        self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_max
+                        if B_F_diag_max is not None and self.B_F_[actor, state, state] > B_F_diag_max:
+                            B_F_diag_max_flag = True
+                            self.B_F_[actor, state, state] = B_F_diag_max
+                            self.B_F_[actor, state, 1 - state] = 1 - B_F_diag_max
                     
                     # self.B_F_[actor, state] = np.clip(self.B_F_[actor, state], 1e-6, 1-1e-6)
                     self.B_F_[actor, state] /= self.B_F_[actor, state].sum()
@@ -1171,7 +1196,7 @@ class NestedHMM_full():
         
         # 更新说话人发射矩阵  
         if 'h' in self.params:
-            self._update_speaker_emission_params(stats, B_S_diag_min)
+            self._update_speaker_emission_params(stats)
 
 
     def _update_face_initial_params(self, stats):

@@ -211,10 +211,8 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
         print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
     tolerance = 1e-3 if hmm_model_path is None else 1e-1
-    if audio_dur_grps_onehot is None:
-        model = HMM_X(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, params=params)
-    else:
-        model = HMM_X(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, params=params, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
+    n_audio_dur_grps = None if audio_dur_grps_onehot is None else audio_dur_grps_onehot.shape[1]
+    model = HMM_X(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, params=params, n_audio_dur_grps=n_audio_dur_grps)
     if hmm_model_path is not None:
         model.load_params(hmm_model_path)
         print(f"Loaded HMM model parameters from {hmm_model_path}")
@@ -278,61 +276,67 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
 
 def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_init, lengths, 
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, hmm_model_path=None, B_S_diag_min=None, B_F_diag_min=None):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
     print(f"Count of each actor in F_hat: {np.sum(F_hat, axis=0)}")
     print(f"Count of each actor in X_onehot: {np.sum(X_onehot, axis=0)}")
     
+    n_audio_dur_grps = None if audio_dur_grps_onehot is None else audio_dur_grps_onehot.shape[1]
     if audio_dur_grps_onehot is not None:
         print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
-    if B_S_diag_min is not None:
-        print(f"说话人识别混淆矩阵 B_S 的对角线最小值: {B_S_diag_min}") 
 
-    tolerance = 1e-3 if hmm_model_path is None else 1e-1
-    model = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance, verbose=True, n_audio_dur_grps=audio_dur_grps_onehot.shape[1])
+
+    # Stage 1: 在认为人脸观测可靠的情况下，训练 Nested HMM Full 模型，解码说话人状态
+    ## Initialize model
+    tolerance_a = 1e-3 if hmm_model_path is None else 1e-1
+    model_a = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance_a, verbose=True, n_audio_dur_grps=n_audio_dur_grps, use_gpu=False)
     if hmm_model_path is not None:
-        model.load_params(hmm_model_path)
+        model_a.load_params(hmm_model_path)
         print(f"Loaded HMM model parameters from {hmm_model_path}")
     
-    print("\n=== 训练模型 ===")
+    ## Training
+    F_potential_list_fix = [[[int(j)] for j in np.flatnonzero(row)] for row in F_hat]  # 认为人脸观测完全可靠
+    print("\n=== 训练模型(Stage 1) ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, B_S_diag_min, B_F_diag_min, lengths)
+    model_a.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list_fix, audio_dur_grps_onehot, set_B_F_diag_limits=False, lengths=lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
-
-    print("\n=== 模型参数 ===")
-    print("说话人初始概率 β 的logits：\n", model.beta_)
-    print("说话人转移矩阵 A_S_ 的logits：\n", model.A_S_)
-    if audio_dur_grps_onehot is None:
-        print("说话人识别混淆矩阵 B_S :\n", model.B_S_)
-    else:
-        print("说话人识别混淆矩阵 B_S 的logits:\n", model.B_S_)
-        print("语音时长分组对说话人识别混淆矩阵的影响 iota_ :\n", model.iota_)    
-    print("协变量X取值为1对说话人初始状态的影响 η1_ :\n", model.eta1_)
-    print("协变量X取值为1对说话人转移的影响 η2_ :\n", model.eta2_)
-    print("初始时刻mid-frame中出现各个角色人脸的概率 α ：\n", model.alpha_)
-    print("mid-frame人脸出现转移矩阵 A_F_ ：\n", model.A_F_)
-    print("mid-frame人脸识别混淆矩阵 B_F :\n", model.B_F_)
-    print("中间帧出现某个角色的人脸对说话人初始状态的影响 γ₁_ :\n", model.gamma1_)
-    print("中间帧出现某个角色的人脸对说话人转移的影响 γ₂_ :\n", model.gamma2_)
-
-    save_name_part_has_neg1 ='_has_neg1' if flag_has_neg1 else ''
-    save_name_part_adur_grps = f'_adur_grps' if audio_dur_grps_onehot is not None else ''
-    save_name_part_B_S = f'_B_S_diagmin={B_S_diag_min}' if B_S_diag_min is not None else ''
-    save_name_part_B_F = f'_B_F_diagmin={B_F_diag_min}' if B_F_diag_min is not None else ''
-    model.save_params(os.path.join(result_dir, 'hmm_params.pkl'))
-
-    # # 使用训练好的模型解码隐藏状态
-    # model.load_params(os.path.join(result_dir, f'nested_hmm_full{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.pkl'))
+    model_a.print_params()   # print model_a parameters
+    hmm_model_path_save = os.path.join(result_dir, 'hmm_params.pkl')
+    model_a.save_params(hmm_model_path_save)
+    
+    ## Decoding
     start_time = time.time()
     print("解码开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    face_states_viterbi, speaker_states_viterbi = model.predict(S_hat_onehot, F_hat, X_onehot,
-                                                                F_potential_list, audio_dur_grps_onehot, lengths) # viterbi 解码结果
-    np.save(os.path.join(result_dir, f'cluster_results_face_states_viterbi_nested_hmm_full{save_name_part_adur_grps}{save_name_part_B_S}{save_name_part_B_F}{save_name_part_has_neg1}.npy'), face_states_viterbi)
+    _, speaker_states_viterbi = model_a.predict(S_hat_onehot, F_hat, X_onehot, F_potential_list_fix, audio_dur_grps_onehot, lengths) # viterbi 解码结果
+    end_time = time.time()
+    print("解码结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print("解码耗时:", end_time - start_time, "秒")
+
+    
+    # Stage 2: 在认为人脸观测不可靠的情况下，继续训练 Nested HMM Full 模型，解码说话人状态
+    tolerance_f = 1e-1
+    model_f = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance_f, verbose=True, n_audio_dur_grps=n_audio_dur_grps, use_gpu=True)
+    model_f.load_params(hmm_model_path_save)
+    ## Training
+    print("\n=== 训练模型(Stage 2) ===")
+    start_time = time.time()
+    print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
+    model_f.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, set_B_F_diag_limits=True, lengths=lengths)
+    end_time = time.time()
+    print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print("训练耗时:", end_time - start_time, "秒")
+    model_f.print_params()   # print model_f parameters
+    model_f.save_params(os.path.join(result_dir, 'hmm_params(Stage 2).pkl'))
+    
+    ## Decoding
+    start_time = time.time()
+    print("解码开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
+    face_states_viterbi, _ = model_f.predict(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, lengths) # viterbi 解码结果
     end_time = time.time()
     print("解码结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("解码耗时:", end_time - start_time, "秒")
