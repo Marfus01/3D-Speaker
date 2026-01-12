@@ -360,6 +360,43 @@ class NestedHMM_full():
             params = pickle.load(f)
         for key, value in params.items():
             setattr(self, key, value)
+        if self.alpha_.shape[0] != self.n_actors:
+            print("Warning: Loaded parameters do not match the current model's n_actors.")
+            if self.alpha_.shape[0] > self.n_actors:
+                print("Truncating extra parameters...")
+                self.truncate_params()
+            else:
+                raise ValueError("Loaded parameters have fewer actors than the current model.")
+
+    def truncate_params(self):
+        """
+        加载参数后，检查与当前模型的 n_actors 是否匹配，不匹配则截断多余参数
+        """
+        if 'a' in self.params:
+            alpha = copy.deepcopy(self.alpha_)
+            self.alpha_ = np.concatenate([alpha[:self.n_actors - 1], [alpha[-1]]])
+        if 'b' in self.params:
+            A_F_ = copy.deepcopy(self.A_F_)
+            self.A_F_ = np.concatenate([A_F_[:self.n_actors - 1], [A_F_[-1]]], axis=0)
+        if 'c' in self.params:
+            beta = copy.deepcopy(self.beta_)
+            self.beta_ = np.concatenate([beta[:self.n_actors - 1], [beta[-1]]])
+        if 'e' in self.params:
+            A_S_ = copy.deepcopy(self.A_S_)
+            self.A_S_ = A_S_[:self.n_actors, :self.n_actors]
+            self.A_S_ [-1, :-1] = A_S_[-1, :(self.n_actors-1)]
+            self.A_S_ [:-1, -1] = A_S_[:(self.n_actors-1), -1]
+        if 'g' in self.params:
+            B_F_ = copy.deepcopy(self.B_F_)
+            self.B_F_ = np.concatenate([B_F_[:self.n_actors - 1], [B_F_[-1]]], axis=0)
+        if 'h' in self.params:
+            B_S_ = copy.deepcopy(self.B_S_)
+            self.B_S_ = B_S_[:self.n_actors, :self.n_actors]
+            self.B_S_ [-1, :-1] = B_S_[-1, :(self.n_actors-1)]
+            if 'l' in self.params:
+                self.B_S_ [:-1, -1] = B_S_[:(self.n_actors-1), -1]
+            else:
+                self.B_S_ [:, -1] = 1-self.B_S_ [:, :-1].sum(axis=1)
 
     def set_B_F_eyes(self):
         """将面部识别混淆矩阵 B_F 设置为单位阵"""

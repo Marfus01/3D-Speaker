@@ -14,7 +14,7 @@ import numpy as np
 import copy, time
 from hmmlearn import hmm
 from statistics import median
-from itertools import combinations
+from itertools import combinations, accumulate
 
 current_file_path = os.path.abspath(__file__)
 # 从'local/'回到'speaker-diarization'目录
@@ -274,9 +274,9 @@ def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_se
     with open(os.path.join(result_dir, f'pseudo_labels_audio_hmmx_{model.covariate_mode}(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
 
-def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_init, lengths, 
+def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_init, lengths, tol, n_iter,
                                   audio_seg_ids, result_dir, flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0,
-                                  audio_dur_grps_onehot=None, hmm_model_path=None):
+                                  audio_dur_grps_onehot=None, hmm_model_path=None, use_gpu=False, set_B_F_diag_limits=False, save_alabels_decode=False, save_params = False):
     n_actors = S_hat_onehot.shape[1]    
     alabels = np.argmax(S_hat_onehot, axis=1)
     print(f"Count of each actor in S_hat_onehot: {np.sum(S_hat_onehot, axis=0)}")
@@ -287,56 +287,28 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     if audio_dur_grps_onehot is not None:
         print(f"音频时长分组信息已提供，各组别样本数: {np.sum(audio_dur_grps_onehot, axis=0)}")
 
-
-    # Stage 1: 在认为人脸观测可靠的情况下，训练 Nested HMM Full 模型，解码说话人状态
     ## Initialize model
-    tolerance_a = 1e-3 if hmm_model_path is None else 1e-1
-    model_a = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance_a, verbose=True, n_audio_dur_grps=n_audio_dur_grps, use_gpu=False)
+    model = NestedHMM_full(n_actors=n_actors, n_iter=n_iter, tol=tol, verbose=True, n_audio_dur_grps=n_audio_dur_grps, use_gpu=use_gpu)
     if hmm_model_path is not None:
-        model_a.load_params(hmm_model_path)
+        model.load_params(hmm_model_path)
         print(f"Loaded HMM model parameters from {hmm_model_path}")
     
     ## Training
-    F_potential_list_fix = [[[int(j)] for j in np.flatnonzero(row)] for row in F_hat]  # 认为人脸观测完全可靠
-    print("\n=== 训练模型(Stage 1) ===")
+    print("\n=== 训练模型 ===")
     start_time = time.time()
     print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model_a.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list_fix, audio_dur_grps_onehot, set_B_F_diag_limits=False, lengths=lengths)
+    model.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, set_B_F_diag_limits=set_B_F_diag_limits, lengths=lengths)
     end_time = time.time()
     print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("训练耗时:", end_time - start_time, "秒")
-    model_a.print_params()   # print model_a parameters
-    hmm_model_path_save = os.path.join(result_dir, 'hmm_params.pkl')
-    model_a.save_params(hmm_model_path_save)
+    model.print_params()   # print model parameters
+    if save_params:
+        model.save_params(os.path.join(result_dir, 'hmm_params.pkl'))
     
     ## Decoding
     start_time = time.time()
     print("解码开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    _, speaker_states_viterbi = model_a.predict(S_hat_onehot, F_hat, X_onehot, F_potential_list_fix, audio_dur_grps_onehot, lengths) # viterbi 解码结果
-    end_time = time.time()
-    print("解码结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
-    print("解码耗时:", end_time - start_time, "秒")
-
-    
-    # Stage 2: 在认为人脸观测不可靠的情况下，继续训练 Nested HMM Full 模型，解码说话人状态
-    tolerance_f = 1e-1
-    model_f = NestedHMM_full(n_actors=n_actors, n_iter=100, tol=tolerance_f, verbose=True, n_audio_dur_grps=n_audio_dur_grps, use_gpu=True)
-    model_f.load_params(hmm_model_path_save)
-    ## Training
-    print("\n=== 训练模型(Stage 2) ===")
-    start_time = time.time()
-    print("训练开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    model_f.fit(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, set_B_F_diag_limits=True, lengths=lengths)
-    end_time = time.time()
-    print("训练结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
-    print("训练耗时:", end_time - start_time, "秒")
-    model_f.print_params()   # print model_f parameters
-    model_f.save_params(os.path.join(result_dir, 'hmm_params(Stage 2).pkl'))
-    
-    ## Decoding
-    start_time = time.time()
-    print("解码开始时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    face_states_viterbi, _ = model_f.predict(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, lengths) # viterbi 解码结果
+    face_states_viterbi, speaker_states_viterbi = model.predict(S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot, lengths) # viterbi 解码结果
     end_time = time.time()
     print("解码结束时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
     print("解码耗时:", end_time - start_time, "秒")
@@ -344,33 +316,34 @@ def labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_lis
     if flag_has_neg1:  # 将说话人的-1标签还原回来
         speaker_states_viterbi[speaker_states_viterbi == n_actors - 1] = -1 
         alabels[alabels == n_actors - 1] = -1
-
-    print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
-        
-    if unreliable_pp >= 100.0:
-        alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
-    else:
-        assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
-        # 保存不同unreliable_pp下的选择性平滑结果
-        os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
-        for unreliable_pp_temp in range(0, 101, 5):
-            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+    
+    if save_alabels_decode:
+        print("说话人解码结果相较观测改变数量:", np.sum(alabels != speaker_states_viterbi))
+    
+        if unreliable_pp >= 100.0:
+            alabels_smoothed = copy.deepcopy(speaker_states_viterbi)
+        else:
+            assert alabels_unreliable_metrics is not None, "Please provide alabels_unreliable_metrics when unreliable_pp < 100.0"
+            # 保存不同unreliable_pp下的选择性平滑结果
+            os.makedirs(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp'), exist_ok=True)
+            for unreliable_pp_temp in range(0, 101, 5):
+                changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp_temp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
+                alabels_smoothed = copy.deepcopy(alabels_init)
+                alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
+                print(f"unreliable_percent={unreliable_pp_temp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+                smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+                with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
+                    json.dump(smoothed_cluster_dic, f, indent=2)
+            
+            # 按指定的unreliable_pp保存选择性平滑结果
+            changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
             alabels_smoothed = copy.deepcopy(alabels_init)
             alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-            print(f"unreliable_percent={unreliable_pp_temp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-            smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-            with open(os.path.join(result_dir, 'pseudo_labels_audio_unreliable_pp', f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp_temp}).json'), 'w', encoding='utf-8') as f:
-                json.dump(smoothed_cluster_dic, f, indent=2)
         
-        # 按指定的unreliable_pp保存选择性平滑结果
-        changed_idxs = np.argsort(alabels_unreliable_metrics)[:int(unreliable_pp / 100 * len(alabels))] # indexs of elements in smallest alabels_unreliable_metrics
-        alabels_smoothed = copy.deepcopy(alabels_init)
-        alabels_smoothed[changed_idxs] = speaker_states_viterbi[changed_idxs]
-    
-    print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
+        print(f"unreliable_percent={unreliable_pp}时，选择性平滑结果相较观测改变数量:", np.sum(alabels != alabels_smoothed))
+        smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+        with open(os.path.join(result_dir, f'pseudo_labels_audio_nested_hmm_full(unreliable_pp={unreliable_pp}).json'), 'w', encoding='utf-8') as f:
+            json.dump(smoothed_cluster_dic, f, indent=2)
     
     return face_states_viterbi, speaker_states_viterbi
 
@@ -439,7 +412,7 @@ def process_top_cluster_ids_together(alabels, vlabels_vad_aligned, vlabels_mf_al
     uniq_a_count = {aid: np.sum(alabels == aid) for aid in uniq_a}
     # Sort alabels by count (descending), then by audio cluster id value (ascending)
     sorted_uniq_a = sorted(uniq_a_count.keys(), key=lambda x: (-uniq_a_count[x], x))
-    top_clusters = sorted_uniq_a[:min(2 + main_actors_num, len(sorted_uniq_a), 9)]
+    top_clusters = sorted_uniq_a[:min(2 * main_actors_num, len(sorted_uniq_a), 10)]
 
     # initialize new labels
     new_alabels = np.full(len(alabels), -1, dtype=int)
@@ -1329,8 +1302,40 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, alengths, params, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, 
                             alabels_unreliable_metrics=alabels_unreliable_metrics, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
     else:
-        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_processed_init, alengths, audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path)
-
+        # Stage 1: 在认为人脸观测可靠的情况下，训练 Nested HMM Full 模型，解码说话人状态
+        tol_a = 1e-3 if hmm_model_path is None else 1e-1
+        F_potential_list_fix = [[[int(j)] for j in np.flatnonzero(row)] for row in F_hat]  # 认为人脸观测完全可靠
+        _, alabels_decode = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list_fix, alabels_processed_init, alengths, tol_a, 100,
+                                                          audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, 
+                                                          audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path, use_gpu=False, set_B_F_diag_limits=False, 
+                                                          save_alabels_decode=True, save_params=True)
+        # Stage 2: 在认为人脸观测不可靠的情况下，继续训练 Nested HMM Full 模型，解码说话人状态
+        ## only keep top main_actors_num decoded speaker labels, others set to -1
+        spk_id_max = min(2 + config.main_actors_num, np.max(alabels_decode), 9)-1
+        alabels_processed = copy.deepcopy(alabels_decode)
+        alabels_processed[alabels_processed > spk_id_max] = -1
+        vlabels_vad_processed[vlabels_vad_processed > spk_id_max] = -1
+        vlabels_mf_processed_input[vlabels_mf_processed_input > spk_id_max] = -1
+        ## 转换观测及avd协变量为 binary 编码矩阵
+        S_hat_onehot, X_onehot, F_hat, flag_has_neg1 = convert201_together(audio_seg_ids, alabels_processed, 
+                                                                          audio_times, visual_times_vad_aligned, vlabels_vad_processed, 
+                                                                          audio_seg_ids_mf, vlabels_mf_processed_input)
+        print(f"Original examples of alabels_potential_list: {alabels_potential_list[:25]}")
+        alabels_potential_list = [[label if label <= spk_id_max else -1 for label in sublist] for sublist in alabels_potential_list]
+        # 当sublist中存在多个-1时，只保留第一个-1
+        alabels_potential_list = [[x for x, c in zip(sublist, accumulate(1 if v == -1 else 0 for v in sublist)) if x != -1 or c == 1] for sublist in alabels_potential_list]
+        print(f"Filtered examples of alabels_potential_list: {alabels_potential_list[:25]}")
+        print(f"Original examples of vlabels_mf_potential_list: {vlabels_mf_potential_list[:5]}")
+        vlabels_mf_potential_list = [[label if label <= spk_id_max else -1  for label in sublist] for sublist in vlabels_mf_potential_list]
+        vlabels_mf_potential_list = [[x for x, c in zip(sublist, accumulate(1 if v == -1 else 0 for v in sublist)) if x != -1 or c == 1] for sublist in vlabels_mf_potential_list]
+        print(f"Filtered examples of vlabels_mf_potential_list: {vlabels_mf_potential_list[:5]}")
+        ## 收集每个audio segment中 S_t, F_t 的潜在状态集合，并将-1替换为n_states-1
+        S_potential_list, F_potential_list = collect_potential_states(audio_seg_ids, S_hat_onehot.shape[1], alabels_potential_list, 
+                                                                      audio_seg_ids_mf, vlabels_mf_potential_list)
+        F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_processed_init, alengths, 1e-1, 10,
+                                                    audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, 
+                                                    audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=os.path.join(result_dir, 'hmm_params.pkl'), use_gpu=True, set_B_F_diag_limits=True, save_alabels_decode=True, save_params = False)
+        
         potential_list_size_major, potential_list_size_minor = 1, (F_decode.shape[1]-1)//2
         print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
         print(f"[INFO] Try potential list size(minor) {potential_list_size_minor} for mid-frame face labels correction.")
