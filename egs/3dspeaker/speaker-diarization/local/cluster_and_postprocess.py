@@ -1311,8 +1311,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                           save_alabels_decode=True, save_params=True)
         # Stage 2: 在认为人脸观测不可靠的情况下，继续训练 Nested HMM Full 模型，解码说话人状态
         ## only keep top main_actors_num decoded speaker labels, others set to -1
-        spk_id_max = min(2 + config.main_actors_num, np.max(alabels_decode), 9)-1
-        alabels_processed = copy.deepcopy(alabels_decode)
+        spk_id_max = min(2 + config.main_actors_num, np.max(alabels_processed), 9)-1
         alabels_processed[alabels_processed > spk_id_max] = -1
         vlabels_vad_processed[vlabels_vad_processed > spk_id_max] = -1
         vlabels_mf_processed_input[vlabels_mf_processed_input > spk_id_max] = -1
@@ -1334,7 +1333,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                                       audio_seg_ids_mf, vlabels_mf_potential_list)
         F_decode, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list, alabels_processed_init, alengths, 1e-1, 10,
                                                     audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, 
-                                                    audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=os.path.join(result_dir, 'hmm_params.pkl'), use_gpu=True, set_B_F_diag_limits=True, save_alabels_decode=True, save_params = False)
+                                                    audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=os.path.join(result_dir, 'hmm_params.pkl'), use_gpu=True, set_B_F_diag_limits=True, save_alabels_decode=False, save_params = False)
         
         potential_list_size_major, potential_list_size_minor = 1, (F_decode.shape[1]-1)//2
         print(f"[INFO] Try potential list size(major) {potential_list_size_major} for mid-frame face labels correction.")
