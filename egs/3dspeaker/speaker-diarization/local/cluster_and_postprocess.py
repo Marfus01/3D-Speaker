@@ -728,10 +728,10 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
         ]
         corrected_flag = False
 
-        print(f"[INFO] Process audio segment ID {audio_seg_id}...")
-        print(f"[INFO] F_hat: {F_hat[audio_idx, :]}, F_decode: {F_decode[audio_idx, :]}")
-        print(f"[INFO] potential_list for selected mid-frame faces: {vlabels_mf_potential_list_selected}")
-        print(f"[INFO] original mid-frame face labels: {[vlabels_mf[mf_idx] for mf_idx in mf_indices_selected]}")
+        # print(f"[INFO] Process audio segment ID {audio_seg_id}...")
+        # print(f"[INFO] F_hat: {F_hat[audio_idx, :]}, F_decode: {F_decode[audio_idx, :]}")
+        # print(f"[INFO] potential_list for selected mid-frame faces: {vlabels_mf_potential_list_selected}")
+        # print(f"[INFO] original mid-frame face labels: {[vlabels_mf[mf_idx] for mf_idx in mf_indices_selected]}")
 
         # Check whether the existence label can determine the face label directly
         ## Get all potential labels for current audio segment
@@ -746,7 +746,7 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
 
         # Hard matching if possible
         if all_appear_once_main and match_condition and match_condition2:
-            print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels by hard matching based on decoding results.")
+            # print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels by hard matching based on decoding results.")
             corrected_flag = True
             # Hard matching succeeds
             for i, mf_indice in enumerate(mf_indices_selected):
@@ -791,7 +791,7 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
                 
                 # If exactly one valid combination found, use it
                 if len(valid_combinations) == 1:
-                    print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels based on decoding results.")
+                    # print(f"[INFO] For audio segment ID {audio_seg_id}, corrected mid-frame face labels based on decoding results.")
                     corrected_flag = True
                     for i, mf_indice in enumerate(mf_indices_selected):
                         vlabel_mf_new = valid_combinations[0][i]
@@ -800,10 +800,10 @@ def correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabel
                             changed_cnt += 1
                     break
 
-        if corrected_flag:
-            print(f"[INFO] After correction, mid-frame face labels are {[vlabels_mf_corrected[mf_idx] for mf_idx in mf_indices_selected]}")
-        else:
-            print(f"[INFO] Failed correction.")
+        # if corrected_flag:
+        #     print(f"[INFO] After correction, mid-frame face labels are {[vlabels_mf_corrected[mf_idx] for mf_idx in mf_indices_selected]}")
+        # else:
+        #     print(f"[INFO] Failed correction.")
 
     vlabels_mf_corrected = np.array([label if label != n_states - 1 else -1 for label in vlabels_mf_corrected])  # revert n_states-1 back to -1
     print(f"[INFO] There are {len(changed_audio_seg_idx)} audio segments where mid-frame presence labels differ between decoding and observation.")
@@ -1319,7 +1319,6 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         S_hat_onehot, X_onehot, F_hat, flag_has_neg1 = convert201_together(audio_seg_ids, alabels_processed, 
                                                                           audio_times, visual_times_vad_aligned, vlabels_vad_processed, 
                                                                           audio_seg_ids_mf, vlabels_mf_processed_input)
-        print(f"Original examples of alabels_potential_list: {alabels_potential_list[:25]}")
         ## 当sublist中存在多个-1时，只保留第一个-1
         alabels_potential_list = [[label if label <= spk_id_max else -1 for label in sublist] for sublist in alabels_potential_list]
         alabels_potential_list = [[x for x, c in zip(sublist, accumulate(1 if v == -1 else 0 for v in sublist)) if x != -1 or c == 1] for sublist in alabels_potential_list]

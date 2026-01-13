@@ -498,8 +498,8 @@ class NestedHMM_full():
             self._do_mstep(stats, set_B_F_diag_limits)
             mstep_time = time.time() - start_time
 
-            print(f"E步耗时: {estep_time:.4f}秒")
-            print(f"M步耗时: {mstep_time:.4f}秒")
+            # print(f"E步耗时: {estep_time:.4f}秒")
+            # print(f"M步耗时: {mstep_time:.4f}秒")
 
         return self
 
@@ -550,9 +550,9 @@ class NestedHMM_full():
             
         stats['log_likelihood'] = log_likelihood
         
-        print(f"前向算法总时间: {forward_time:.4f}秒")
-        print(f"后向算法总时间: {backward_time:.4f}秒")
-        print(f"累积统计量更新总时间: {accumulate_time:.4f}秒")
+        # print(f"前向算法总时间: {forward_time:.4f}秒")
+        # print(f"后向算法总时间: {backward_time:.4f}秒")
+        # print(f"累积统计量更新总时间: {accumulate_time:.4f}秒")
         
         return stats
 
@@ -1268,7 +1268,7 @@ class NestedHMM_full():
                 print("Warning: Face initial parameters optimization did not fully converge, but objective improved.")
         else:
             print("Warning: face initial parameters optimization did not converge.")
-        print(f"For face initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        # print(f"For face initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
     # 预先处理stats['face_transition_counts']的每一个item，避免重复计算
     @staticmethod
@@ -1392,7 +1392,7 @@ class NestedHMM_full():
                 print("Warning: Face transition parameters optimization did not fully converge, but objective improved.")
         else:
             print("Warning: face transition parameters optimization did not converge.")
-        print(f"For face transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        # print(f"For face transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
 
     def _update_speaker_initial_params(self, stats):
@@ -1451,7 +1451,7 @@ class NestedHMM_full():
             self.eta1_ = result.x[-1]
         else:
             print("Warning: Speaker initial parameters optimization did not converge.")
-        print(f"For speaker initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        # print(f"For speaker initial, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
     def _update_speaker_transition_params(self, stats):
         """使用数值优化更新说话人转移参数(只优化非对角线元素和gamma2, eta2)"""
@@ -1518,7 +1518,7 @@ class NestedHMM_full():
             self.eta2_ = result.x[-1]
         else:
             print("Warning: Speaker transition parameters optimization did not converge.")
-        print(f"For speaker transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+        # print(f"For speaker transition, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
     def _update_speaker_emission_params(self, stats, B_S_diag_min=None):
         """更新说话人发射概率参数"""
@@ -1584,7 +1584,7 @@ class NestedHMM_full():
             else:
                 print("Warning: Speaker emission parameters optimization did not converge.")
             
-            print(f"For objective_speaker_emission, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
+            # print(f"For objective_speaker_emission, Initial objective: {obj_init:.4f}, Final objective: {obj_final:.4f}")
 
 
     def score(self, S_hat_onehot, F_hat, X_onehot, F_potential_list, audio_dur_grps_onehot=None, lengths=None):
