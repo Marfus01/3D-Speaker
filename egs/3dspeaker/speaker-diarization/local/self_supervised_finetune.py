@@ -565,7 +565,7 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
         preds_dic: {sample_id: predicted_label}
         embeddings_dic: {sample_id: embedding_array}
         uncertainty_dic: {sample_id: uncertainty_score} (if compute_uncertainty=True)
-        potential_list_dic: {sample_id: [top2_label_list]} (if compute_uncertainty=True)
+        potential_list_dic: {sample_id: [sorted_label_list]} (if compute_uncertainty=True)
     """
     model.eval()
     classifier.eval()
@@ -609,16 +609,15 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
                     
                     if compute_uncertainty:
                         probs = batch_probs[i]
-                        top2_probs, top2_indices = torch.topk(probs, 2)
-                        uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                        probs_sorted, indices_sorted = torch.sort(probs, descending=True)
+                        uncertainty = (probs_sorted[0] - probs_sorted[1]).item()
                         uncertainty_dic[sid] = float(uncertainty)
-                        if potential_set is not None:   # Filter top2 within potential_set
-                            _, top2_indices_potential = torch.topk(probs[potential_indices], 2)
-                            top2_indices = [potential_indices[idx] for idx in top2_indices_potential.cpu().numpy()]
+                        if potential_set is not None:   # Filter top within potential_set
+                            top_indices = [idx for idx in indices_sorted.cpu().numpy() if idx in potential_indices]
                         else:
-                            top2_indices = top2_indices.cpu().numpy().tolist()
-                        top2_labels = [int(dataset.idx2label[idx]) for idx in top2_indices]
-                        potential_list_dic[sid] = top2_labels
+                            top_indices = indices_sorted.cpu().numpy().tolist()
+                        top_labels = [int(dataset.idx2label[idx]) for idx in top_indices]
+                        potential_list_dic[sid] = top_labels
                     sample_idx += 1
         
         else:  # Single sample processing: Speaker model without hidden features
@@ -644,16 +643,15 @@ def inference_with_classifier(model, classifier, dataset, device, compute_uncert
                 embeddings_dic[sample_id] = emb.squeeze(0).cpu().numpy()
                 
                 if compute_uncertainty:
-                    top2_probs, top2_indices = torch.topk(probs, 2)
-                    uncertainty = (top2_probs[0] - top2_probs[1]).item()
+                    probs_sorted, indices_sorted = torch.sort(probs, descending=True)
+                    uncertainty = (probs_sorted[0] - probs_sorted[1]).item()
                     uncertainty_dic[sample_id] = float(uncertainty)
-                    if potential_set is not None:   # Filter top2 within potential_set
-                        _, top2_indices_potential = torch.topk(probs[potential_indices], 2)
-                        top2_indices = [potential_indices[idx] for idx in top2_indices_potential.cpu().numpy()]
+                    if potential_set is not None:   # Filter top within potential_set
+                        top_indices = [idx for idx in indices_sorted.cpu().numpy() if idx in potential_indices]
                     else:
-                        top2_indices = top2_indices.cpu().numpy().tolist()
-                    top2_labels = [int(dataset.idx2label[idx]) for idx in top2_indices]
-                    potential_list_dic[sid] = top2_labels
+                        top_indices = indices_sorted.cpu().numpy().tolist()
+                    top_labels = [int(dataset.idx2label[idx]) for idx in top_indices]
+                    potential_list_dic[sid] = top_labels
 
     if compute_uncertainty and potential_set is not None:
         # Gather all values from potential_list_dic, make them unique, and assert they are a subset of potential_set
@@ -1077,14 +1075,6 @@ def main():
     acc_history_spk = [{'round': 'Initial', 'acc': initial_acc_spk}]
     acc_history_face = [{'round': 'Initial', 'acc': initial_acc_face}] if initial_acc_face is not None else None
 
-    # Load unreliable segment IDs and initial cluster results
-    with open(os.path.join(pseudo_label_dir, 'useful_var_dic.pkl'), 'rb') as f:
-        useful_var_dic = pickle.load(f)
-    audio_seg_ids = useful_var_dic['audio_seg_ids']
-    alabels_unreliable_metrics_init = useful_var_dic['alabels_unreliable_metrics_init']
-    idxs_unreliable = np.argsort(alabels_unreliable_metrics_init)[:int(args.unreliable_pp / 100 * len(audio_seg_ids))]
-    audio_seg_ids_unreliable = audio_seg_ids[idxs_unreliable]
-
     # define pseudo_valid_label_dic for speaker and save
     with open(os.path.join(pseudo_label_dir, 'cluster_results_vision_vad_processed_for_HMM_nested_X_uniq.json'), 'r', encoding='utf-8') as f:
         vad_cluster_results = json.load(f)
@@ -1093,6 +1083,11 @@ def main():
     pseudo_valid_label_dic_spk = {k: vad_cluster_results[k] for k in vad_cluster_results if vad_cluster_results[k] == audio_obs_init_results[k]}
     with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_speaker.json'), 'w', encoding='utf-8') as f:
         json.dump(pseudo_valid_label_dic_spk, f, indent=2)
+    # load cluster results for face to prepare pseudo_valid_label_dic_face
+    if args.cluster_type == 'audio_vision':
+        with open(os.path.join(pseudo_label_dir, 'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
+            face_mf_obs_init_results = json.load(f)
+        pseudo_valid_label_dic_face_init = {k: face_mf_obs_init_results[k] for k in face_mf_obs_init_results if face_mf_obs_init_results[k] >= -1}  # removed samples with -2,-3 labels(unaligned)
 
     # ============================
     # Iterative fine-tuning
@@ -1227,28 +1222,10 @@ def main():
                 logger.info(f"For infering, Using face pseudo-label file: {face_pseudo_label_file_infer}")
 
                 # define pseudo_valid_label_dic for face and save
-                with open(pseudo_label_file, 'r', encoding='utf-8') as f:
-                    pseudo_label_audio = json.load(f)
-                if round == 0:
-                    with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
-                        pseudo_label_face = json.load(f)
-                    # 将face ids按audio_seg_id分组
-                    face_ids_dic = {}
-                    for face_id in pseudo_label_face:
-                        audio_seg_id = face_id.rsplit('_', 1)[0]
-                        if audio_seg_id not in face_ids_dic:
-                            face_ids_dic[audio_seg_id] = []
-                        face_ids_dic[audio_seg_id].append(face_id)
-                # 根据speaker信息筛选face ids
-                face_ids_filtered_list_spk = []
-                for key in face_ids_dic:
-                    face_ids_spk = []
-                    for face_id in face_ids_dic[key]:
-                        if pseudo_label_audio[key] == pseudo_label_face[face_id]:
-                            face_ids_spk.append(face_id)
-                    if len(face_ids_spk) == 1:
-                        face_ids_filtered_list_spk.extend(face_ids_spk)
-                pseudo_valid_label_dic_face = {k: pseudo_label_face[k] for k in face_ids_filtered_list_spk}
+                with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
+                    pseudo_label_face = json.load(f)
+                max_face_pseudo_label = max(pseudo_label_face.values())
+                pseudo_valid_label_dic_face = {k: (v if v <= max_face_pseudo_label else -1) for k, v in pseudo_valid_label_dic_face_init.items()}
                 with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_face.json'), 'w', encoding='utf-8') as f:
                     json.dump(pseudo_valid_label_dic_face, f, indent=2)
                 
@@ -1387,7 +1364,7 @@ def main():
                     # with open(os.path.join(round_pseudo_label_dir, 'alabels_embeddings.pkl'), 'wb') as f:
                     #     pickle.dump(embeddings_dic, f)
                     if args.from_preds:
-                        best_preds_dic_spk = {k: preds_dic[k] if k in audio_seg_ids_unreliable else audio_obs_init_results[k] for k in preds_dic}
+                        best_preds_dic_spk = copy.deepcopy(preds_dic)
                         best_uncertainty_dic_spk = copy.deepcopy(uncertainty_dic)
                         best_potential_list_dic_spk = copy.deepcopy(potential_list_dic)
                         with open(os.path.join(round_pseudo_label_dir, 'alabels_pred_dic.pkl'), 'wb') as f:
@@ -1468,7 +1445,7 @@ def main():
                 logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: acc(valid_pseudo): {crt_acc_valid_e_pseudo_face:.4f}, acc: {crt_acc_e_face:.4f}")
                 
                 # 改为两者相差至少0.001才算提升
-                if (crt_acc_valid_e_pseudo_face - best_acc_valid_e_pseudo_face) >= 0.001:
+                if crt_acc_valid_e_pseudo_face > best_acc_valid_e_pseudo_face:
                     best_acc_valid_e_pseudo_face, best_epoch_face = crt_acc_valid_e_pseudo_face, ft_epoch_face
                     patience_counter_epoch_face = 0
                     # Save best face model
@@ -1496,10 +1473,10 @@ def main():
                         if patience_counter_epoch_face >= args.early_stop_patience_epoch:
                             logger.info(f"Early stopping at face epoch {ft_epoch_face}")
                             break
-                        # 这个规则没用，阈值不好设定
-                        if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
-                            logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
-                            break
+                        # # 这个规则没用，阈值不好设定
+                        # if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
+                        #     logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
+                        #     break
                 prev_acc_valid_e_pseudo_face = copy.deepcopy(crt_acc_valid_e_pseudo_face)
             
             optimizer_face.zero_grad()

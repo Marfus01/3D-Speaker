@@ -1130,13 +1130,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
 
             summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
             summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
-            summary_cluster_results(vlabels_mf_processed, modal_type='visual_mid_frame_processed_for_HMM_nested_X')
             summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_processed_all_for_HMM_nested_X')
             save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
             save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
                                            os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
-            save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, 
-                                           os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_for_HMM_nested_X.json'))
             save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, 
                                         os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'))
 
@@ -1149,7 +1146,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                             candi_align_cluster_num=2) # of the same length as alabels_processed
         vlabels_mf_potential_list = None
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=len(np.unique(vlabels_mf_processed_input))) # of the same length as vlabels_mf_processed
+            vlabels_mf_potential_list = align_samples2clusters(copy.deepcopy(vlabels_mf_processed_input), visual_embeddings_mf, candi_align_cluster_num=len(np.unique(vlabels_mf_processed_input)))
             del visual_embeddings_mf
             
             # Count occurrences of unique integers in vlabels_mf_potential_list
@@ -1173,8 +1170,6 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
             useful_var_dic['face_idxs_mf'] = face_idxs_mf
             useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
-            useful_var_dic['aligned_mask_mf'] = aligned_mask_mf
-            useful_var_dic['vlabels_mf_processed'] = vlabels_mf_processed
             useful_var_dic['vlabels_mf_potential_list'] = vlabels_mf_potential_list
         useful_var_path = os.path.join(result_dir, 'useful_var_dic.pkl')
         with open(useful_var_path, 'wb') as f:
@@ -1200,20 +1195,18 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         assert os.path.exists(alabels_pred_dic_path), f"When from_preds is True, alabels_pred_dic.pkl must exist in {result_dir}."
         with open(alabels_pred_dic_path, 'rb') as f:
             alabels_pred_dic = pickle.load(f)
-        alabels_processed = np.array([alabels_pred_dic[seg_id] for seg_id in audio_seg_ids])
-        ## save loaded speaker labels as json
+        alabels_processed = copy.deepcopy(alabels_processed_init)
+        ### replace unreliable speaker labels in alabels_processed_init with model predictions
+        idxs_unreliable = np.argsort(alabels_unreliable_metrics_init)[:int(unreliable_pp / 100 * len(audio_seg_ids))]
+        alabels_processed_pred = np.array([alabels_pred_dic[seg_id] for seg_id in audio_seg_ids])
+        alabels_processed[idxs_unreliable] = alabels_processed_pred[idxs_unreliable]
+        ### save loaded speaker labels as json
         summary_cluster_results(alabels_processed, modal_type='speaker_pred_from_model')
         save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'speaker_pred_from_model.json'))
         if not hmm_flag:
             save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'pseudo_labels_audio_from_model.json'))
             return
-        ## Take care of missing clusster ids of alabels_processed_init in alabels_processed
-        if hmm_model_path is not None:
-            missing_alabels_set = set(np.unique(alabels_processed_init)) - set(np.unique(alabels_processed))
-            if len(missing_alabels_set) > 0:
-                print(f"[WARNING] {missing_alabels_set} in alabels_processed_init are missing in alabels_processed loaded from model predictions. They will be recovered.")
-                for missing_label in missing_alabels_set:
-                    alabels_processed[alabels_processed_init == missing_label] = missing_label
+        
         ## load speaker potential list
         alabels_potential_dic_path = os.path.join(result_dir, 'alabels_potential_dic.pkl')
         assert os.path.exists(alabels_potential_dic_path), f"When from_preds is True, alabels_potential_dic.pkl must exist in {result_dir}."
@@ -1232,28 +1225,29 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         if 'mid_frame' in hmm_visual_info_type:
             ## load useful variables
             audio_seg_ids_mf, face_idxs_mf = useful_var_dic['audio_seg_ids_mf'], useful_var_dic['face_idxs_mf']
-            aligned_mask_mf = useful_var_dic['aligned_mask_mf']
-            audio_seg_ids_mf_aligned, face_idxs_mf_aligned = audio_seg_ids_mf[aligned_mask_mf], face_idxs_mf[aligned_mask_mf]
-            
+            keys_mf_all = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
+            vlabels_mf_processed_all_init = useful_var_dic['vlabels_mf_processed_all']
             ## load vlabels_mf_pred
             vlabels_mf_pred_dic_path = os.path.join(result_dir, 'vlabels_mf_pred_dic.pkl')
             if not os.path.exists(vlabels_mf_pred_dic_path):
-                assert 'vlabels_mf_processed' in useful_var_dic, "When from_preds is True and 'mid_frame' in hmm_visual_info_type, vlabels_mf_processed must be provided in useful_var_dic if vlabels_mf_pred_dic.pkl does not exist."
-                vlabels_mf_processed_all = useful_var_dic['vlabels_mf_processed_all']
-                vlabels_mf_processed = useful_var_dic['vlabels_mf_processed']
+                vlabels_mf_processed_all = copy.deepcopy(vlabels_mf_processed_all_init)
+                vlabels_mf_processed_input = np.where(vlabels_mf_processed_all < 0, -1, vlabels_mf_processed_all).astype(int)
             else:
                 with open(vlabels_mf_pred_dic_path, 'rb') as f:
                     vlabels_mf_pred_dic = pickle.load(f)  # contains predcitions for all mid-frame face samples
-                ### update vlabels_mf_processed_all and vlabels_mf_processed
-                keys_mf_all = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
-                vlabels_mf_processed_all = np.array([vlabels_mf_pred_dic[k] for k in keys_mf_all])  # model predictions for all mid-frame face samples
-                vlabels_mf_processed = vlabels_mf_processed_all[aligned_mask_mf]  # in hmm, only use these aligned to audio clusters in initialization, since they are more reliable
-                vlabels_mf_processed_input = np.where(vlabels_mf_processed_all < 0, -1, vlabels_mf_processed_all).astype(int)
+                ### update vlabels_mf_processed_input
+                vlabels_mf_processed_input = np.array([vlabels_mf_pred_dic[k] for k in keys_mf_all])  # model predictions for all mid-frame face samples
+                #### 1. 将原来因为簇id过大，而被统一标记为-1的样本，恢复为原来的标签
+                spk_id_max = min(2 + config.main_actors_num, np.max(alabels_processed_init), 9)-1
+                recover_indices = np.where(vlabels_mf_processed_all_init > spk_id_max)[0]
+                vlabels_mf_processed_input[recover_indices] = vlabels_mf_processed_all_init[recover_indices]
+                #### 2.在 vlabels_mf_processed_input 目前为-1的标签中，筛选出原来为-2, -3的样本，将其取值替换为原来的标签，得到vlabels_mf_processed_all
+                vlabels_mf_processed_all = copy.deepcopy(vlabels_mf_processed_input)
+                recover_indices = [idx for idx in np.where(vlabels_mf_processed_input == -1)[0] if vlabels_mf_processed_all_init[idx] in [-2, -3]]
+                vlabels_mf_processed_all[recover_indices] = vlabels_mf_processed_all_init[recover_indices]
                 ### save loaded mid-frame face labels for hmm
-                summary_cluster_results(vlabels_mf_processed, modal_type='faces_mid_frame_labels_from_model')
-                summary_cluster_results(vlabels_mf_processed_all, modal_type='faces_mid_frame_labels_all_from_model')
-                save_cluster_results_vision_mf(vlabels_mf_processed, audio_seg_ids_mf_aligned, face_idxs_mf_aligned, os.path.join(result_dir, f'faces_mid_frame_labels_from_model.json'))
-                save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'faces_mid_frame_labels_all_from_model.json'))
+                summary_cluster_results(vlabels_mf_processed_input, modal_type='faces_mid_frame_labels_all_from_model')
+                save_cluster_results_vision_mf(vlabels_mf_processed_input, audio_seg_ids_mf, face_idxs_mf, os.path.join(result_dir, f'faces_mid_frame_labels_all_from_model.json'))
 
             ## load vlabels_mf_potential_list
             vlabels_mf_potential_dic_path = os.path.join(result_dir, 'vlabels_mf_potential_dic.pkl')
@@ -1265,6 +1259,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                     vlabels_mf_potential_dic = pickle.load(f)
                 vlabels_mf_potential_list = np.array([vlabels_mf_potential_dic[k] for k in keys_mf_all])
 
+        # Take care of missing clusster ids of alabels_processed_init in alabels_processed
+        missing_alabels_set = set(np.unique(alabels_processed_init)) - set(np.unique(alabels_processed))
+        if len(missing_alabels_set) > 0:
+            print(f"[WARNING] {missing_alabels_set} in alabels_processed_init are missing in alabels_processed loaded from model predictions. They will be recovered.")
+            for missing_label in missing_alabels_set:
+                alabels_processed[alabels_processed_init == missing_label] = missing_label
         # Remove unaligned visual samples according to alabels_processed(since predictions may differ from previous clustering results)
         ## For vlabels_vad_processed
         illegal_vad_labels_set = set(np.unique(vlabels_vad_processed)) - set(np.unique(alabels_processed))
@@ -1273,7 +1273,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             vlabels_vad_processed = vlabels_vad_processed[legal_indices]
             visual_times_vad_aligned = visual_times_vad_aligned[legal_indices]
             print(f"[INFO] Removed {len(illegal_vad_labels_set)} illegal vad visual labels not in alabels_processed when from_preds is True: {illegal_vad_labels_set}.")
-        ## For vlabels_mf_processed
+        ## For vlabels_mf_processed_input
         if 'mid_frame' in hmm_visual_info_type:
             illegal_mf_labels_set = set(np.unique(vlabels_mf_processed_input)) - set(np.unique(alabels_processed))
             assert len(illegal_mf_labels_set) == 0, "When from_preds is True, illegal mid-frame visual labels not in alabels_processed are not allowed before removal."
@@ -1305,7 +1305,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         # Stage 1: 在认为人脸观测可靠的情况下，训练 Nested HMM Full 模型，解码说话人状态
         tol_a = 1e-3 if hmm_model_path is None else 1e-1
         F_potential_list_fix = [[[int(j)] for j in np.flatnonzero(row)] for row in F_hat]  # 认为人脸观测完全可靠
-        _, alabels_decode = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list_fix, alabels_processed_init, alengths, tol_a, 100,
+        _, _ = labels_nested_hmm_full_smooth(S_hat_onehot, F_hat, X_onehot, S_potential_list, F_potential_list_fix, alabels_processed_init, alengths, tol_a, 100,
                                                           audio_seg_ids, result_dir, flag_has_neg1=flag_has_neg1, alabels_unreliable_metrics=alabels_unreliable_metrics_init, unreliable_pp=unreliable_pp, 
                                                           audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path, use_gpu=False, set_B_F_diag_limits=False, 
                                                           save_alabels_decode=True, save_params=True)
@@ -1320,14 +1320,11 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                                           audio_times, visual_times_vad_aligned, vlabels_vad_processed, 
                                                                           audio_seg_ids_mf, vlabels_mf_processed_input)
         print(f"Original examples of alabels_potential_list: {alabels_potential_list[:25]}")
+        ## 当sublist中存在多个-1时，只保留第一个-1
         alabels_potential_list = [[label if label <= spk_id_max else -1 for label in sublist] for sublist in alabels_potential_list]
-        # 当sublist中存在多个-1时，只保留第一个-1
         alabels_potential_list = [[x for x, c in zip(sublist, accumulate(1 if v == -1 else 0 for v in sublist)) if x != -1 or c == 1] for sublist in alabels_potential_list]
-        print(f"Filtered examples of alabels_potential_list: {alabels_potential_list[:25]}")
-        print(f"Original examples of vlabels_mf_potential_list: {vlabels_mf_potential_list[:5]}")
         vlabels_mf_potential_list = [[label if label <= spk_id_max else -1  for label in sublist] for sublist in vlabels_mf_potential_list]
         vlabels_mf_potential_list = [[x for x, c in zip(sublist, accumulate(1 if v == -1 else 0 for v in sublist)) if x != -1 or c == 1] for sublist in vlabels_mf_potential_list]
-        print(f"Filtered examples of vlabels_mf_potential_list: {vlabels_mf_potential_list[:5]}")
         ## 收集每个audio segment中 S_t, F_t 的潜在状态集合，并将-1替换为n_states-1
         S_potential_list, F_potential_list = collect_potential_states(audio_seg_ids, S_hat_onehot.shape[1], alabels_potential_list, 
                                                                       audio_seg_ids_mf, vlabels_mf_potential_list)
@@ -1348,9 +1345,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         keep_pos = np.where(vlabels_mf_processed_all > -2)[0]
         vlabels_mf_corrected[keep_pos] = vlabels_mf_processed_all[keep_pos]  # keep original labels for samples aligned with audio
         save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
-                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
-        save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
                                     os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
+        vlabels_mf_corrected[vlabels_mf_corrected < 0] = -1  # unify -2 and -3 to -1 for training data
+        save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
+                                       os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_train_nested_hmm_full.json'))
 
 def main():
     args = parser.parse_args()
