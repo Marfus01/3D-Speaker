@@ -1083,11 +1083,11 @@ def main():
     pseudo_valid_label_dic_spk = {k: vad_cluster_results[k] for k in vad_cluster_results if vad_cluster_results[k] == audio_obs_init_results[k]}
     with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_speaker.json'), 'w', encoding='utf-8') as f:
         json.dump(pseudo_valid_label_dic_spk, f, indent=2)
-    # load cluster results for face to prepare pseudo_valid_label_dic_face
-    if args.cluster_type == 'audio_vision':
-        with open(os.path.join(pseudo_label_dir, 'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
-            face_mf_obs_init_results = json.load(f)
-        pseudo_valid_label_dic_face_init = {k: face_mf_obs_init_results[k] for k in face_mf_obs_init_results if face_mf_obs_init_results[k] >= -1}  # removed samples with -2,-3 labels(unaligned)
+    # # load cluster results for face to prepare pseudo_valid_label_dic_face
+    # if args.cluster_type == 'audio_vision':
+    #     with open(os.path.join(pseudo_label_dir, 'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
+    #         face_mf_obs_init_results = json.load(f)
+    #     pseudo_valid_label_dic_face_init = {k: face_mf_obs_init_results[k] for k in face_mf_obs_init_results if face_mf_obs_init_results[k] >= -1}  # removed samples with -2,-3 labels(unaligned)
 
     # ============================
     # Iterative fine-tuning
@@ -1222,10 +1222,13 @@ def main():
                 logger.info(f"For infering, Using face pseudo-label file: {face_pseudo_label_file_infer}")
 
                 # define pseudo_valid_label_dic for face and save
-                with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
-                    pseudo_label_face = json.load(f)
-                max_face_pseudo_label = max(pseudo_label_face.values())
-                pseudo_valid_label_dic_face = {k: (v if v <= max_face_pseudo_label else -1) for k, v in pseudo_valid_label_dic_face_init.items()}
+                with open(face_pseudo_label_file_infer, 'r', encoding='utf-8') as f:
+                    pseudo_valid_label_dic_face = json.load(f)
+                pseudo_valid_label_dic_face = {k: pseudo_valid_label_dic_face[k] for k in pseudo_valid_label_dic_face if pseudo_valid_label_dic_face[k] >= -1}  # removed samples with -2,-3 labels(unaligned)
+                # with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
+                #     pseudo_label_face = json.load(f)
+                # max_face_pseudo_label = max(pseudo_label_face.values())
+                # pseudo_valid_label_dic_face = {k: (v if v <= max_face_pseudo_label else -1) for k, v in pseudo_valid_label_dic_face_init.items()}
                 with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_face.json'), 'w', encoding='utf-8') as f:
                     json.dump(pseudo_valid_label_dic_face, f, indent=2)
                 
