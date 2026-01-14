@@ -1456,8 +1456,6 @@ def main():
                         #     pickle.dump(embeddings_dic_face, f)
                         if args.from_preds:
                             best_preds_dic_face = copy.deepcopy(preds_dic_face)
-                            for k in pseudo_valid_label_dic_face_init:
-                                best_preds_dic_face[k] = pseudo_valid_label_dic_face_init[k]  # keep original labels for aligned samples
                             best_uncertainty_dic_face = copy.deepcopy(uncertainty_dic_face)
                             best_potential_list_dic_face = copy.deepcopy(potential_list_dic_face)
                             with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_pred_dic.pkl'), 'wb') as f:
