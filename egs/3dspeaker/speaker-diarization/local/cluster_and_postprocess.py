@@ -1311,6 +1311,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                           audio_dur_grps_onehot=audio_dur_grps_onehot, hmm_model_path=hmm_model_path, use_gpu=False, set_B_F_diag_limits=False, 
                                                           save_alabels_decode=True, save_params=True)
         # Stage 2: 在认为人脸观测不可靠的情况下，继续训练 Nested HMM Full 模型，解码说话人状态
+        ## keep original labels for mf samples aligned with audio
+        keep_pos = np.where(vlabels_mf_processed_all_init > -2)[0]
+        vlabels_mf_processed_input[keep_pos] = vlabels_mf_processed_all_init[keep_pos]
         ## only keep top main_actors_num decoded speaker labels, others set to -1
         spk_id_max = min(2 + config.main_actors_num, np.max(alabels_processed), 9)-1
         alabels_processed[alabels_processed > spk_id_max] = -1
