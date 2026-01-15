@@ -1210,44 +1210,47 @@ def main():
         
         # Create face dataset and dataloader (if using audio_vision)
         if args.cluster_type == 'audio_vision':
-            # Find face pseudo label file
-            face_pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_train' in f]
-            face_pseudo_label_files_infer = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_all' in f]
-            if len(face_pseudo_label_files) > 0:
-                assert len(face_pseudo_label_files) == 1, f"Multiple face pseudo-label files for training found in {pseudo_label_dir}: {face_pseudo_label_files}"
-                face_pseudo_label_file = os.path.join(pseudo_label_dir, face_pseudo_label_files[0])
-                logger.info(f"For training, Using face pseudo-label file: {face_pseudo_label_file}")
-                assert len(face_pseudo_label_files_infer) == 1, f"Multiple face pseudo-label files for infering found in {pseudo_label_dir}: {face_pseudo_label_files_infer}"
-                face_pseudo_label_file_infer = os.path.join(pseudo_label_dir, face_pseudo_label_files_infer[0])
-                logger.info(f"For infering, Using face pseudo-label file: {face_pseudo_label_file_infer}")
-
-                # define pseudo_valid_label_dic for face and save
-                with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
-                    pseudo_label_face = json.load(f)
-                max_face_pseudo_label = max(pseudo_label_face.values())
-                pseudo_valid_label_dic_face = {k: (v if v <= max_face_pseudo_label else -1) for k, v in pseudo_valid_label_dic_face_init.items()}
-                with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_face.json'), 'w', encoding='utf-8') as f:
-                    json.dump(pseudo_valid_label_dic_face, f, indent=2)
-                
-                
-                # Create face dataset
-                if round == 0:
-                    face_update_class_flag = True
-                    face_train_dataset = PseudoLabelFaceDataset(face_pseudo_label_file, args.midframe_face_dir)
-                else:
-                    face_update_class_flag = face_train_dataset.reset_labels(face_pseudo_label_file)
-                face_infer_dataset = PseudoLabelFaceDataset_infer(face_pseudo_label_file_infer, face_train_dataset)
-                
-                if len(face_train_dataset) == 0:
-                    logger.error("No valid face training samples found!")
-                    face_train_loader = None
-                else:
-                    face_train_loader = DataLoader(face_train_dataset, batch_size=args.finetune_batch_size, 
-                                                   shuffle=True, num_workers=4, pin_memory=True)
-                    logger.info(f"Created face dataloader with {len(face_train_dataset)} samples")
+            if round > 1:
+                logger.info("Skipping face model training after round 1")
             else:
-                logger.warning(f"No face pseudo-label file found in {pseudo_label_dir}, skipping face training")
-                face_train_loader = None
+                # Find face pseudo label file
+                face_pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_train' in f]
+                face_pseudo_label_files_infer = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_all' in f]
+                if len(face_pseudo_label_files) > 0:
+                    assert len(face_pseudo_label_files) == 1, f"Multiple face pseudo-label files for training found in {pseudo_label_dir}: {face_pseudo_label_files}"
+                    face_pseudo_label_file = os.path.join(pseudo_label_dir, face_pseudo_label_files[0])
+                    logger.info(f"For training, Using face pseudo-label file: {face_pseudo_label_file}")
+                    assert len(face_pseudo_label_files_infer) == 1, f"Multiple face pseudo-label files for infering found in {pseudo_label_dir}: {face_pseudo_label_files_infer}"
+                    face_pseudo_label_file_infer = os.path.join(pseudo_label_dir, face_pseudo_label_files_infer[0])
+                    logger.info(f"For infering, Using face pseudo-label file: {face_pseudo_label_file_infer}")
+
+                    # define pseudo_valid_label_dic for face and save
+                    with open(face_pseudo_label_file, 'r', encoding='utf-8') as f:
+                        pseudo_label_face = json.load(f)
+                    max_face_pseudo_label = max(pseudo_label_face.values())
+                    pseudo_valid_label_dic_face = {k: (v if v <= max_face_pseudo_label else -1) for k, v in pseudo_valid_label_dic_face_init.items()}
+                    with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_face.json'), 'w', encoding='utf-8') as f:
+                        json.dump(pseudo_valid_label_dic_face, f, indent=2)
+                    
+                    
+                    # Create face dataset
+                    if round == 0:
+                        face_update_class_flag = True
+                        face_train_dataset = PseudoLabelFaceDataset(face_pseudo_label_file, args.midframe_face_dir)
+                    else:
+                        face_update_class_flag = face_train_dataset.reset_labels(face_pseudo_label_file)
+                    face_infer_dataset = PseudoLabelFaceDataset_infer(face_pseudo_label_file_infer, face_train_dataset)
+                    
+                    if len(face_train_dataset) == 0:
+                        logger.error("No valid face training samples found!")
+                        face_train_loader = None
+                    else:
+                        face_train_loader = DataLoader(face_train_dataset, batch_size=args.finetune_batch_size, 
+                                                    shuffle=True, num_workers=4, pin_memory=True)
+                        logger.info(f"Created face dataloader with {len(face_train_dataset)} samples")
+                else:
+                    logger.warning(f"No face pseudo-label file found in {pseudo_label_dir}, skipping face training")
+                    face_train_loader = None
         else:
             face_train_loader = None
 
@@ -1277,28 +1280,31 @@ def main():
         
         # ============ Face Model: Freeze and Create Classifier ============
         if args.cluster_type == 'audio_vision' and face_train_loader is not None:
-            # Freeze face embedding model initially
-            for param in face_embedding_model.parameters():
-                param.requires_grad = False
-            
-            # Create face classifier and warm up
-            if face_update_class_flag:
-                # Create face classifier
-                face_classifier = MLPClassifier(input_dim=face_embedding_dim, num_classes=face_train_dataset.num_classes).to(device)
+            if round > 1:
+                logger.info("Skipping face model training after round 1")
+            else:
+                # Freeze face embedding model initially
+                for param in face_embedding_model.parameters():
+                    param.requires_grad = False
                 
-                # Warmup: train face classifier only when round == 0
-                ## Optimizer for warmup (only face classifier)
-                optimizer_face = torch.optim.Adam(face_classifier.parameters(), lr=1e-3)
-                ## Warmup training
-                logger.info(f"Warmup training face classifier for {args.warmup_epochs_num} epochs...")
-                for warmup_epoch in range(args.warmup_epochs_num):
-                    torch.manual_seed(args.seed + warmup_epoch)
-                    if args.use_gpu:
-                        torch.cuda.manual_seed_all(args.seed + warmup_epoch)
-                    train_stats_face = train_one_epoch(face_train_loader,  face_embedding_model, face_classifier, optimizer_face, 
-                                                    warmup_epoch, logger, device, use_hidfeat_flag=False)
-                    logger.info(f"Round {round}, Face Warmup Epoch {warmup_epoch}: loss={train_stats_face['loss']:.4f}, acc(pseudo)={train_stats_face['acc']:.2f}%")
-                optimizer_face.zero_grad()
+                # Create face classifier and warm up
+                if face_update_class_flag:
+                    # Create face classifier
+                    face_classifier = MLPClassifier(input_dim=face_embedding_dim, num_classes=face_train_dataset.num_classes).to(device)
+                    
+                    # Warmup: train face classifier only when round == 0
+                    ## Optimizer for warmup (only face classifier)
+                    optimizer_face = torch.optim.Adam(face_classifier.parameters(), lr=1e-3)
+                    ## Warmup training
+                    logger.info(f"Warmup training face classifier for {args.warmup_epochs_num} epochs...")
+                    for warmup_epoch in range(args.warmup_epochs_num):
+                        torch.manual_seed(args.seed + warmup_epoch)
+                        if args.use_gpu:
+                            torch.cuda.manual_seed_all(args.seed + warmup_epoch)
+                        train_stats_face = train_one_epoch(face_train_loader,  face_embedding_model, face_classifier, optimizer_face, 
+                                                        warmup_epoch, logger, device, use_hidfeat_flag=False)
+                        logger.info(f"Round {round}, Face Warmup Epoch {warmup_epoch}: loss={train_stats_face['loss']:.4f}, acc(pseudo)={train_stats_face['acc']:.2f}%")
+                    optimizer_face.zero_grad()
 
         # ============================
         # Speaker Model Fine-tuning
@@ -1394,93 +1400,105 @@ def main():
         # Face Model Fine-tuning
         # ============================
         if args.cluster_type == 'audio_vision' and face_train_loader is not None:
-            # Unfreeze face embedding model's output_layer
-            unfrozen_model_face_modules(face_embedding_model, print_mod_flag=(round == 0))
-            # Optimizer for face fine-tuning (both embedding and classifier)
-            optimizer_face = torch.optim.Adam(
-                list(face_embedding_model.parameters()) + list(face_classifier.parameters()),
-                lr=args.finetune_lr
-            )
-            logger.info(f"Fine-tuning face embedding model for {args.max_finetune_epochs} epochs...")
-
-            # Fine-tuning
-            round_model_save_path_face = os.path.join(round_dir, 'finetuned_model_face.pth')
-            round_classifier_save_path_face = os.path.join(round_dir, 'finetuned_classifier_face.pth')
-            best_acc_valid_e_pseudo_face, best_epoch_face, patience_counter_epoch_face = 0.0, 0, 0
-            prev_acc_valid_e_pseudo_face = 0.0
-            prev_acc_e_face = 0.0
-            if args.from_preds:
-                best_preds_dic_face, best_uncertainty_dic_face, best_potential_list_dic_face = {}, {}, {}
-            
-            for ft_epoch_face in range(args.max_finetune_epochs):
-                torch.manual_seed(args.seed + ft_epoch_face)
-                if args.use_gpu:
-                    torch.cuda.manual_seed_all(args.seed + ft_epoch_face)
-                train_stats_face = train_one_epoch(face_train_loader,  face_embedding_model, face_classifier, optimizer_face, 
-                                              ft_epoch_face, logger, device, use_hidfeat_flag=False)
-                logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: loss={train_stats_face['loss']:.4f}, acc(pseudo)={train_stats_face['acc']:.2f}%")
-                
-                # Evaluate on annotated data and save predictions
-                # Use unified inference function
-                preds_dic_face, embeddings_dic_face, uncertainty_dic_face, potential_list_dic_face = inference_with_classifier(
-                    model=face_embedding_model,
-                    classifier=face_classifier,
-                    dataset=face_infer_dataset,
-                    device=device,
-                    compute_uncertainty=args.from_preds,
-                    batch_process_flag=True,
-                    batch_size=args.finetune_batch_size * 2,
-                    use_hidfeat=False,
-                    unfrozen_modules_num=None,
-                    potential_set=train_dataset.unique_labels,
+            if round > 1:
+                if rank == 0 and args.from_preds:
+                    logger.info(f"Skipping face fine-tuning at round {round} as per configuration.")
+                    pseudo_label_dir_prev = os.path.join(exp_dir, f'round{round-1}', 'pseudo_label')
+                    face_pseudo_label_files_prev = [f for f in os.listdir(pseudo_label_dir_prev) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_train' in f]
+                    face_pseudo_label_files_infer_prev = [f for f in os.listdir(pseudo_label_dir_prev) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_all' in f]
+                    pred_files_prev = ['vlabels_mf_pred_dic.pkl', 'vlabels_mf_unreliable_dic.pkl', 'vlabels_mf_potential_dic.pkl']
+                    all_files2copy = face_pseudo_label_files_prev + face_pseudo_label_files_infer_prev + pred_files_prev
+                    for file_name in all_files2copy:
+                        shutil.copy(os.path.join(pseudo_label_dir_prev, file_name), os.path.join(round_pseudo_label_dir, file_name))
+                    open(os.path.join(round_pseudo_label_dir, 'skip_face_part'), 'w').close()
+            else:
+                # Unfreeze face embedding model's output_layer
+                unfrozen_model_face_modules(face_embedding_model, print_mod_flag=(round == 0))
+                # Optimizer for face fine-tuning (both embedding and classifier)
+                optimizer_face = torch.optim.Adam(
+                    list(face_embedding_model.parameters()) + list(face_classifier.parameters()),
+                    lr=args.finetune_lr
                 )
+                logger.info(f"Fine-tuning face embedding model for {args.max_finetune_epochs} epochs...")
+
+                # Fine-tuning
+                round_model_save_path_face = os.path.join(round_dir, 'finetuned_model_face.pth')
+                round_classifier_save_path_face = os.path.join(round_dir, 'finetuned_classifier_face.pth')
+                best_acc_valid_e_pseudo_face, best_epoch_face, patience_counter_epoch_face = 0.0, 0, 0
+                prev_acc_valid_e_pseudo_face = 0.0
+                prev_acc_e_face = 0.0
+                if args.from_preds:
+                    best_preds_dic_face, best_uncertainty_dic_face, best_potential_list_dic_face = {}, {}, {}
                 
-                # Save predictions and compute accuracy on annotated data
-                epoch_dir_face = os.path.join(round_dir, f'ft_epoch_face_{ft_epoch_face}')
-                os.makedirs(epoch_dir_face, exist_ok=True)
-                with open(os.path.join(epoch_dir_face, 'pseudo_labels_faces_mid_frame_all_pred.json'), 'w') as f:
-                    json.dump(preds_dic_face, f, indent=2)
-                crt_acc_valid_e_pseudo_face = compute_acc_from_dic(preds_dic_face, pseudo_valid_label_dic_face)
-                crt_acc_e_face = compute_acc_from_anno(epoch_dir_face, args.face_anno_file, mode='all', modal='face')
-                logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: acc(valid_pseudo): {crt_acc_valid_e_pseudo_face:.4f}, acc: {crt_acc_e_face:.4f}")
+                for ft_epoch_face in range(args.max_finetune_epochs):
+                    torch.manual_seed(args.seed + ft_epoch_face)
+                    if args.use_gpu:
+                        torch.cuda.manual_seed_all(args.seed + ft_epoch_face)
+                    train_stats_face = train_one_epoch(face_train_loader,  face_embedding_model, face_classifier, optimizer_face, 
+                                                ft_epoch_face, logger, device, use_hidfeat_flag=False)
+                    logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: loss={train_stats_face['loss']:.4f}, acc(pseudo)={train_stats_face['acc']:.2f}%")
+                    
+                    # Evaluate on annotated data and save predictions
+                    # Use unified inference function
+                    preds_dic_face, embeddings_dic_face, uncertainty_dic_face, potential_list_dic_face = inference_with_classifier(
+                        model=face_embedding_model,
+                        classifier=face_classifier,
+                        dataset=face_infer_dataset,
+                        device=device,
+                        compute_uncertainty=args.from_preds,
+                        batch_process_flag=True,
+                        batch_size=args.finetune_batch_size * 2,
+                        use_hidfeat=False,
+                        unfrozen_modules_num=None,
+                        potential_set=train_dataset.unique_labels,
+                    )
+                    
+                    # Save predictions and compute accuracy on annotated data
+                    epoch_dir_face = os.path.join(round_dir, f'ft_epoch_face_{ft_epoch_face}')
+                    os.makedirs(epoch_dir_face, exist_ok=True)
+                    with open(os.path.join(epoch_dir_face, 'pseudo_labels_faces_mid_frame_all_pred.json'), 'w') as f:
+                        json.dump(preds_dic_face, f, indent=2)
+                    crt_acc_valid_e_pseudo_face = compute_acc_from_dic(preds_dic_face, pseudo_valid_label_dic_face)
+                    crt_acc_e_face = compute_acc_from_anno(epoch_dir_face, args.face_anno_file, mode='all', modal='face')
+                    logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: acc(valid_pseudo): {crt_acc_valid_e_pseudo_face:.4f}, acc: {crt_acc_e_face:.4f}")
+                    
+                    # 改为两者相差至少0.001才算提升
+                    if crt_acc_valid_e_pseudo_face > best_acc_valid_e_pseudo_face:
+                        best_acc_valid_e_pseudo_face, best_epoch_face = crt_acc_valid_e_pseudo_face, ft_epoch_face
+                        patience_counter_epoch_face = 0
+                        # Save best face model
+                        if rank == 0:
+                            # torch.save(face_embedding_model.state_dict(), round_model_save_path_face)
+                            # torch.save(face_classifier.state_dict(), round_classifier_save_path_face)
+                            # with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_embeddings.pkl'), 'wb') as f:
+                            #     pickle.dump(embeddings_dic_face, f)
+                            if args.from_preds:
+                                best_preds_dic_face = copy.deepcopy(preds_dic_face)
+                                best_uncertainty_dic_face = copy.deepcopy(uncertainty_dic_face)
+                                best_potential_list_dic_face = copy.deepcopy(potential_list_dic_face)
+                                with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_pred_dic.pkl'), 'wb') as f:
+                                    pickle.dump(best_preds_dic_face, f)
+                                with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_unreliable_dic.pkl'), 'wb') as f:
+                                    pickle.dump(best_uncertainty_dic_face, f)
+                                with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_potential_dic.pkl'), 'wb') as f:
+                                    pickle.dump(best_potential_list_dic_face, f)
+                        if world_size > 1:
+                            dist.barrier()
+                    else:
+                        patience_counter_epoch_face += 1
+                        logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: No improvement. Patience(epoch): {patience_counter_epoch_face}/{args.early_stop_patience_epoch}")
+                        if ft_epoch_face > 2:
+                            if patience_counter_epoch_face >= args.early_stop_patience_epoch:
+                                logger.info(f"Early stopping at face epoch {ft_epoch_face}")
+                                break
+                            # # 这个规则没用，阈值不好设定
+                            # if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
+                            #     logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
+                            #     break
+                    prev_acc_valid_e_pseudo_face = copy.deepcopy(crt_acc_valid_e_pseudo_face)
                 
-                # 改为两者相差至少0.001才算提升
-                if crt_acc_valid_e_pseudo_face > best_acc_valid_e_pseudo_face:
-                    best_acc_valid_e_pseudo_face, best_epoch_face = crt_acc_valid_e_pseudo_face, ft_epoch_face
-                    patience_counter_epoch_face = 0
-                    # Save best face model
-                    if rank == 0:
-                        # torch.save(face_embedding_model.state_dict(), round_model_save_path_face)
-                        # torch.save(face_classifier.state_dict(), round_classifier_save_path_face)
-                        # with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_embeddings.pkl'), 'wb') as f:
-                        #     pickle.dump(embeddings_dic_face, f)
-                        if args.from_preds:
-                            best_preds_dic_face = copy.deepcopy(preds_dic_face)
-                            best_uncertainty_dic_face = copy.deepcopy(uncertainty_dic_face)
-                            best_potential_list_dic_face = copy.deepcopy(potential_list_dic_face)
-                            with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_pred_dic.pkl'), 'wb') as f:
-                                pickle.dump(best_preds_dic_face, f)
-                            with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_unreliable_dic.pkl'), 'wb') as f:
-                                pickle.dump(best_uncertainty_dic_face, f)
-                            with open(os.path.join(round_pseudo_label_dir, 'vlabels_mf_potential_dic.pkl'), 'wb') as f:
-                                pickle.dump(best_potential_list_dic_face, f)
-                    if world_size > 1:
-                        dist.barrier()
-                else:
-                    patience_counter_epoch_face += 1
-                    logger.info(f"Round {round}, Face Fine-tune Epoch {ft_epoch_face}: No improvement. Patience(epoch): {patience_counter_epoch_face}/{args.early_stop_patience_epoch}")
-                    if ft_epoch_face > 2:
-                        if patience_counter_epoch_face >= args.early_stop_patience_epoch:
-                            logger.info(f"Early stopping at face epoch {ft_epoch_face}")
-                            break
-                        # # 这个规则没用，阈值不好设定
-                        # if (crt_acc_valid_e_pseudo_face - prev_acc_valid_e_pseudo_face) < -0.05:
-                        #     logger.info(f"Early stopping at face epoch {ft_epoch_face} due to significant drop: {prev_acc_valid_e_pseudo_face:.4f} -> {crt_acc_valid_e_pseudo_face:.4f}")
-                        #     break
-                prev_acc_valid_e_pseudo_face = copy.deepcopy(crt_acc_valid_e_pseudo_face)
-            
-            optimizer_face.zero_grad()
-            logger.info(f"Round {round}: Best face fine-tuned epoch={best_epoch_face}, acc(valid_pseudo)={best_acc_valid_e_pseudo_face:.4f}")
+                optimizer_face.zero_grad()
+                logger.info(f"Round {round}: Best face fine-tuned epoch={best_epoch_face}, acc(valid_pseudo)={best_acc_valid_e_pseudo_face:.4f}")
         
         # ============================
         # Part 2: Extract embeddings(if use clustering to get pseudo labels)
@@ -1495,7 +1513,7 @@ def main():
             if world_size > 1:
                 dist.barrier()
         else:
-            shutil.copy(os.path.join(os.path.join(initial_dir, 'pseudo_label', 'useful_var_dic.pkl')), os.path.join(round_pseudo_label_dir, 'useful_var_dic.pkl'))
+            shutil.copy(os.path.join(initial_dir, 'pseudo_label', 'useful_var_dic.pkl'), os.path.join(round_pseudo_label_dir, 'useful_var_dic.pkl'))
             embs_dir = ""
 
         # ============================
