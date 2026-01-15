@@ -1167,7 +1167,6 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
         if 'mid_frame' in hmm_visual_info_type:
-            vlabels_mf_processed_all_init = copy.deepcopy(vlabels_mf_processed_all)
             useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
             useful_var_dic['face_idxs_mf'] = face_idxs_mf
             useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
@@ -1338,12 +1337,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
         for i in range(len(vlabels_mf_potential_list_correct)):
             list_size = len(vlabels_mf_potential_list_correct[i])
-            list_size_new = min(list_size, potential_list_size_minor) if vlabels_mf_processed_all_init[i] in [-2, -3] else min(list_size, potential_list_size_major)
+            list_size_new = min(list_size, potential_list_size_minor) if vlabels_mf_processed_all[i] in [-2, -3] else min(list_size, potential_list_size_major)
             vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:list_size_new]
 
         vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct)
-        keep_pos = np.where(vlabels_mf_processed_all_init > -2)[0]
-        vlabels_mf_corrected[keep_pos] = vlabels_mf_processed_all_init[keep_pos]  # keep original labels for samples aligned with audio
+        keep_pos = np.where(vlabels_mf_processed_all > -2)[0]
+        vlabels_mf_corrected[keep_pos] = vlabels_mf_processed_all[keep_pos]  # keep original labels for samples aligned with audio
         save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
                                     os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
         vlabels_mf_corrected[vlabels_mf_corrected < 0] = -1  # unify -2 and -3 to -1 for training data
