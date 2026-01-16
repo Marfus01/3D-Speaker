@@ -44,7 +44,7 @@ parser.add_argument('--audio_embs_dir', required=True, type=str, help='Initial a
 parser.add_argument('--visual_embs_dir', required=True, type=str, help='Visual embeddings directory')
 parser.add_argument('--result_dir', required=True, type=str, help='Result directory')
 # HMM parameters
-parser.add_argument('--use_hmm_smoothing', action='store_true', help='Use HMM smoothing in iterations')
+parser.add_argument('--cluster_enhance_mode', default='', type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
@@ -895,7 +895,7 @@ def compute_acc_from_anno(result_dir, anno_file, mode='all', modal='speaker'):
     return acc
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -906,7 +906,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         audio_embs_dir: Directory of audio embeddings
         visual_embs_dir: Directory of visual embeddings
         result_dir: Directory to save pseudo labels
-        hmm_flag: Whether to use HMM smoothing
+        cluster_enhance_mode: How to enhance speaker clustering, support "hmm" and "pairwise_constraint"
         fix_mf_flag: Whether to fix key frame visual cluster labels during HMM smoothing
         hmm_visual_info_type: Visual information type for HMM
         unreliable_pp: Percentage of unreliable segments to be smoothed
@@ -926,12 +926,11 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         'local/cluster_and_postprocess.py',
         '--conf', conf_file,
         '--cluster_type', cluster_type,
+        '--cluster_enhance_mode', cluster_enhance_mode,
         '--wavs', wavs,
         '--audio_embs_dir', audio_embs_dir,
         '--result_dir', result_dir
     ]
-    if hmm_flag:
-        cmd.append('--use_hmm_smoothing')
     
     # Add visual embeddings parameters if using audio-vision clustering
     if cluster_type == 'audio_vision':
@@ -1055,7 +1054,7 @@ def main():
             args.audio_embs_dir,    # 预先提取的音频embedding所在目录
             args.visual_embs_dir,
             pseudo_label_dir,
-            args.use_hmm_smoothing,
+            args.cluster_enhance_mode,
             args.fix_mf,
             args.hmm_visual_info_type,
             args.unreliable_pp,
@@ -1503,7 +1502,7 @@ def main():
         if rank == 0:
             crt_acc_r_spk, crt_acc_r_face = run_clustering_and_evaluation(
                 args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
-                pseudo_label_dir, args.use_hmm_smoothing, args.fix_mf,
+                pseudo_label_dir, args.cluster_enhance_mode, args.fix_mf,
                 args.hmm_visual_info_type,  args.unreliable_pp,
                 args.speaker_anno_file, args.face_anno_file, hmm_model_path, args.from_preds, mode='all')
 

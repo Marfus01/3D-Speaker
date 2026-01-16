@@ -1,8 +1,14 @@
 """
     Define several refinements
 """
+import os, sys
 import numpy as np
 from scipy.ndimage import gaussian_filter
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from utils.logger import get_logger
 
@@ -29,6 +35,13 @@ def check_affinity_matrix(affinity):
 
 
 class GaussianBlur(object):
+    """Apply Gaussian blur to an affinity matrix. In particular, each entry
+    is replaced by a weighted average of its neighbors, with weights given by
+    a Gaussian kernel.
+
+    Args:
+        sigma (float): Standard deviation for Gaussian kernel.
+    """
 
     def __init__(self, sigma=1):
         self.sigma = sigma
@@ -39,6 +52,12 @@ class GaussianBlur(object):
 
 
 class CropDiagonal(object):
+
+    """Replace diagonal entries with the row-wise maximum values.
+
+    This first zeroes the diagonal then sets each diagonal element to the
+    maximum value of its row.
+    """
 
     def __init__(self):
         pass
@@ -51,9 +70,38 @@ class CropDiagonal(object):
         refined_affinity[di] = refined_affinity.max(axis=1)
         return refined_affinity
 
+class SetDiagonalZero(object):
+    """Set diagonal entries of the affinity matrix to zero."""
+
+    def __init__(self):
+        pass
+
+    def __call__(self, affinity):
+        check_affinity_matrix(affinity)
+        refined_affinity = np.copy(affinity)
+        np.fill_diagonal(refined_affinity, 0.0)
+        return refined_affinity
 
 class RowWiseThreshold(object):
-    """Apply row wise thresholding."""
+    """Row-wise thresholding of affinity matrix with multiple strategies.
+    
+    Args:
+        p_percentile (float): Percentile threshold for row elements (e.g., 0.95 preserves top 5%).
+        thresholding_soft_multiplier (float): Scaling factor for elements below threshold (0=hard, >0=soft).
+        thresholding_type (str): 'RowMax' or 'Percentile', determining threshold calculation method.
+        thresholding_with_binarization (bool): Binarize values above threshold to 1 if True.
+        thresholding_preserve_diagonal (bool): Keep diagonal elements as 1 if True.
+    
+    Process:
+        1. Optionally zero diagonal elements(if thresholding_preserve_diagonal is True).
+        2. Calculate row-wise threshold based on the chosen method.
+        3. Create mask for elements below threshold.
+        4. Scale small elements by multiplier; keep or binarize(if thresholding_with_binarization is True) large elements.
+        5. Optionally restore diagonal to 1(if thresholding_preserve_diagonal is True).
+    
+    Returns:
+        Refined affinity matrix with same shape as input.
+    """
 
     def __init__(self,
                  p_percentile=0.95,
@@ -101,6 +149,9 @@ class RowWiseThreshold(object):
 
 
 class RowWiseThreshold2(object):
+    """
+    Row-wise percentile thresholding with a minimum retained count. Scale min(total-min_p_num, total*p_percentile) the smallest elements per row by multiplier(default 0, i.e., zero them out). Keep the rest unchanged.
+    """
 
     def __init__(self,
                  p_percentile,
@@ -133,6 +184,7 @@ class RowWiseThreshold2(object):
 
 
 class Symmetrize(object):
+    """Symmetrize an affinity matrix using 'max' or 'average' rules."""
 
     def __init__(self, symmetrize_type="average"):
         if symmetrize_type not in ['max', 'average']:
@@ -142,6 +194,7 @@ class Symmetrize(object):
         self.symmetrize_type = symmetrize_type
 
     def __call__(self, affinity):
+        """Return a symmetric matrix according to the chosen rule."""
         check_affinity_matrix(affinity)
         if self.symmetrize_type == "max":
             return np.maximum(affinity, np.transpose(affinity))
@@ -152,6 +205,10 @@ class Symmetrize(object):
 
 
 class Diffuse(object):
+    """Diffuse affinities by multiplying the matrix with its transpose.
+
+    This operation spreads similarity information across nodes.
+    """
 
     def __init__(self):
         pass
@@ -162,7 +219,7 @@ class Diffuse(object):
 
 
 class RowWiseNormalize(object):
-    """The row wise max normalization operation."""
+    """Normalize each row by its maximum value."""
 
     def __init__(self) -> None:
         pass
@@ -176,6 +233,11 @@ class RowWiseNormalize(object):
 
 
 class RefinementList(object):
+    """Container for selecting and iterating configured refinements.
+
+    Expects `refinements` to be a dict mapping refinement names (keys
+    matching refinement_dict) to instantiated operations.
+    """
 
     refinement_dict = {
         "GaussianBlur": GaussianBlur,

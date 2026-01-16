@@ -1,5 +1,11 @@
+import os, sys
 import numpy as np
-
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    
 from utils.logger import get_logger
 
 EPS = 1e-10
@@ -124,12 +130,12 @@ class PairwiseConstrainedSpectralCluster(object):
     def __call__(self, embedding_dict, constraints_dict):
         num_embeddings = len(embedding_dict)
         embedding_id_list = list(embedding_dict.keys())
-        # build affinity_mat and constraints_mat
+        # build affinity_mat $\matchcal{A}$ and constraints_mat $Z$
         affinity_mat, constraints_mat = self.affinity_function(
             embedding_dict, constraints_dict
         )
 
-        # constraints propagation
+        # constraints propagation: return updated affinity matrix $\hat{\matchcal{A}}$.
         propagated_mat = self.propagation_core(affinity_mat, constraints_mat)
 
         # do refinement operations

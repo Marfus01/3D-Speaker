@@ -3,7 +3,7 @@
 
 import numpy as np
 import copy, scipy
-import sklearn
+import os, sys
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -11,6 +11,17 @@ import fastcluster
 from scipy.cluster.hierarchy import fcluster
 from scipy.spatial.distance import squareform
 from datetime import datetime
+
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.dirname(current_file_path))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_cluster import PairwiseConstrainedSpectralCluster
+from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_e2cp import E2CPPropagation, affinity_matrix_refinement
+from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_post_cluster import post_process_kmeans
+from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_refinement import RowWiseThreshold2, Symmetrize, SetDiagonalZero, Diffuse, RowWiseNormalize
 
 rand_seed = 42
 np.random.seed(rand_seed)
@@ -257,15 +268,20 @@ class SpectralCluster:
         # Symmetrization
         sym_prund_sim_mat = 0.5 * (prunned_sim_mat + prunned_sim_mat.T)
 
+        # Perform clustering based on the processed similarity matrix
+        labels = self.clutster_sim_mat(sym_prund_sim_mat, oracle_num)
+
+        return labels
+
+    def clutster_sim_mat(self, sim_mat, oracle_num=None):
         # Laplacian calculation
-        laplacian = self.get_laplacian(sym_prund_sim_mat)
+        laplacian = self.get_laplacian(sim_mat)
 
         # Get Spectral Embeddings by RatioCut， and estimate the number of speakers according to gap between eigen-values if oracle_num is None
         emb, num_of_spk = self.get_spec_embs(laplacian, oracle_num) # emb (N, num_of_spk)
 
         # Perform k-means clustering based on the Spectral Embeddings 
         labels = self.cluster_embs(emb, num_of_spk)
-
         return labels
 
     def get_sim_mat(self, X):
@@ -761,3 +777,194 @@ class JointClustering:
         if require_dict:
             return np.array(new_labels), labels_dict    # key: old_label, value: new_label
         return np.array(new_labels)
+
+
+class ConstrainedCluster:
+    """
+    Perform constrained clustering using pairwise constraints derived from visual information.
+    This class integrates audio embeddings with visual active speaker information to generate
+    must-link and cannot-link constraints, then applies the PCC (Pairwise Constrained Clustering) algorithm.
+    
+    Attributes:
+      lambda_E2CP (float): Propagation parameter for E2CP. Default is 0.8.
+        alpha_v (float): Weight for visual must-link constraints. Default is 2.0.
+        beta (float): Weight for affinity matrix in intergration. Default is 0.3.
+        theta (float): Bias in intergration. Default is 0.0.
+        delta_percentile (float): Percentile for thresholding in constraint generation. Default is 25.
+        spectralcluster (SpectralCluster): An instance of the SpectralCluster class for final clustering.
+    """
+    
+    def __init__(self,
+                 spectralcluster=SpectralCluster(),
+                 lambda_E2CP=0.8,
+                 alpha_v = 2.0,
+                 beta = 0.3,
+                 theta = 0.0,
+                 delta_percentile = 25
+                 ):
+        self.lambda_E2CP = lambda_E2CP
+        self.alpha_v = alpha_v
+        self.beta = beta
+        self.theta = theta
+        self.delta_percentile = delta_percentile
+        self.spectralcluster = spectralcluster
+        
+        # Build the PCC clustering function
+        ## Define propagation core
+        self.propagation_core = E2CPPropagation(self.lambda_E2CP).propagate
+        # Define refinement operations applied to the updated affinity matrix $\hat{\matchcal{A}}$.
+        self.refinements_list = [
+            # Diffuse(),
+            # RowWiseNormalize(),
+            RowWiseThreshold2(p_percentile=0.982),  # similiar to p_pruning in SpectralCluster
+            Symmetrize(symmetrize_type='average'),
+            SetDiagonalZero()   # Avoid self-loop, like in SpectralCluster
+        ]
+    
+    def __call__(self, audio_embeddings, audio_seg_ids=None, audio_times=None, 
+                 visual_times_vad=None, vlabels_vad=None, **kwargs):
+        """
+        Perform constrained clustering on audio embeddings.
+        
+        Args:
+          audio_embeddings (ndarray): Audio embeddings, shape [N, D].
+          audio_seg_ids (ndarray, optional): Audio segment IDs, shape [N].
+          audio_times (ndarray, optional): Audio segment timestamps, shape [N, 2].
+          visual_times_vad (ndarray, optional): Visual frame timestamps, shape [M].
+          vlabels_vad (ndarray, optional): Visual cluster labels, shape [M].
+        
+        Returns:
+          ndarray: Cluster labels for audio embeddings, shape [N].
+        """
+        # Generate default audio_seg_ids if not provided
+        if audio_seg_ids is None:
+            audio_seg_ids = np.array([f"seg_{i}" for i in range(audio_embeddings.shape[0])])
+        # Build embedding dictionary
+        embedding_dict = {seg_id: audio_embeddings[i] for i, seg_id in enumerate(audio_seg_ids)}
+
+        # Generate constraints from visual information
+        constraints_dict = {'content': {'must_link': [], 'cannot_link': []}}
+        if visual_times_vad is not None and vlabels_vad is not None and audio_times is not None:
+            constraints_dict = self._generate_constraints_from_visual(
+                audio_seg_ids, audio_times, visual_times_vad, vlabels_vad
+            )
+        
+        # Calculate updated affinity matrix $\hat{\matchcal{A}}$. (refer to PairwiseConstrainedSpectralCluster)
+        ## build affinity_mat $\matchcal{A}$ and constraints_mat $Z$
+        affinity_mat, constraints_mat = self.affinity_function(
+            embedding_dict, constraints_dict
+        )
+        ## constraints propagation: return updated affinity matrix $\hat{\matchcal{A}}$.
+        propagated_mat = self.propagation_core(affinity_mat, constraints_mat)
+        ## do refinement operations
+        for refinement_operation in self.refinements_list:
+            propagated_mat = refinement_operation(propagated_mat)
+        
+        # Perform Spectral Clustering on the updated affinity matrix
+        labels = self.spectralcluster.clutster_sim_mat(propagated_mat, oracle_num=None)
+        
+        return labels
+
+    # Define affinity function
+    def affinity_function(self, embedding_dict, constraints_dict):
+        """Compute affinity matrix and constraints matrix from embeddings and constraints."""
+        embedding_ids = list(embedding_dict.keys())
+        embedding_num = len(embedding_ids)
+        embedding_dim = len(embedding_dict[embedding_ids[0]])
+        embedding_id_to_idx = {emb_id: i for i, emb_id in enumerate(embedding_ids)}
+
+        # Compute affinity matrix (cosine similarity) $\mathcal{A}$
+        embedding_matrix = np.zeros((embedding_num, embedding_dim))
+        for i, emb_id in enumerate(embedding_ids):
+            embedding_matrix[i] = embedding_dict[emb_id]
+        affinity_mat = cosine_similarity(embedding_matrix, embedding_matrix)
+        
+        # Build visual constraints matrix $Z^v$
+        constraints_mat = np.zeros((embedding_num, embedding_num))
+        if 'content' in constraints_dict:
+            ## Process must-link and cannot-link constraints
+            must_links = constraints_dict['content'].get('must_link', [])
+            must_link_pairs = list(map(lambda constraint: (constraint['pre_emb_id'], constraint['nxt_emb_id']), must_links))
+            must_link_pos = list(map(lambda pair: (embedding_id_to_idx[pair[0]], embedding_id_to_idx[pair[1]]), must_link_pairs))
+            rows, cols = zip(*must_link_pos)
+            constraints_mat[np.array(rows, dtype=int), np.array(cols, dtype=int)] = 1
+            constraints_mat[np.array(cols, dtype=int), np.array(rows, dtype=int)] = 1
+
+            cannot_links = constraints_dict['content'].get('cannot_link', [])
+            cannot_link_pairs = list(map(lambda constraint: (constraint['pre_emb_id'], constraint['nxt_emb_id']), cannot_links))
+            cannot_link_pos = list(map(lambda pair: (embedding_id_to_idx[pair[0]], embedding_id_to_idx[pair[1]]), cannot_link_pairs))
+            rows, cols = zip(*cannot_link_pos)
+            constraints_mat[np.array(rows, dtype=int), np.array(cols, dtype=int)] = -1
+            constraints_mat[np.array(cols, dtype=int), np.array(rows, dtype=int)] = -1
+        
+        # Compute integrated constraints matrix $Z' = \alpha_v * Z^v + \beta * \mathcal{A} - \theta$
+        constraints_mat = self.alpha_v * constraints_mat + self.beta * affinity_mat - self.theta
+        # 根据绝对值的下delta_percentile分位数delta，将 constraints_mat $Z'$ 阈值化，得到 $Z$
+        delta = np.percentile(np.abs(constraints_mat.flatten()), self.delta_percentile)
+        constraints_mat_final = np.zeros_like(constraints_mat)
+        constraints_mat_final[constraints_mat < -delta] = -1
+        constraints_mat_final[constraints_mat > delta] = 1
+
+        return affinity_mat, constraints_mat_final
+
+    # def _build_pcc_cluster(self):
+    #     """
+    #     Build the PCC clustering algorithm with configured parameters.
+    #     Don't use the function know, since the spectral clustering is different from SpectralCluster class.
+    #     """
+    #     # Calculate 
+    #     # Initialize PCC cluster
+    #     self.pcc_cluster = PairwiseConstrainedSpectralCluster(
+    #         affinity_function=self.affinity_function,
+    #         refinements_list=self.refinements_list,
+    #         propagation_core=self.propagation_core,
+    #         laplacian_type=self.laplacian_type,
+    #         eigengap_type=self.eigengap_type,
+    #         post_process_cluster=post_process_kmeans,
+    #         min_clusters=self.min_clusters,
+    #         max_clusters=self.max_clusters,
+    #         row_wise_re_norm=False,
+    #         custom_dist=self.custom_dist,
+    #         max_iter=self.max_iter
+    #     )
+    
+    def _generate_constraints_from_visual(self, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad):
+        """
+        Generate pairwise constraints from visual active speaker information.
+        
+        Args:
+          audio_seg_ids (ndarray): Audio segment IDs, shape [N].
+          audio_times (ndarray): Audio segment timestamps, shape [N, 2].
+          visual_times_vad (ndarray): Visual frame timestamps, shape [M].
+          vlabels_vad (ndarray): Visual cluster labels, shape [M].
+        
+        Returns:
+          dict: Constraints dictionary in PCC format with 'content' containing 'must_link' and 'cannot_link'.
+        """        
+        # Build mapping from audio segment to visual labels(only for these with unique visual label in the segment)
+        assert np.all(vlabels_vad >= 0), "vlabels_vad should be non-negative."
+        audio_to_visual = {}
+        for i, seg_id in enumerate(audio_seg_ids):
+            audio_st, audio_ed = audio_times[i]
+            mask = (visual_times_vad >= audio_st) & (visual_times_vad < audio_ed)
+            if np.sum(mask) > 0 and len(set(vlabels_vad[mask])) == 1:
+                audio_to_visual[seg_id] = int(vlabels_vad[mask][0])
+        
+        # Generate must-link and cannot-link constraints
+        must_link = []
+        cannot_link = []
+        seg_id_list = list(audio_to_visual.keys())
+        for i in range(len(seg_id_list)):
+            seg_i = seg_id_list[i]
+            seg_id_rest = seg_id_list[i+1:]
+            must_link_mask = [audio_to_visual[seg_i] == audio_to_visual[seg_j] for seg_j in seg_id_rest]
+            must_link_add = [{'pre_emb_id': seg_i, 'nxt_emb_id': seg_j, 'constraint': 1} for j, seg_j in enumerate(seg_id_rest) if must_link_mask[j]]
+            cannot_link_add = [{'pre_emb_id': seg_i, 'nxt_emb_id': seg_j, 'constraint': -1} for j, seg_j in enumerate(seg_id_rest) if not must_link_mask[j]]
+            must_link.extend(must_link_add)
+            cannot_link.extend(cannot_link_add)
+        
+        constraints_dict = {'content': {'must_link': must_link, 'cannot_link': cannot_link}}
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[INFO] {current_time} Generated {len(must_link)} must-link and {len(cannot_link)} cannot-link constraints from visual information.")
+        
+        return constraints_dict

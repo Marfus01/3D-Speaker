@@ -24,7 +24,7 @@ master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 # HMM平滑相关参数
-use_hmm_smoothing=true  # 在"audio_vision"聚类之后，是否做 HMM 平滑
+cluster_enhance_mode="hmm"  # "hmm": 在"audio_vision"聚类之后，做 HMM 平滑; "pairwise_constraint": 使用成对约束进行聚类增强; "": 不做聚类增强
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -69,10 +69,6 @@ else
   exit 1
 fi
 
-hmm_flag=""
-if [ "$use_hmm_smoothing" = true ]; then
-  hmm_flag="--use_hmm_smoothing"
-fi
 fix_mf_flag=""
 if [ "$fix_mf" = true ]; then
   fix_mf_flag="--fix_mf"
@@ -152,13 +148,13 @@ if [ "$ft_flag" = false ]; then
       echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
       torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
               --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-              --audio_embs_dir "$exp/embs" --result_dir "$result_dir" $hmm_flag
+              --audio_embs_dir "$exp/embs" --result_dir "$result_dir" --cluster_enhance_mode "$cluster_enhance_mode"
     else
       echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
       torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
               --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
               --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
-              $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
+              --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
     fi
   fi
 
@@ -196,7 +192,7 @@ else
     torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
       --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
       --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
-      $hmm_flag $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
+      --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
       --speaker_anno_file "$speaker_anno_file" --face_anno_file "$face_anno_file" \
       --speaker_model_id "$speaker_model_id" --face_pretrained_model "$face_pretrained_model" \
       --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \

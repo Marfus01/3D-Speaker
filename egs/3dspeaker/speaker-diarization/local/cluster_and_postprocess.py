@@ -25,6 +25,7 @@ if project_root not in sys.path:
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
 from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids, align_clusters2clusters, align_samples2clusters, get_unreliable_metrics
+from speakerlab.process.cluster import ConstrainedCluster
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
@@ -38,7 +39,7 @@ parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding 
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 parser.add_argument('--from_preds', action='store_true', help='Use local predictions from classifier model instead of clustering')
-parser.add_argument('--use_hmm_smoothing', action='store_true', help='Use HMM smoothing in iterations')
+parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
@@ -902,7 +903,7 @@ def save_cluster_results_vision_mf(labels, audio_seg_ids_mf, face_idxs_mf, out_j
     with open(out_json, 'w') as f:
         json.dump(cluster_results, f, indent=2)
 
-def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, hmm_flag):
+def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_enhance_mode):
     """
     仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
     """
@@ -936,15 +937,16 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, hmm_flag
     summary_cluster_results(labels, modal_type='audio')
     out_json = os.path.join(result_dir, f'cluster_results_audio.json')
     save_cluster_results_audio(labels, audio_seg_ids, out_json)
-    if not hmm_flag:
+    if cluster_enhance_mode == "":
         out_json = os.path.join(result_dir, f'pseudo_labels_audio.json')
         save_cluster_results_audio(labels, audio_seg_ids, out_json)
-    else:
+    elif cluster_enhance_mode == "hmm":
         alabels_hmm_smooth(labels, lengths, audio_seg_ids, result_dir)
-
+    else:
+        raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config,
-                             hmm_flag, fix_mf_flag, hmm_visual_info_type, unreliable_pp, hmm_model_path=None, from_preds=True):
+                             cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, hmm_model_path=None, from_preds=True):
     if not fix_mf_flag:
         assert 'mid_frame' in hmm_visual_info_type, "When fix_mf_flag is False, 'mid_frame' must be included in hmm_visual_info_type."
 
@@ -1054,24 +1056,39 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         
 
         # audio-only clustering
-        ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
-        alabels = cluster.audio_cluster(audio_embeddings)
-        alabels = reset_cluster_ids(alabels)
-        summary_cluster_results(alabels, modal_type='audio')
-        save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
+        if cluster_enhance_mode in ["", "hmm"]:
+            ## 仍使用谱聚类实现，聚类整体流程与audio_only_func中的描述相同。min_cluster_size和pval与只有语音模态时有所不同    
+            alabels = cluster.audio_cluster(audio_embeddings)
+            alabels = reset_cluster_ids(alabels)
+            summary_cluster_results(alabels, modal_type='audio')
+            save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_alabels.json'))
 
-        # modify audio clustering results with visual information
-        ## 具体流程
-        ## 1. 计算每个audio segment与每个visual segment的overlap
-        ## 2. 设置visual簇从max_audio_spk_id开始编号，筛选出至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心）
-        ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
-        alabels, vlabels_vad_arrange_dic = cluster(audio_embeddings, visual_embeddings_vad, audio_times, visual_times_vad, config, alabels, vlabels_vad)
+            # modify audio clustering results with visual information
+            ## 具体流程
+            ## 1. 计算每个audio segment与每个visual segment的overlap
+            ## 2. 设置visual簇从max_audio_spk_id开始编号，筛选出至少一个visual segment与某audio簇的重叠时长>1s 的visual簇（以及与其overlap的audio segment embedding 的均值作为聚类中心）
+            ## 3. 对于各个 audio 簇，查找与其重叠时长>0.5s的 visual 簇，并计算前者中各个样本与后者中各个聚类中心的余弦相似度，据此将所有audio segment分配到与其最相似的visual簇上（如果没有任何visual簇与其重叠>0.5s，则保持其audio-only聚类结果不变）。由于>0.5s的阈值并不苛刻，因此相当于利用visual信息重新分配了大部分audio segment的簇ID
+            alabels, vlabels_vad_arrange_dic = cluster(audio_embeddings, visual_embeddings_vad, audio_times, visual_times_vad, config, alabels, vlabels_vad)
+            summary_cluster_results(alabels, modal_type='audio_vision_vad')
+            save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
+        elif cluster_enhance_mode == "pairwise_constraint":
+            constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster)
+            alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
+            summary_cluster_results(alabels, modal_type='audio_vision_vad_pairwise_constraint')
+            save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint.json'))
+            for alpha_v in [1.0, 2.0]:
+                for delta_percentile in [50, 75, 90, 95, 97.5]:
+                    constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster, alpha_v=alpha_v, delta_percentile=delta_percentile)
+                    alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
+                    summary_cluster_results(alabels, modal_type=f'audio_vision_vad_pairwise_constraint(alpha_v={alpha_v}, delta_percentile={delta_percentile})')
+                    save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint(alpha_v={alpha_v}, delta_percentile={delta_percentile}).json'))
+        else:
+            raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
         del visual_embeddings_vad
-        summary_cluster_results(alabels, modal_type='audio_vision_vad')
-        save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
-        if not hmm_flag:
+        if cluster_enhance_mode != "hmm":
             alabels_save = reset_cluster_ids(copy.deepcopy(alabels))
-            out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad.json')
+            save_name = '' if cluster_enhance_mode == "" else '(pairwise_constraint)'
+            out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad{save_name}.json')
             save_cluster_results_audio(alabels_save, audio_seg_ids, out_json)
             return 
 
@@ -1167,6 +1184,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
         if 'mid_frame' in hmm_visual_info_type:
+            vlabels_mf_processed_all_init = copy.deepcopy(vlabels_mf_processed_all)
             useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
             useful_var_dic['face_idxs_mf'] = face_idxs_mf
             useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
@@ -1203,7 +1221,13 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         ### save loaded speaker labels as json
         summary_cluster_results(alabels_processed, modal_type='speaker_pred_from_model')
         save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'speaker_pred_from_model.json'))
-        if not hmm_flag:
+        if cluster_enhance_mode != "hmm":
+            if cluster_enhance_mode == "":
+                pass
+            elif cluster_enhance_mode == "pairwise_constraint":
+                raise ValueError("Need to re-implement pairwise constraint clustering based on new embeddings and align the cluster id with the loaded alabels_processed. Not implemented now.")
+            else:
+                raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
             save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'pseudo_labels_audio_from_model.json'))
             return
         
@@ -1337,12 +1361,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         vlabels_mf_potential_list_correct = copy.deepcopy(vlabels_mf_potential_list)
         for i in range(len(vlabels_mf_potential_list_correct)):
             list_size = len(vlabels_mf_potential_list_correct[i])
-            list_size_new = min(list_size, potential_list_size_minor) if vlabels_mf_processed_all[i] in [-2, -3] else min(list_size, potential_list_size_major)
+            list_size_new = min(list_size, potential_list_size_minor) if vlabels_mf_processed_all_init[i] in [-2, -3] else min(list_size, potential_list_size_major)
             vlabels_mf_potential_list_correct[i] = vlabels_mf_potential_list_correct[i][:list_size_new]
 
         vlabels_mf_corrected = correct_face_labels(F_decode, F_hat, audio_seg_ids, audio_seg_ids_mf, vlabels_mf_processed_input, vlabels_mf_potential_list_correct)
-        keep_pos = np.where(vlabels_mf_processed_all > -2)[0]
-        vlabels_mf_corrected[keep_pos] = vlabels_mf_processed_all[keep_pos]  # keep original labels for samples aligned with audio
+        keep_pos = np.where(vlabels_mf_processed_all_init > -2)[0]
+        vlabels_mf_corrected[keep_pos] = vlabels_mf_processed_all_init[keep_pos]  # keep original labels for samples aligned with audio
         save_cluster_results_vision_mf(vlabels_mf_corrected, audio_seg_ids_mf, face_idxs_mf,
                                     os.path.join(result_dir, f'pseudo_labels_faces_mid_frame_all_nested_hmm_full.json'))
         vlabels_mf_corrected[vlabels_mf_corrected < 0] = -1  # unify -2 and -3 to -1 for training data
@@ -1365,12 +1389,12 @@ def main():
         if hasattr(config, 'audio_cluster') and hasattr(config, 'vision_cluster'):
             config.cluster = config.audio_cluster
             del config.audio_cluster, config.vision_cluster
-        audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config, args.use_hmm_smoothing)
+        audio_only_func(wav_list, args.audio_embs_dir, args.result_dir, config, args.cluster_enhance_mode)
     else:
         assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
         assert args.hmm_visual_info_type in ['', 'vad', 'mid_frame', 'vad+mid_frame'], f'--hmm_visual_info_type should be either "", "vad", "mid_frame" or "vad+mid_frame", but got {args.hmm_visual_info_type}'
         audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config,
-                          args.use_hmm_smoothing, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp, args.hmm_model_path, args.from_preds)
+                          args.cluster_enhance_mode, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp, args.hmm_model_path, args.from_preds)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,10 @@
+import os, sys
 import numpy as np
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from utils.logger import get_logger
 
@@ -15,6 +21,9 @@ def is_dimensions_same(mat1: np.ndarray, mat2: np.ndarray):
 
 
 def affinity_matrix_refinement(affinity_mat, propagated_mat):
+    """
+        Get $\hat{\mathcal{A}}$, the refined affinity matrix by incorporating the propagated constraints matrix $\hat{\mathcal{Z}}$. (described in Eq.6 of the original paper)
+    """
     assert is_square_matrix(affinity_mat)
     assert is_square_matrix(propagated_mat)
     assert is_dimensions_same(affinity_mat, propagated_mat)
@@ -43,7 +52,12 @@ class BasicPropagation(object):
 
 class E2CPPropagation(BasicPropagation):
     """
-        E2CP Propagation
+        E2CP Propagation and affinity matrix refinement.
+        Calculate propagated constraints $\hat{Z}$ from binarized intergrated constraint score(Z'), then refine the affinity matrix $\matchcal{A}$ to get $\hat{\matchcal{A}}$.
+        Args:
+            alpha: float, the propagation parameter(lambda in original paper)
+            knn_k: int, the k value for knn graph construction. If -1, use full graph. Used in laplacian computation for affinity_mat $\matchcal{A}$.
+            temperature: float, the temperature parameter for affinity computation. Used in laplacian computation for affinity_mat $\matchcal{A}$.
     """
 
     def __init__(self, alpha, knn_k=0, temperature=1.0):
