@@ -66,6 +66,32 @@ class E2CPPropagation(BasicPropagation):
         self.temperature = temperature
 
     def do_knn(self, affinity_mat):
+        """
+        Perform k-Nearest Neighbors (k-NN) processing on the given affinity matrix.
+
+        This function modifies the input affinity matrix by retaining only the k 
+        smallest distances (representing the nearest neighbors) for each row, 
+        converting them into RBF (Radial Basis Function) values, and symmetrizing 
+        the matrix. If `knn_k` is -1, the original affinity matrix is returned 
+        without modification. If `knn_k` is 0, the number of neighbors is 
+        determined as `floor(log2(n)) + 1`, where `n` is the number of rows in 
+        the matrix.
+
+        Note:
+          - The input `affinity_mat` is expected to represent distances, where 
+            smaller values indicate closer proximity. This is the opposite of 
+            typical cosine similarity matrices, where larger values indicate 
+            greater similarity.
+          - The function assumes that the diagonal elements of `affinity_mat` 
+            are zero or irrelevant, as they represent self-distances.
+
+        Args:
+          affinity_mat (np.ndarray): A square matrix representing pairwise 
+            distances between data points.
+
+        Returns:
+          np.ndarray: The processed affinity matrix with k-NN applied.
+        """
         if self.knn_k == -1:
             return affinity_mat
         n = affinity_mat.shape[0]
@@ -74,10 +100,12 @@ class E2CPPropagation(BasicPropagation):
             k = int(np.floor(np.log2(n)) + 1)
         else:
             k = self.knn_k
+        # get the k smallest values and their indices in each row
         knn_distances = np.sort(affinity_mat, axis=1)[:, 1:k + 1]
         knn_indices = np.argsort(affinity_mat, axis=1)[:, 1:k + 1]
         sigma = np.mean(knn_distances, axis=1)
 
+        # set original k smallest values to RBF values, others to zero
         result_affinity_mat = np.zeros_like(affinity_mat)
         for i in range(n):
             for j in range(k):
@@ -85,14 +113,14 @@ class E2CPPropagation(BasicPropagation):
                 distance = affinity_mat[i, idx]
                 result_affinity_mat[i, idx] = np.exp(- (distance ** 2) / (self.temperature * sigma[i] * sigma[idx]))
 
+        # symmetrization
         affinity_mat = (result_affinity_mat + result_affinity_mat.T) / 2.0
         return affinity_mat
 
     def compute_laplacian_with_knn(self, affinity_mat):
         affinity_mat = self.do_knn(affinity_mat)
-
+        # Compute symmetric normalized Laplacian matrix
         degree = np.diag(np.sum(affinity_mat, axis=1))
-        # need to check formula
         degree_norm = np.diag(1.0 / (np.sqrt(np.diag(degree)) + 1e-10))
         laplacian_matrix = degree_norm.dot(affinity_mat).dot(degree_norm)
 
@@ -104,7 +132,7 @@ class E2CPPropagation(BasicPropagation):
                 affinity_mat: np.ndarray
                 constraints_matrix: np.ndarray
             Return:
-                propagated_matrix: np.ndarray
+                propagated_constraints_matrix: np.ndarray
         """
         embedding_num = affinity_mat.shape[0]
 
