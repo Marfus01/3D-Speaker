@@ -44,9 +44,35 @@ Makefile
 **/onnx_runtime/
 **/exp/
 **/__pycache__/
+# Pretrained models
 egs/3dspeaker/speaker-diarization/pretrained_models/face_recog_ir101.onnx
-egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_model.pth
-egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp1/best_classifier.pth
 egs/3dspeaker/speaker-diarization/pretrained_models/IR_101_glint360k_webface_glinms1m_megaface_TFace.pth
 egs/3dspeaker/speaker-diarization/pretrained_models/CurricularFace_Backbone_ms.pth
 egs/3dspeaker/speaker-diarization/pretrained_models/CurricularFace_Backbone_HuangYG123.pth
+# Self-supervised finetuning results
+## IL
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/pseudo_label/vlabels_mf_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/pseudo_label/vlabels_mf_embeddings.pkl
+## BB
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.2(new)/**/pseudo_label/vlabels_mf_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/result/self_supervised/2. 仅微调dense layer，从hid_feat构建数据集/exp27.7/**/pseudo_label/vlabels_mf_embeddings.pkl
