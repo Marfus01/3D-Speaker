@@ -1,0 +1,6 @@
+2026-01-17 16:13:56,226 - INFO: Starting self-supervised fine-tuning pipeline
+2026-01-17 16:13:56,228 - INFO: Device: cuda:0
+2026-01-17 16:13:56,231 - INFO: Saved arguments to runs/I love my family/exp_video/result/self_supervised/exp0/args.json
+2026-01-17 16:13:56,232 - INFO: ====================
+2026-01-17 16:13:56,232 - INFO: Initialization: Initial clustering with HMM correction
+2026-01-17 16:13:56,232 - INFO: ====================
