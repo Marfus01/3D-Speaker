@@ -44,7 +44,7 @@ parser.add_argument('--audio_embs_dir', required=True, type=str, help='Initial a
 parser.add_argument('--visual_embs_dir', required=True, type=str, help='Visual embeddings directory')
 parser.add_argument('--result_dir', required=True, type=str, help='Result directory')
 # HMM parameters
-parser.add_argument('--cluster_enhance_mode', default='', type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
+parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')

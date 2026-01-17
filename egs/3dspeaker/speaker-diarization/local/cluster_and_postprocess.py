@@ -1076,12 +1076,6 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
             summary_cluster_results(alabels, modal_type='audio_vision_vad_pairwise_constraint')
             save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint.json'))
-            for alpha_v in [1.0, 2.0]:
-                for delta_percentile in [50, 75, 90, 95, 97.5]:
-                    constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster, alpha_v=alpha_v, delta_percentile=delta_percentile)
-                    alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
-                    summary_cluster_results(alabels, modal_type=f'audio_vision_vad_pairwise_constraint(alpha_v={alpha_v}, delta_percentile={delta_percentile})')
-                    save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint(alpha_v={alpha_v}, delta_percentile={delta_percentile}).json'))
         else:
             raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
         del visual_embeddings_vad

@@ -18,10 +18,7 @@ project_root = os.path.abspath(os.path.dirname(current_file_path))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_cluster import PairwiseConstrainedSpectralCluster
-from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_e2cp import E2CPPropagation, affinity_matrix_refinement
-from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_post_cluster import post_process_kmeans
-from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_refinement import RowWiseThreshold2, Symmetrize, SetDiagonalZero, Diffuse, RowWiseNormalize
+from multimodal_pairwise_constrained_cluster.src.pcc.pairwise_constrained_e2cp import E2CPPropagation
 
 rand_seed = 42
 np.random.seed(rand_seed)
@@ -254,13 +251,6 @@ class SpectralCluster:
         self.min_pnum = min_pnum
         self.pval = pval
         self.k = oracle_num
-        self.refinements_list = [
-            # Diffuse(),
-            RowWiseNormalize(),
-            RowWiseThreshold2(p_percentile=0.982),  # similiar to p_pruning in SpectralCluster
-            Symmetrize(symmetrize_type='average'),
-            SetDiagonalZero()   # Avoid self-loop, like in SpectralCluster
-        ]
 
     def __call__(self, X, **kwargs):
         pval = kwargs.get('pval', None)
@@ -276,19 +266,16 @@ class SpectralCluster:
         return labels
 
     def process_sim_mat(self, sim_mat, pval=None):
-        for refinement in self.refinements_list:
-            sim_mat = refinement(sim_mat)
-        return sim_mat
-        # # Get a sparse version of similarity matrix
-        # ## Two benefits: 1) Zeroing Negatives, since a lot of properties of graph Laplacian require non-negative weights. 2) Sparsification, which can reduce noise in the similarity matrix and speed up subsequent computations.
-        # prunned_sim_mat = self.p_pruning(sim_mat, pval)
+        # Get a sparse version of similarity matrix
+        ## Two benefits: 1) Zeroing Negatives, since a lot of properties of graph Laplacian require non-negative weights. 2) Sparsification, which can reduce noise in the similarity matrix and speed up subsequent computations.
+        prunned_sim_mat = self.p_pruning(sim_mat, pval)
 
-        # # Symmetrization
-        # sym_prund_sim_mat = 0.5 * (prunned_sim_mat + prunned_sim_mat.T)
-        # # Set diagonal elements to zero to avoid self-loops
-        # sym_prund_sim_mat[np.diag_indices(sym_prund_sim_mat.shape[0])] = 0  
+        # Symmetrization
+        sym_prund_sim_mat = 0.5 * (prunned_sim_mat + prunned_sim_mat.T)
+        # Set diagonal elements to zero to avoid self-loops
+        sym_prund_sim_mat[np.diag_indices(sym_prund_sim_mat.shape[0])] = 0  
   
-        # return sym_prund_sim_mat
+        return sym_prund_sim_mat
     
     def clutster_sim_mat(self, sim_mat, oracle_num=None):
         # Laplacian calculation
