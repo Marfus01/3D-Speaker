@@ -1072,7 +1072,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             summary_cluster_results(alabels, modal_type='audio_vision_vad')
             save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
         elif cluster_enhance_mode == "pairwise_constraint":
-            constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster)
+            constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster, alpha_v=1, beta=0, delta_percentile=95)
             alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
             summary_cluster_results(alabels, modal_type='audio_vision_vad_pairwise_constraint')
             save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint.json'))

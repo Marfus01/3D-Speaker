@@ -254,6 +254,13 @@ class SpectralCluster:
         self.min_pnum = min_pnum
         self.pval = pval
         self.k = oracle_num
+        self.refinements_list = [
+            # Diffuse(),
+            RowWiseNormalize(),
+            RowWiseThreshold2(p_percentile=0.982),  # similiar to p_pruning in SpectralCluster
+            Symmetrize(symmetrize_type='average'),
+            SetDiagonalZero()   # Avoid self-loop, like in SpectralCluster
+        ]
 
     def __call__(self, X, **kwargs):
         pval = kwargs.get('pval', None)
@@ -261,18 +268,28 @@ class SpectralCluster:
 
         # Cosine similarity matrix(N, N) computation
         sim_mat = self.get_sim_mat(X)
-
-        # Get a sparse version of similarity matrix
-        prunned_sim_mat = self.p_pruning(sim_mat, pval)
-
-        # Symmetrization
-        sym_prund_sim_mat = 0.5 * (prunned_sim_mat + prunned_sim_mat.T)
-
+        # Process similarity matrix: pruning, symmetrization, set diagonal to zero
+        sym_prund_sim_mat = self.process_sim_mat(sim_mat, pval)
         # Perform clustering based on the processed similarity matrix
         labels = self.clutster_sim_mat(sym_prund_sim_mat, oracle_num)
 
         return labels
 
+    def process_sim_mat(self, sim_mat, pval=None):
+        for refinement in self.refinements_list:
+            sim_mat = refinement(sim_mat)
+        return sim_mat
+        # # Get a sparse version of similarity matrix
+        # ## Two benefits: 1) Zeroing Negatives, since a lot of properties of graph Laplacian require non-negative weights. 2) Sparsification, which can reduce noise in the similarity matrix and speed up subsequent computations.
+        # prunned_sim_mat = self.p_pruning(sim_mat, pval)
+
+        # # Symmetrization
+        # sym_prund_sim_mat = 0.5 * (prunned_sim_mat + prunned_sim_mat.T)
+        # # Set diagonal elements to zero to avoid self-loops
+        # sym_prund_sim_mat[np.diag_indices(sym_prund_sim_mat.shape[0])] = 0  
+  
+        # return sym_prund_sim_mat
+    
     def clutster_sim_mat(self, sim_mat, oracle_num=None):
         # Laplacian calculation
         laplacian = self.get_laplacian(sim_mat)
@@ -305,7 +322,7 @@ class SpectralCluster:
         return A
 
     def get_laplacian(self, M):
-        M[np.diag_indices(M.shape[0])] = 0
+        # Calculate unnormalized Laplacian matrix L = D - A
         D = np.sum(np.abs(M), axis=1)
         D = np.diag(D)
         L = D - M
@@ -786,16 +803,16 @@ class ConstrainedCluster:
     must-link and cannot-link constraints, then applies the PCC (Pairwise Constrained Clustering) algorithm.
     
     Attributes:
-      lambda_E2CP (float): Propagation parameter for E2CP. Default is 0.8.
+        spectralcluster (SpectralCluster): An instance of the SpectralCluster class for final clustering.
+        lambda_E2CP (float): Propagation parameter for E2CP. Default is 0.8.
         alpha_v (float): Weight for visual must-link constraints. Default is 2.0.
         beta (float): Weight for affinity matrix in intergration. Default is 0.3.
         theta (float): Bias in intergration. Default is 0.0.
         delta_percentile (float): Percentile for thresholding in constraint generation. Default is 25.
-        spectralcluster (SpectralCluster): An instance of the SpectralCluster class for final clustering.
     """
     
     def __init__(self,
-                 spectralcluster=SpectralCluster(),
+                 spectralcluster,
                  lambda_E2CP=0.8,
                  alpha_v = 2.0,
                  beta = 0.3,
@@ -810,16 +827,8 @@ class ConstrainedCluster:
         self.spectralcluster = spectralcluster
         
         # Build the PCC clustering function
-        ## Define propagation core
-        self.propagation_core = E2CPPropagation(self.lambda_E2CP).propagate
-        # Define refinement operations applied to the updated affinity matrix $\hat{\matchcal{A}}$.
-        self.refinements_list = [
-            # Diffuse(),
-            # RowWiseNormalize(),
-            RowWiseThreshold2(p_percentile=0.982),  # similiar to p_pruning in SpectralCluster
-            Symmetrize(symmetrize_type='average'),
-            SetDiagonalZero()   # Avoid self-loop, like in SpectralCluster
-        ]
+        ## Define propagation core(set knn_k to be -1, since do_knn() not compatible with cosine similarity here. Use p_pruning instead in SpectralCluster)
+        self.propagation_core = E2CPPropagation(self.lambda_E2CP, -1).propagate
     
     def __call__(self, audio_embeddings, audio_seg_ids=None, audio_times=None, 
                  visual_times_vad=None, vlabels_vad=None, **kwargs):
@@ -855,14 +864,17 @@ class ConstrainedCluster:
             embedding_dict, constraints_dict
         )
         ## constraints propagation: return updated affinity matrix $\hat{\matchcal{A}}$.
-        propagated_mat = self.propagation_core(affinity_mat, constraints_mat)
-        ## do refinement operations
-        for refinement_operation in self.refinements_list:
-            propagated_mat = refinement_operation(propagated_mat)
-        
+        affinity_mat_processed = self.spectralcluster.process_sim_mat(affinity_mat)
+        propagated_constraints_matrix = self.propagation_core(affinity_mat_processed, constraints_mat)
+        affinity_mat_updated = np.where(
+            propagated_constraints_matrix >= 0,
+            1 - (1 - propagated_constraints_matrix) * (1 - affinity_mat),
+            (1 + propagated_constraints_matrix) * affinity_mat
+        )
+        # do refinement operations
+        affinity_mat_updated = self.spectralcluster.process_sim_mat(affinity_mat_updated)
         # Perform Spectral Clustering on the updated affinity matrix
-        labels = self.spectralcluster.clutster_sim_mat(propagated_mat, oracle_num=None)
-        
+        labels = self.spectralcluster.clutster_sim_mat(affinity_mat_updated, oracle_num=None)
         return labels
 
     # Define affinity function
@@ -897,36 +909,19 @@ class ConstrainedCluster:
             constraints_mat[np.array(rows, dtype=int), np.array(cols, dtype=int)] = -1
             constraints_mat[np.array(cols, dtype=int), np.array(rows, dtype=int)] = -1
         
-        # Compute integrated constraints matrix $Z' = \alpha_v * Z^v + \beta * \mathcal{A} - \theta$
-        constraints_mat = self.alpha_v * constraints_mat + self.beta * affinity_mat - self.theta
-        # 根据绝对值的下delta_percentile分位数delta，将 constraints_mat $Z'$ 阈值化，得到 $Z$
-        delta = np.percentile(np.abs(constraints_mat.flatten()), self.delta_percentile)
-        constraints_mat_final = np.zeros_like(constraints_mat)
-        constraints_mat_final[constraints_mat < -delta] = -1
-        constraints_mat_final[constraints_mat > delta] = 1
-
+        if self.beta != 0.0:
+            # Compute integrated constraints matrix $Z' = \alpha_v * Z^v + \beta * \mathcal{A} - \theta$
+            constraints_mat = self.alpha_v * constraints_mat + self.beta * affinity_mat - self.theta
+            # 根据绝对值的下delta_percentile分位数delta，将 constraints_mat $Z'$ 阈值化，得到 $Z$
+            delta = np.percentile(np.abs(constraints_mat.flatten()), self.delta_percentile)
+            constraints_mat_final = np.zeros_like(constraints_mat)
+            constraints_mat_final[constraints_mat < delta] = -1
+            constraints_mat_final[constraints_mat > delta] = 1
+            print(f"[INFO] Set constraints_mat_final values < {delta:.4f} to -1 and > {delta:.4f} to 1.")
+        else: # performs better when there is only visual constraints
+            constraints_mat_final = constraints_mat
+        print(f"[INFO] Finally, constraints_mat_final has {np.sum(constraints_mat_final > 0)} must-link and {np.sum(constraints_mat_final < 0)} cannot-link constraints.")
         return affinity_mat, constraints_mat_final
-
-    # def _build_pcc_cluster(self):
-    #     """
-    #     Build the PCC clustering algorithm with configured parameters.
-    #     Don't use the function know, since the spectral clustering is different from SpectralCluster class.
-    #     """
-    #     # Calculate 
-    #     # Initialize PCC cluster
-    #     self.pcc_cluster = PairwiseConstrainedSpectralCluster(
-    #         affinity_function=self.affinity_function,
-    #         refinements_list=self.refinements_list,
-    #         propagation_core=self.propagation_core,
-    #         laplacian_type=self.laplacian_type,
-    #         eigengap_type=self.eigengap_type,
-    #         post_process_cluster=post_process_kmeans,
-    #         min_clusters=self.min_clusters,
-    #         max_clusters=self.max_clusters,
-    #         row_wise_re_norm=False,
-    #         custom_dist=self.custom_dist,
-    #         max_iter=self.max_iter
-    #     )
     
     def _generate_constraints_from_visual(self, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad):
         """
