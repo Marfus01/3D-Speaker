@@ -103,6 +103,7 @@ def get_labels(TV_name, modal, characters_index_dic):
     return labels, keys
 
 def save_testEER(labels, keys, modal, save_path, characters_index_dic):
+    random.seed(100)  # Set random seed for reproducibility
     characters_list = list(characters_index_dic.keys())
     characters_index_dic_reverse = {v: k for k, v in characters_index_dic.items()}
     # total number of positive and negative pairs
@@ -170,6 +171,7 @@ def tuneThresholdfromScore(scores, labels, target_fa, target_fr = None):
         tunedThreshold.append([thresholds[idx], fpr[idx], fnr[idx]])
     idxE = np.nanargmin(np.absolute((fnr - fpr)))
     eer  = max(fpr[idxE],fnr[idxE])*100
+    return tunedThreshold, eer, fpr, fnr
 
 # Creates a list of false-negative rates, a list of false-positive rates
 # and a list of decision thresholds that give those error-rates.
@@ -234,7 +236,6 @@ def evaluate_EER(embeds_dict, testEER_file):
         emb2 = embeds_dict[k2]
         score = np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
         scores.append(score)
-    
     eer = tuneThresholdfromScore(scores, sim_label_list, [1, 0.1])[1]
     fnrs, fprs, thresholds = ComputeErrorRates(scores, sim_label_list)
     minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
@@ -266,7 +267,7 @@ print(f'Number of {modal} samples with label: {len(labels)}')
 testEER_file =f'/data/home/scv7387/run/tv_series_plus/dataset/{TV_name}/annotation/{modal}_testEER.txt'
 if not os.path.exists(testEER_file):
     save_testEER(labels, useful_keys, modal, testEER_file, characters_index_dic)
-embeds_dict = {embeds_sample_ids[i]: embeds_arr[i] for i in range(embeds_arr.shape[0]) if embeds_sample_ids[i] in useful_keys}
+embeds_dict = {embeds_sample_ids[i]: embeds_arr[i] for i in useful_indexs}
 eer, minDCF = evaluate_EER(embeds_dict, testEER_file)
 print(f'EER: {eer:.2f}%, minDCF: {minDCF:.4f}')
 
