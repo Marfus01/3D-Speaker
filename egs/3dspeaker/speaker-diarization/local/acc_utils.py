@@ -58,15 +58,34 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
     # 将onehot编码转换为标签
     label_ref = np.argmax(onehot_ref, axis=1)
     label_pred = np.argmax(onehot_pred, axis=1)
-    ref_classes = np.unique(label_ref)
-    pred_classes = np.unique(label_pred)
-    n_ref = len(ref_classes)
-    n_pred = len(pred_classes)
+    # ensure classes are sorted in ascending order
+    ref_classes = np.sort(np.unique(label_ref))
+    pred_classes = np.sort(np.unique(label_pred))
+    n_ref, n_pred = len(ref_classes), len(pred_classes)
+    ref_classes2idx = {cls: idx for idx,cls in enumerate(ref_classes)}
+    pred_classes2idx = {cls: idx for idx,cls in enumerate(pred_classes)}
     # 构建计数矩阵
     count_matrix = np.zeros((n_ref, n_pred), dtype=int)
     for i in range(n_samples):
-        count_matrix[label_ref[i], label_pred[i]] += 1
-    
+        label_idx_ref = ref_classes2idx[label_ref[i]]
+        label_idx_pred = pred_classes2idx[label_pred[i]]
+        count_matrix[label_idx_ref, label_idx_pred] += 1
+
+    # 委托给 get_map 计算映射
+    others_chara_idx = ref_classes2idx.get(others_chara_id, None) if others_chara_id is not None else None
+    row_ind, col_ind = get_map(count_matrix, others_chara_idx)
+    # 构建映射字典：pred_class -> ref_class。考虑了n_ref < n_pred时，label_ref中不存在others，但是部分簇需要映射到others的情况
+    mapping = {pred_classes[col]: ref_classes[row] if row in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
+    return mapping
+
+
+def get_map(count_matrix, others_chara_idx=None):
+    """
+    给定计数矩阵，使用匈牙利算法返回最佳映射。
+    mapping: pred_class_idx -> ref_class_idx (当需要映射到 Others 时，值为 others_chara_id)
+    """
+    n_ref, n_pred = count_matrix.shape[0], count_matrix.shape[1]
+
     # 匈牙利算法分配
     if n_ref == n_pred:
         row_ind, col_ind = linear_sum_assignment(-count_matrix)
@@ -79,7 +98,7 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
         row_ind = row_ind[valid]
         col_ind = col_ind[valid]
     else:
-        assert others_chara_id is not None, "When n_ref < n_pred, others_chara_id must be provided."
+        assert others_chara_idx is not None, "When n_ref < n_pred, others_chara_id must be provided."
         # 行补齐
         pad_val = np.min(count_matrix) - 1
         padded_matrix = np.pad(count_matrix, ((0,n_pred-n_ref),(0,0)), constant_values=pad_val)
@@ -89,16 +108,14 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
         col_ind_valid = col_ind[valid]
         col_ind_others = col_ind[~valid]
         if len(col_ind_others) > 0:
-            row_ind_others = np.array([others_chara_id]*len(col_ind_others))
+            row_ind_others = np.array([others_chara_idx]*len(col_ind_others))
             row_ind = np.concatenate((row_ind_valid, row_ind_others))
             col_ind = np.concatenate((col_ind_valid, col_ind_others))
         else:
             row_ind = row_ind_valid
             col_ind = col_ind_valid        
 
-    # 构建映射字典：pred_class -> ref_class。考虑了n_ref < n_pred时，label_ref中不存在others，但是部分簇需要映射到others的情况
-    mapping = {pred_classes[col]: ref_classes[row] if row in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
-    return mapping
+    return row_ind, col_ind
 
 
 # calculate accuracy given one-hot encoded label and prediction for multi-class classification
