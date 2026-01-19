@@ -75,7 +75,9 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
     others_chara_idx = ref_classes2idx.get(others_chara_id, None) if others_chara_id is not None else None
     row_ind, col_ind = get_map(count_matrix, others_chara_idx)
     # 构建映射字典：pred_class -> ref_class。考虑了n_ref < n_pred时，label_ref中不存在others，但是部分簇需要映射到others的情况
-    mapping = {pred_classes[col]: ref_classes[row] if row in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
+    ref_idx2class = {idx: cls for cls, idx in ref_classes2idx.items()}
+    pred_idx2class = {idx: cls for cls, idx in pred_classes2idx.items()}
+    mapping = {pred_idx2class[col]: ref_idx2class[row] if ref_idx2class[row] in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
     return mapping
 
 
