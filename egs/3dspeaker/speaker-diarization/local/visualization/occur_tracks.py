@@ -7,10 +7,10 @@ import seaborn as sns
 import os, sys, re, json, pickle
 # Add parent directory to path
 current_file_path = os.path.abspath(__file__)
-project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path), '..', '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-from egs.3dspeaker.speaker-diarization.local.acc_utils import get_map
+from acc_utils import get_map
 
 
 name_dic_BB = {'Leonard': [['莱纳德·霍夫斯塔德博士'], 
@@ -92,7 +92,7 @@ def find_name_in_texts(name_dic, txt_folder, save_path):
     return result
 
 
-TV_name = "the big bang theory"
+TV_name = "I love my family"
 
 
 # Load useful variables and pseudo labels
@@ -134,12 +134,14 @@ name_occur_dict = find_name_in_texts(name_dic, txt_folder, save_path=f"/data/hom
 ## get count_matrix of co-occurance of name entity and speaker cluster id
 spk_cluster_ids_all = list(set(pseudo_labels_audio.values()))
 spk_cluster_ids_to_match = sorted([cid for cid in spk_cluster_ids_all if cid >=0])  # exclude negative cluster ids
-names_to_match = list(name_dic.keys())
+names_to_match = [name for name in name_occur_dict.keys() if name != 'Others']
 spk2idxs_dic = {cluster_id: idx for idx, cluster_id in enumerate(spk_cluster_ids_to_match)}
 name2idxs_dic = {name: idx for idx, name in enumerate(names_to_match)}
 n_name, n_spk = len(names_to_match), len(spk_cluster_ids_to_match)
 count_matrix = np.zeros((n_name, n_spk), dtype=int)  # rows: names, cols: speaker cluster ids
 for name, audio_seg_id_list in name_occur_dict.items():
+    if name == 'Others':
+        continue
     name_idx = name2idxs_dic[name]
     for audio_seg_id in audio_seg_id_list:
         spk_cluster_id = pseudo_labels_audio[audio_seg_id]
@@ -147,12 +149,44 @@ for name, audio_seg_id_list in name_occur_dict.items():
             continue
         spk_idx = spk2idxs_dic[spk_cluster_id]
         count_matrix[name_idx, spk_idx] += 1
-others_chara_idx = name2idxs_dic['Others']
-row_ind, col_ind = get_map(-count_matrix, others_chara_idx) # spk don't mention self, so use negative count_matrix
+##
+# 2. 计算边缘和 (Marginal Sums)
+# 每个名字被提及的总次数 (Row Sums)
+row_sums = count_matrix.sum(axis=1).reshape(-1, 1)
+# 每个 Cluster 说话时包含人名的总次数 (Col Sums)
+col_sums = count_matrix.sum(axis=0).reshape(1, -1)
+# 总提及数
+total_sum = count_matrix.sum()
+
+# 防止除零错误
+row_sums[row_sums == 0] = 1
+col_sums[col_sums == 0] = 1
+
+# 3. 计算期望矩阵 (Expected Matrix)
+# E_ij = (RowSum_i * ColSum_j) / Total
+expected_matrix = np.dot(row_sums, col_sums) / total_sum
+
+# 4. 计算得分矩阵 (Score Matrix)
+# 这里我们使用 "观测值 / 期望值" (Observed / Expected)
+# 值越小，说明相对于该人的话语量，他提这个名字的频率越低（符合"不提自己"假设）
+# 加一个小 epsilon 防止除零
+epsilon = 1e-10
+# score_matrix = (count_matrix + epsilon) / (expected_matrix + epsilon)
+score_matrix = (count_matrix - expected_matrix) / (np.sqrt(expected_matrix) + epsilon)
+score_matrix += 50.0 * (count_matrix == 0).astype(float)  # 对于从未提及的名字，增加一个较大的惩罚值
+
+others_chara_idx = n_name + 1
+row_ind, col_ind = get_map(-score_matrix, others_chara_idx) # spk don't mention self, so use negative count_matrix
 idx2spk_dic = {idx: cluster_id for cluster_id, idx in spk2idxs_dic.items()}
 idx2names_dic = {idx: name for name, idx in name2idxs_dic.items()}
 spk2name_map = {idx2spk_dic[col]: idx2names_dic[row] if row in idx2names_dic else 'Others' for row, col in zip(row_ind, col_ind)}
-
+print("name2idxs_dic:", name2idxs_dic)
+print("spk2idxs_dic:", spk2idxs_dic)
+print("Count matrix of name entity and speaker cluster id co-occurance:\n", count_matrix)
+print("Score matrix of name entity and speaker cluster id co-occurance:\n", np.round(score_matrix, 3))
+print("Row sums (name entity counts):", count_matrix.sum(axis=1))
+print("Column sums (speaker cluster id counts):", count_matrix.sum(axis=0))
+print("Speaker cluster ID to Name mapping:", spk2name_map)
 
 
 # print(len(face_label), len(name_flags), len(speaker_label))
