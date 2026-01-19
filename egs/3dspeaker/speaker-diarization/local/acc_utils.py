@@ -77,7 +77,7 @@ def class_matching(onehot_ref, onehot_pred, others_chara_id=None):
     # 构建映射字典：pred_class -> ref_class。考虑了n_ref < n_pred时，label_ref中不存在others，但是部分簇需要映射到others的情况
     ref_idx2class = {idx: cls for cls, idx in ref_classes2idx.items()}
     pred_idx2class = {idx: cls for cls, idx in pred_classes2idx.items()}
-    mapping = {pred_idx2class[col]: ref_idx2class[row] if ref_idx2class[row] in ref_classes else others_chara_id for row, col in zip(row_ind, col_ind)}
+    mapping = {pred_idx2class[col]: ref_idx2class[row] if row in ref_idx2class else others_chara_id for row, col in zip(row_ind, col_ind)}
     return mapping
 
 
