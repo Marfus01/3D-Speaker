@@ -54,5 +54,5 @@ Multimodal Speaker Diarization on Multi-party Conversation这篇文章给出的�
 > 问题5: 在appendix是否加入消融实验，展示HADL1在利用不同信息时的效果？
 5. S7.4 Cost and Speed of HADL: 可以删掉，因为耗时方面相较对比学习没有优势
 ### 图表
-1. Figure S5, S7: 用新结果重新绘制（2️⃣）
+1. Figure S5, S7: 用新结果重新绘制（✅）
 2. Table S1: Information of samples for evaluation. 重新统计EER所用标注数据的信息（✅）
