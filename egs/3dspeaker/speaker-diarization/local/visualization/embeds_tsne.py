@@ -1,10 +1,17 @@
 import numpy as np
 import pandas as pd
-import os, pickle, random
+import os, pickle, sys
 from operator import itemgetter
 from sklearn import manifold, metrics
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+
+current_file_path = os.path.abspath(__file__)
+# 从'visualization'回到'local/'目录
+project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path),'..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from utils import save_testEER, evaluate_EER
 
 def load_embeddings(TV_name, modal, load_from_pretrain=False, round_idx=0):
     if load_from_pretrain:
@@ -101,146 +108,6 @@ def get_labels(TV_name, modal, characters_index_dic):
         raise ValueError('Modal not recognized')
     
     return labels, keys
-
-def save_testEER(labels, keys, modal, save_path, characters_index_dic):
-    random.seed(100)  # Set random seed for reproducibility
-    characters_list = list(characters_index_dic.keys())
-    characters_index_dic_reverse = {v: k for k, v in characters_index_dic.items()}
-    # total number of positive and negative pairs
-    positive_data = 3500
-    negative_data = 3500
-
-    keys_index = list(range(len(keys)))
-    sim_label_list, key1_list, key2_list = [], [], []
-    # num of audio/face for each character
-    pos_cnt_dict = {char: 0 for char in characters_list}
-    neg_cnt_dict = {char: 0 for char in characters_list}
-    i = 0
-    while i < positive_data: 
-        random.shuffle(keys_index)
-        j = 1
-        while labels[keys_index[0]] != labels[keys_index[j]]:
-            j += 1
-        sim_label_list.append(1)
-        pos_cnt_dict[characters_index_dic_reverse[int(labels[keys_index[0]])]] += 2
-        key1_list.append(keys[keys_index[0]])
-        key2_list.append(keys[keys_index[j]])
-        i += 1
-
-    i = 0
-    while i < negative_data: 
-        random.shuffle(keys_index)
-        j = 1
-        while labels[keys_index[0]] == labels[keys_index[j]]:
-            j += 1
-        sim_label_list.append(0)
-        neg_cnt_dict[characters_index_dic_reverse[int(labels[keys_index[0]])]] += 1
-        neg_cnt_dict[characters_index_dic_reverse[int(labels[keys_index[j]])]] += 1
-        key1_list.append(keys[keys_index[0]])
-        key2_list.append(keys[keys_index[j]])
-        i += 1
-
-    print(f'num of {modal} for each character in positive pairs:', pos_cnt_dict)
-    print(f'num of {modal} for each character in negative pairs:', neg_cnt_dict)
-    print('total num of positive pairs:', sum(pos_cnt_dict.values())/2)
-    print('total num of negative pairs:', sum(neg_cnt_dict.values())/2)
-
-    with open(save_path, 'w') as f:
-        for i,j,k in zip(sim_label_list, key1_list, key2_list):
-            f.write(str(i)+' '+j+' '+k+'\n')
-
-def read_testEER(file_path):
-    sim_label_list, key1_list, key2_list = [], [], []
-    for line in open(file_path).read().splitlines():
-        items = line.split()
-        sim_label_list.append(int(items[0]))
-        key1_list.append(items[1])
-        key2_list.append(items[2])
-    return sim_label_list, key1_list, key2_list
-
-def tuneThresholdfromScore(scores, labels, target_fa, target_fr = None):
-    fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=1)
-    fnr = 1 - tpr
-    tunedThreshold = []
-    if target_fr:
-        for tfr in target_fr:
-            idx = np.nanargmin(np.absolute((tfr - fnr)))
-            tunedThreshold.append([thresholds[idx], fpr[idx], fnr[idx]])
-    for tfa in target_fa:
-        idx = np.nanargmin(np.absolute((tfa - fpr))) # np.where(fpr<=tfa)[0][-1]
-        tunedThreshold.append([thresholds[idx], fpr[idx], fnr[idx]])
-    idxE = np.nanargmin(np.absolute((fnr - fpr)))
-    eer  = max(fpr[idxE],fnr[idxE])*100
-    return tunedThreshold, eer, fpr, fnr
-
-# Creates a list of false-negative rates, a list of false-positive rates
-# and a list of decision thresholds that give those error-rates.
-def ComputeErrorRates(scores, labels):
-      # Sort the scores from smallest to largest, and also get the corresponding
-      # indexes of the sorted scores.  We will treat the sorted scores as the
-      # thresholds at which the the error-rates are evaluated.
-      sorted_indexes, thresholds = zip(*sorted(
-          [(index, threshold) for index, threshold in enumerate(scores)],
-          key=itemgetter(1)))
-      sorted_labels = []
-      labels = [labels[i] for i in sorted_indexes]
-      fnrs = []
-      fprs = []
-
-      # At the end of this loop, fnrs[i] is the number of errors made by
-      # incorrectly rejecting scores less than thresholds[i]. And, fprs[i]
-      # is the total number of times that we have correctly accepted scores
-      # greater than thresholds[i].
-      for i in range(0, len(labels)):
-          if i == 0:
-              fnrs.append(labels[i])
-              fprs.append(1 - labels[i])
-          else:
-              fnrs.append(fnrs[i-1] + labels[i])
-              fprs.append(fprs[i-1] + 1 - labels[i])
-      fnrs_norm = sum(labels)
-      fprs_norm = len(labels) - fnrs_norm
-
-      # Now divide by the total number of false negative errors to
-      # obtain the false positive rates across all thresholds
-      fnrs = [x / float(fnrs_norm) for x in fnrs]
-
-      # Divide by the total number of corret positives to get the
-      # true positive rate.  Subtract these quantities from 1 to
-      # get the false positive rates.
-      fprs = [1 - x / float(fprs_norm) for x in fprs]
-      return fnrs, fprs, thresholds
-
-# Computes the minimum of the detection cost function.  The comments refer to
-# equations in Section 3 of the NIST 2016 Speaker Recognition Evaluation Plan.
-def ComputeMinDcf(fnrs, fprs, thresholds, p_target, c_miss, c_fa):
-    min_c_det = float("inf")
-    min_c_det_threshold = thresholds[0]
-    for i in range(0, len(fnrs)):
-        # See Equation (2).  it is a weighted sum of false negative
-        # and false positive errors.
-        c_det = c_miss * fnrs[i] * p_target + c_fa * fprs[i] * (1 - p_target)
-        if c_det < min_c_det:
-            min_c_det = c_det
-            min_c_det_threshold = thresholds[i]
-    # See Equations (3) and (4).  Now we normalize the cost.
-    c_def = min(c_miss * p_target, c_fa * (1 - p_target))
-    min_dcf = min_c_det / c_def
-    return min_dcf, min_c_det_threshold
-
-def evaluate_EER(embeds_dict, testEER_file):
-    sim_label_list, key1_list, key2_list = read_testEER(testEER_file)
-    scores = []
-    for k1, k2 in zip(key1_list, key2_list):
-        emb1 = embeds_dict[k1]
-        emb2 = embeds_dict[k2]
-        score = np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
-        scores.append(score)
-    eer = tuneThresholdfromScore(scores, sim_label_list, [1, 0.1])[1]
-    fnrs, fprs, thresholds = ComputeErrorRates(scores, sim_label_list)
-    minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
-    return eer, minDCF
-
 
 
 TV_name = 'I love my family' # 'I love my family', 'the big bang theory'

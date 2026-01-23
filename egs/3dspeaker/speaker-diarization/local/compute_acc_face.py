@@ -4,7 +4,7 @@ import json
 import argparse
 import numpy as np
 import pandas as pd
-from acc_utils import *
+from utils import *
 
 def main(args):
     os.makedirs(args.result_dir, exist_ok=True)

@@ -30,6 +30,18 @@ from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
 include_overlap=false
 hf_access_token=
 
+# Contrastive learning parameters
+contrastive_training_flag=false  # 是否在提取embedding之前进行对比学习
+contrastive_lr=0.0001  # 对比学习学习率
+contrastive_batch_size=128  # 对比学习batch size
+contrastive_max_dur=2.0  # 对比学习最大持续时间（秒）
+contrastive_max_epochs=100  # 对比学习最大epoch数
+contrastive_test_interval=1  # 对比学习评估间隔
+contrastive_early_stop_patience=10  # 对比学习早停patience
+musan_path=""  # MUSAN噪声数据集路径
+rir_filepath=""  # RIR噪声文件路径
+testEER_file=""  # testEER文件路径（用于对比学习评估）
+
 examples=examples
 exp=exp
 
@@ -88,6 +100,50 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   fi
 fi
 
+# 对比学习训练（可选）: 在提取embedding之前，先对预训练模型在当前数据集上做对比学习
+if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$contrastive_training_flag" = true ]; then
+  echo "$(basename $0) Stage3.5: Contrastive learning training..."
+  
+  # Check required parameters
+  if [ -z "$musan_path" ] || [ -z "$rir_filepath" ]; then
+    echo "Error: musan_path and rir_filepath are required for contrastive learning."
+    exit 1
+  fi
+  
+  if [ -z "$testEER_file" ]; then
+    echo "Warning: testEER_file is not provided. Contrastive learning will skip evaluation."
+    testEER_file_arg=""
+  else
+    testEER_file_arg="--testEER_file $testEER_file"
+  fi
+  
+  # Create contrastive learning result directory
+  contrastive_result_dir="$exp/contrastive_learning"
+  mkdir -p "$contrastive_result_dir"
+  
+  # Run contrastive learning training
+  torchrun --nproc_per_node=$nj --master_port $master_port local/contrastive_finetune.py \
+    --conf "$conf_file" \
+    --subseg_json "$json_dir/subseg.json" \
+    --musan_path "$musan_path" \
+    --rir_filepath "$rir_filepath" \
+    $testEER_file_arg \
+    --result_dir "$contrastive_result_dir" \
+    --speaker_model_id "$speaker_model_id" \
+    --lr "$contrastive_lr" \
+    --batch_size "$contrastive_batch_size" \
+    --max_dur "$contrastive_max_dur" \
+    --max_epochs "$contrastive_max_epochs" \
+    --test_interval "$contrastive_test_interval" \
+    --early_stop_patience "$contrastive_early_stop_patience" \
+    --gpu $gpus \
+    --use_gpu \
+    --seed 1234
+  
+  echo "$(basename $0) Stage3.5: Contrastive learning completed!"
+  echo "Best model saved in $contrastive_result_dir/contrastive_models/"
+fi
+
 # 使用CAM++（中英文版）提取subseg.json中每个子片段的说话人嵌入，将每个原始音频文件的结果各自汇总为 dict 后，保存为exp_video/embs目录下同名的 pkl 文件。dict 的 key 是子片段的起止时间点(list)，value是说话人嵌入。
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$(basename $0) Stage4: Extract speaker embeddings..."
@@ -95,8 +151,17 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"
   # Extract speaker embeddings
+  # Update speaker_pretrained_model to use the best contrastive model
+  CONTRASTIVE_MODEL_PATH=$(ls -t $contrastive_result_dir/contrastive_models/model_epoch_*.pth | head -1)
+  if [ "$contrastive_training_flag" = true ] && [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
+    echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
+    speaker_pretrained_model_arg="--speaker_pretrained_model $CONTRASTIVE_MODEL_PATH"
+  else
+    speaker_pretrained_model_arg=""
+  fi
+  
   torchrun --nproc_per_node=$nj --master_port $master_port local/extract_diar_embeddings.py \
-          --model_id $speaker_model_id --conf "$conf_file" \
+          --model_id $speaker_model_id $speaker_pretrained_model_arg --conf "$conf_file" \
           --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
             
 fi
