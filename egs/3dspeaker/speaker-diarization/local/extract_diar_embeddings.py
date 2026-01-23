@@ -226,7 +226,7 @@ def main():
             ## load whole audio
             wav_path = meta[list(meta.keys())[0]]['file']
             obj_fs = feature_extractor.sample_rate
-            wav = load_audio(wav_path, obj_fs=obj_fs) # torch.tensor, (num_channels, num_samples)
+            wav = load_audio(wav_path, obj_fs=obj_fs) # torch.tensor, (num_channels, num_samples). num_channels=1 in fact, since load_audio averages all channels.
 
             ## split original audio into sub-segments, wavs of len num_subsegs, each elements is (1, num_samples_i))
             wavs = [wav[0, int(meta[i]['start']*obj_fs):int(meta[i]['stop']*obj_fs)].unsqueeze(0) for i in meta] # only use the first channel

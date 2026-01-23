@@ -108,7 +108,7 @@ class PseudoLabelDataset(Dataset):
             # Get all wav data to speed up loading
             obj_fs = self.feature_extractor.sample_rate
             self.wav_paths = list(set([self.subseg_info[sid]['file'] for sid in self.sample_ids]))
-            self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}
+            self.wav_dat_dic = {wav_path: load_audio(wav_path, obj_fs=obj_fs) for wav_path in self.wav_paths}   # each value is (1, num_samples), since load_audio averages all channels.
             self.subseg_wav_dic = {sid: self.wav_dat_dic[self.subseg_info[sid]['file']][0, int(self.subseg_info[sid]['start']*obj_fs):int(self.subseg_info[sid]['stop']*obj_fs)].unsqueeze(0) for sid in self.sample_ids}    # each elements is (1, num_samples_i))
             del self.wav_paths, self.wav_dat_dic
 
