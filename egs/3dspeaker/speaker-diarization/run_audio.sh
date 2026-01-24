@@ -112,14 +112,17 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$contrastive_training_fla
   
   if [ -z "$testEER_file" ]; then
     echo "Warning: testEER_file is not provided. Contrastive learning will skip evaluation."
-    testEER_file_arg=""
+    testEER_args=()
   else
-    testEER_file_arg="--testEER_file $testEER_file"
+    testEER_args=(--testEER_file "$testEER_file")
   fi
   
   # Create contrastive learning result directory
   contrastive_result_dir="$exp/contrastive_learning"
   mkdir -p "$contrastive_result_dir"
+  # Copy conf_file to $exp/conf
+  mkdir -p "$exp/conf"
+  cp "$conf_file" "$exp/conf/"
   
   # Run contrastive learning training
   torchrun --nproc_per_node=$nj --master_port $master_port local/contrastive_finetune.py \
@@ -127,7 +130,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$contrastive_training_fla
     --subseg_json "$json_dir/subseg.json" \
     --musan_path "$musan_path" \
     --rir_filepath "$rir_filepath" \
-    $testEER_file_arg \
+    "${testEER_args[@]}" \
     --result_dir "$contrastive_result_dir" \
     --speaker_model_id "$speaker_model_id" \
     --lr "$contrastive_lr" \
@@ -152,16 +155,16 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   cp "$conf_file" "$exp/conf/"
   # Extract speaker embeddings
   # Update speaker_pretrained_model to use the best contrastive model
-  CONTRASTIVE_MODEL_PATH=$(ls -t $contrastive_result_dir/contrastive_models/model_epoch_*.pth | head -1)
+  CONTRASTIVE_MODEL_PATH=$(find "$contrastive_result_dir/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
   if [ "$contrastive_training_flag" = true ] && [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
     echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
-    speaker_pretrained_model_arg="--speaker_pretrained_model $CONTRASTIVE_MODEL_PATH"
+    speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
   else
-    speaker_pretrained_model_arg=""
+    speaker_pretrained_model_arg=()
   fi
   
   torchrun --nproc_per_node=$nj --master_port $master_port local/extract_diar_embeddings.py \
-          --model_id $speaker_model_id $speaker_pretrained_model_arg --conf "$conf_file" \
+          --model_id $speaker_model_id "${speaker_pretrained_model_arg[@]}" --conf "$conf_file" \
           --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
             
 fi

@@ -18,8 +18,6 @@ import os, sys, time, glob, random, argparse, json
 import soundfile
 import numpy as np
 from scipy import signal
-from pathlib import Path
-from operator import itemgetter
 
 import torch
 import torch.nn as nn
@@ -418,14 +416,38 @@ def evaluate_model(model, feature_extractor, subseg_json, testEER_file, device):
     
     return eer, minDCF
 
+class SimpleMeter:
+    """Lightweight meter compatible with ProgressMeter usage in this file."""
+    def __init__(self, name='', fmt=':.4f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0.0
+        self.avg = 0.0
+        self.sum = 0.0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        if self.count != 0:
+            self.avg = self.sum / self.count
+        else:
+            self.avg = 0.0
+
+    def __str__(self):
+        return f"{self.name} {self.val:{self.fmt}} ({self.avg:{self.fmt}})"
 
 def train_one_epoch(train_loader, model, contrastive_criterion, aat_net, reverse_layer, 
                    optimizer_net, optimizer_aat, epoch, logger, device):
     """Train for one epoch with AAT framework"""
-    batch_time = AverageMeters()
-    data_time = AverageMeters()
-    losses = AverageMeters()
-    top1 = AverageMeters()
+    batch_time = SimpleMeter('Time', fmt=':.3f')
+    data_time = SimpleMeter('Data', fmt=':.3f')
+    losses = SimpleMeter('Loss', fmt=':.6f')
+    top1 = SimpleMeter('Acc', fmt=':.3f')
     
     progress = ProgressMeter(
         len(train_loader),
@@ -511,7 +533,7 @@ def train_one_epoch(train_loader, model, contrastive_criterion, aat_net, reverse
         end = time.time()
         
         if i % 10 == 0:
-            progress.display(i, logger)
+            progress.display(i)
     
     return losses.avg, top1.avg
 
@@ -561,7 +583,8 @@ def main():
     feature_extractor = build('feature_extractor', config_model)
     # Build speaker model and load pretrained weights
     logger.info("Loading speaker model...")
-    speaker_model = build('speaker_model', config_model)
+    embedding_dim = config_model.embedding_model["args"]["embedding_size"]
+    speaker_model = build('embedding_model', config_model)
     pretrained_state = torch.load(config_model.pretrained_model, map_location='cpu')
     speaker_model.load_state_dict(pretrained_state)
     speaker_model.to(device)
@@ -593,7 +616,7 @@ def main():
     
     # Setup loss, AAT components and optimizers
     contrastive_criterion = ContrastiveLoss().to(device)
-    aat_net = AATNet(embedding_dim=config_model.embedding_size).to(device)
+    aat_net = AATNet(embedding_dim).to(device)
     reverse_layer = Reverse().to(device)
     
     # Separate optimizers for encoder and discriminator
@@ -634,8 +657,7 @@ def main():
             
             eer, minDCF = evaluate_model(
                 speaker_model, feature_extractor, args.subseg_json, 
-                args.testEER_file, device, logger
-            )
+                args.testEER_file, device)
             
             elapsed_time_eval = time.time() - start_time_eval
             

@@ -37,8 +37,6 @@ contrastive_max_dur=2.0  # 对比学习最大持续时间（秒）
 contrastive_max_epochs=100  # 对比学习最大epoch数
 contrastive_test_interval=1  # 对比学习评估间隔
 contrastive_early_stop_patience=10  # 对比学习早停patience
-musan_path="$data_root/musan_split"  # MUSAN噪声数据集路径
-rir_filepath="$data_root/rirs_noises/rir.npy"  # RIR噪声文件路径
 
 # Self-supervised learning parameters
 ft_flag=true  # 是否进行自监督微调
@@ -145,7 +143,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     --contrastive_batch_size $contrastive_batch_size --contrastive_max_dur $contrastive_max_dur \
     --contrastive_max_epochs $contrastive_max_epochs --contrastive_test_interval $contrastive_test_interval \
     --contrastive_early_stop_patience $contrastive_early_stop_patience \
-    --musan_path "$musan_path" --rir_filepath "$rir_filepath" --testEER_file "$examples/annotation/audio_testEER.txt"
+    --musan_path "$data_root/musan_split" --rir_filepath "$data_root/rirs_noises/rir.npy" --testEER_file "$examples/annotation/audio_testEER.txt"
 fi
 
 # For each detected frame with one active speaker(with high quality face), record its timepoint and facial embedding in 'visual_embs_dir/{video_name}.pkl'
@@ -206,12 +204,12 @@ else
     fi
 
     # Update speaker_pretrained_model to use the best contrastive model
-    CONTRASTIVE_MODEL_PATH=$(ls -t $exp/contrastive_learning/contrastive_models/model_epoch_*.pth | head -1)
+    CONTRASTIVE_MODEL_PATH=$(find "$exp/contrastive_learning/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
     if [ "$contrastive_training_flag" = true ] && [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
       echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
-      speaker_pretrained_model_arg="--speaker_pretrained_model $CONTRASTIVE_MODEL_PATH"
+      speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
     else
-      speaker_pretrained_model_arg=""
+      speaker_pretrained_model_arg=()
     fi
     
     # Run self-supervised fine-tuning
@@ -220,7 +218,7 @@ else
       --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
       --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
       --speaker_anno_file "$speaker_anno_file" --face_anno_file "$face_anno_file" \
-      --speaker_model_id "$speaker_model_id" $speaker_pretrained_model_arg --face_pretrained_model "$face_pretrained_model" \
+      --speaker_model_id "$speaker_model_id" "${speaker_pretrained_model_arg[@]}" --face_pretrained_model "$face_pretrained_model" \
       --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
