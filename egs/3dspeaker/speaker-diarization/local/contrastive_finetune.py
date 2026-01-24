@@ -640,6 +640,17 @@ def main():
     
     score_file = open(os.path.join(args.result_dir, 'contrastive_scores.txt'), 'w')
     
+    # Evaluate before training
+    eer, minDCF = evaluate_model(
+        speaker_model, feature_extractor, args.subseg_json, 
+        args.testEER_file, device)
+    
+    log_msg = (f"{time.strftime('%Y-%m-%d %H:%M:%S')}, "
+                f"Epoch 0, EER {eer:.4f}, minDCF {minDCF:.3f}, ")
+    logger.info(log_msg)
+    score_file.write(log_msg + '\n')
+    score_file.flush()
+
     for epoch in range(1, args.max_epochs + 1):
         start_time_train = time.time()
         
