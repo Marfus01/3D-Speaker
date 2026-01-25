@@ -90,7 +90,7 @@ class ContrastiveTrainDataset(Dataset):
         ## Load noise files from MUSAN
         ### Basic Attributes
         self.noisetypes = ['noise', 'speech', 'music'] # 3 Type of noise in MUSAN
-        self.noisesnr = {'noise': [0, 15], 'speech': [13, 20], 'music': [5, 15]} # The range of SNR
+        self.noisesnr = {'noise': [10, 20], 'speech': [15, 25], 'music': [10, 20]} # The range of SNR
         ## Build noise file list based om all files in MUSAN
         self.noiselist = {} # key: noise type, value: noise filepath list
         for file in glob.glob(os.path.join(musan_path, '*/*/*/*.wav')):
@@ -110,23 +110,24 @@ class ContrastiveTrainDataset(Dataset):
         
         # Choose two augmentation profiles for two segments
         augment_profiles = []
-        for i in range(2):
-            # rir: randomly select a row from rir_files and a random gain in [-7,3]
-            rir_filts = random.choice(self.rir_files)
-            rir_gains = np.random.uniform(-7, 3, 1)
-            # MUSAN: randomly select a noise type, a noise file and a random snr
-            noisecat = random.choice(self.noisetypes)
-            noisefile = random.choice(self.noiselist[noisecat].copy())
-            snr = [random.uniform(self.noisesnr[noisecat][0], self.noisesnr[noisecat][1])]
-            
-            # Decide augmentation method based on probability
-            p = random.random()
-            if p < 0.25:  # Add RIR only
-                augment_profiles.append({'rir_filt': rir_filts, 'rir_gain': rir_gains, 'add_noise': None, 'add_snr': None})
-            elif p < 0.50:  # Add MUSAN noise only
-                augment_profiles.append({'rir_filt': None, 'rir_gain': None, 'add_noise': noisefile, 'add_snr': snr})
-            else:  # Add both
-                augment_profiles.append({'rir_filt': rir_filts, 'rir_gain': rir_gains, 'add_noise': noisefile, 'add_snr': snr})
+        augment_profiles.append({'rir_filt': None, 'rir_gain': None, 'add_noise': None, 'add_snr': None})  # First augmentation is always clean (no augmentation)
+        
+        # rir: randomly select a row from rir_files and a random gain in [-5,0]
+        rir_filts = random.choice(self.rir_files)
+        rir_gains = np.random.uniform(-5, 0, 1)
+        # MUSAN: randomly select a noise type, a noise file and a random snr
+        noisecat = random.choice(self.noisetypes)
+        noisefile = random.choice(self.noiselist[noisecat].copy())
+        snr = [random.uniform(self.noisesnr[noisecat][0], self.noisesnr[noisecat][1])]
+        
+        # Decide augmentation method based on probability
+        p = random.random()
+        if p < 0.25:  # Add RIR only
+            augment_profiles.append({'rir_filt': rir_filts, 'rir_gain': rir_gains, 'add_noise': None, 'add_snr': None})
+        elif p < 0.50:  # Add MUSAN noise only
+            augment_profiles.append({'rir_filt': None, 'rir_gain': None, 'add_noise': noisefile, 'add_snr': snr})
+        else:  # Add both
+            augment_profiles.append({'rir_filt': rir_filts, 'rir_gain': rir_gains, 'add_noise': noisefile, 'add_snr': snr})
         
         # Apply augmentations
         audio_aug = []
@@ -303,6 +304,72 @@ class Reverse(nn.Module):
         return self.matcher(x)
 
 
+class ProjectionHead(nn.Module):
+    def __init__(self, dim_in=192, dim_out=192): # 假设 embedding 是 192
+        super(ProjectionHead, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim_in, dim_in),
+            nn.BatchNorm1d(dim_in),
+            nn.ReLU(inplace=True),
+            nn.Linear(dim_in, dim_out)
+        )
+    def forward(self, x):
+        return self.net(x)
+
+class AngularPrototypicalLoss(nn.Module):
+    """
+    Implementation of Angular Prototypical Loss as described in Eq (3)-(5) of the paper.
+    S(e_i, e_j) = w * sim(e_i, e_j) + b
+    """
+    def __init__(self, projection_head=None, init_w=10.0, init_b=-5.0):
+        super(AngularPrototypicalLoss, self).__init__()
+        self.w = nn.Parameter(torch.tensor(init_w))
+        self.b = nn.Parameter(torch.tensor(init_b))
+        self.projection_head = projection_head
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, features):
+        """
+        Args:
+            features: shape (batch_size, 2, embedding_dim)
+            features[:, 0, :] -> Query (Anchor, e_{i,1,1})
+            features[:, 1, :] -> Prototype (Positive, e_{i,2,2})
+        """
+        # 通过投影头
+        if self.projection_head is not None:
+            batch_size = features.shape[0]
+            feat_reshaped = features.view(batch_size * 2, -1)  # shape: (batch_size*2, embedding_dim)
+            proj_feat = self.projection_head(feat_reshaped)   # shape: (batch_size*2, embedding_dim)
+            features = proj_feat.view(batch_size, 2, -1)      # shape: (batch_size, 2, embedding_dim)
+        # 归一化特征 (Eq 4)
+        # features shape: [N, 2, D]
+        queries = F.normalize(features[:, 0, :], p=2, dim=1)      # [N, D]
+        prototypes = F.normalize(features[:, 1, :], p=2, dim=1)   # [N, D]
+
+        # 计算余弦相似度矩阵 [N, N]
+        # sim_matrix[i][j] 表示第 i 个 query 和第 j 个 prototype 的相似度
+        sim_matrix = torch.matmul(queries, prototypes.T)
+
+        # 限制 w 的最小值，防止训练崩溃
+        self.w.data = torch.clamp(self.w.data, min=1.0)
+
+        # 应用缩放和偏置 (Eq 3)
+        scores = self.w * sim_matrix + self.b
+        
+        # 构建标签：第 i 个 query 应该匹配第 i 个 prototype
+        batch_size = features.shape[0]
+        targets = torch.arange(batch_size).to(features.device)
+
+        # 计算 Cross Entropy Loss (Eq 5)
+        loss = self.criterion(scores, targets)
+        
+        # 计算准确率用于监控
+        with torch.no_grad():
+            _, preds = torch.max(scores, 1)
+            acc = (preds == targets).float().mean() * 100.0
+
+        return loss, acc
+
 class ContrastiveLoss(nn.Module):
     """
     Contrastive loss function for self-supervised learning.
@@ -324,11 +391,11 @@ class ContrastiveLoss(nn.Module):
         mask = torch.eye(batch_size, dtype=torch.float32).to(features.device)
         count = features.shape[1]
         
-        # Concatenate features
+        # Concatenate features: shape (batch_size * 2, embedding_dim)
         feature = torch.cat(torch.unbind(features, dim=1), dim=0)
         
         # Compute cosine similarity
-        dot_feature = F.cosine_similarity(feature.unsqueeze(-1), feature.unsqueeze(-1).transpose(0, 2))
+        dot_feature = F.cosine_similarity(feature.unsqueeze(-1), feature.unsqueeze(-1).transpose(0, 2)) # shape (batch_size*2, batch_size*2)
         # Apply learned scaling
         torch.clamp(self.w, 1e-6)
         dot_feature = dot_feature * self.w + self.b
@@ -337,18 +404,18 @@ class ContrastiveLoss(nn.Module):
         logits = dot_feature - logits_max.detach()
         
         # Create masks
-        mask = mask.repeat(count, count)
+        mask = mask.repeat(count, count)    # mask[i,j] = 1 当且仅当 i % N == j % N（也就是 i 和 j 对应相同原始样本索引）。
         logits_mask = torch.scatter(
             torch.ones_like(mask),
             1,
             torch.arange(batch_size * count).view(-1, 1).to(features.device),
             0
         )
-        mask = mask * logits_mask
+        mask = mask * logits_mask   # remove diagonal elements
         
         # Compute loss
         exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))  # 分母有问题，应该只考虑不同segment的部分
         loss = -(mask * log_prob).sum(1) / mask.sum(1)
         loss = loss.view(count, batch_size).mean()
         
@@ -442,7 +509,7 @@ class SimpleMeter:
         return f"{self.name} {self.val:{self.fmt}} ({self.avg:{self.fmt}})"
 
 def train_one_epoch(train_loader, model, contrastive_criterion, aat_net, reverse_layer, 
-                   optimizer_net, optimizer_aat, epoch, logger, device):
+                   optimizer_net, optimizer_aat, epoch, device):
     """Train for one epoch with AAT framework"""
     batch_time = SimpleMeter('Time', fmt=':.3f')
     data_time = SimpleMeter('Data', fmt=':.3f')
@@ -459,6 +526,10 @@ def train_one_epoch(train_loader, model, contrastive_criterion, aat_net, reverse
     aat_net.train()
     reverse_layer.train()
     
+    # 强制将所有 BatchNorm 层设为 eval 模式，防止统计量更新
+    for m in model.modules():
+        if isinstance(m, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d)):
+            m.eval()
     # AAT criterion for discriminator
     aat_criterion = nn.CrossEntropyLoss()
     
@@ -519,7 +590,7 @@ def train_one_epoch(train_loader, model, contrastive_criterion, aat_net, reverse
         features = torch.stack([feat_a, feat_p], dim=1) # shape: (batch_size, 2, embedding_dim)
         sloss, prec1 = contrastive_criterion(features)
         ## Total loss: contrastive loss + AAT loss * weight
-        nloss = sloss + closs * 3.0
+        nloss = sloss + closs * 0.0
         
         # Backward and update encoder
         nloss.backward()
@@ -615,7 +686,9 @@ def main():
     )
     
     # Setup loss, AAT components and optimizers
-    contrastive_criterion = ContrastiveLoss().to(device)
+    # contrastive_criterion = ContrastiveLoss().to(device)
+    projection_head = ProjectionHead(dim_in=embedding_dim, dim_out=embedding_dim).to(device)
+    contrastive_criterion = AngularPrototypicalLoss(projection_head).to(device)
     aat_net = AATNet(embedding_dim).to(device)
     reverse_layer = Reverse().to(device)
     
@@ -657,7 +730,7 @@ def main():
         # Train for one epoch with AAT
         avg_loss, avg_acc = train_one_epoch(
             train_loader, speaker_model, contrastive_criterion, aat_net, reverse_layer,
-            optimizer_net, optimizer_aat, epoch, logger, device
+            optimizer_net, optimizer_aat, epoch, device
         )
         
         elapsed_time_train = time.time() - start_time_train

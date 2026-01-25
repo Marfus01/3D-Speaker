@@ -1,0 +1,22 @@
+2026-01-24 17:10:55,306 - INFO: Arguments: Namespace(conf='conf/the big bang theory/diar_video.yaml', subseg_json='runs/the big bang theory/exp_video_contrastive/json/subseg.json', musan_path='/data/home/scv7387/run/tv_series_plus/dataset/musan_split', rir_filepath='/data/home/scv7387/run/tv_series_plus/dataset/rirs_noises/rir.npy', testEER_file='/data/home/scv7387/run/tv_series_plus/dataset/the big bang theory/annotation/audio_testEER.txt', result_dir='runs/the big bang theory/exp_video_contrastive/contrastive_learning2', speaker_model_id='iic/speech_campplus_sv_en_voxceleb_16k', speaker_pretrained_model=None, lr=0.0001, batch_size=128, max_dur=2.0, max_epochs=100, test_interval=1, early_stop_patience=10, use_gpu=True, gpu=['0'], seed=1234)
+2026-01-24 17:10:58,293 - INFO: Loading speaker model...
+2026-01-24 17:10:59,067 - INFO: Preparing training dataset...
+2026-01-24 17:12:32,800 - INFO: AAT components initialized
+2026-01-24 17:12:32,800 - INFO: AATNet parameters: 0.53M
+2026-01-24 17:12:32,800 - INFO: Starting contrastive learning training with AAT...
+2026-01-24 17:13:53,550 - INFO: 2026-01-24 17:13:53, Epoch 0, EER 20.3143, minDCF 0.710, 
+2026-01-24 17:15:54,411 - INFO: 2026-01-24 17:15:54, Epoch 1, LR 0.000100, Acc 93.93, LOSS 2.666164, EER 28.8571, minDCF 0.947, Train Time 48.48s, Eval Time 72.37s
+2026-01-24 17:15:54,563 - INFO: Saved best model to runs/the big bang theory/exp_video_contrastive/contrastive_learning2/contrastive_models/model_epoch_0001.pth
+2026-01-24 17:17:53,209 - INFO: 2026-01-24 17:17:53, Epoch 2, LR 0.000100, Acc 94.89, LOSS 2.487060, EER 28.8571, minDCF 0.969, Train Time 44.78s, Eval Time 73.86s
+2026-01-24 17:19:52,102 - INFO: 2026-01-24 17:19:52, Epoch 3, LR 0.000100, Acc 95.87, LOSS 2.421400, EER 30.9714, minDCF 0.981, Train Time 46.06s, Eval Time 72.83s
+2026-01-24 17:21:48,379 - INFO: 2026-01-24 17:21:48, Epoch 4, LR 0.000100, Acc 96.14, LOSS 2.386164, EER 32.1714, minDCF 0.974, Train Time 43.83s, Eval Time 72.45s
+2026-01-24 17:23:44,274 - INFO: 2026-01-24 17:23:44, Epoch 5, LR 0.000100, Acc 96.46, LOSS 2.368421, EER 30.8857, minDCF 0.985, Train Time 42.36s, Eval Time 73.54s
+2026-01-24 17:25:40,176 - INFO: 2026-01-24 17:25:40, Epoch 6, LR 0.000100, Acc 96.88, LOSS 2.333534, EER 32.6857, minDCF 0.978, Train Time 42.53s, Eval Time 73.37s
+2026-01-24 17:27:34,543 - INFO: 2026-01-24 17:27:34, Epoch 7, LR 0.000100, Acc 96.79, LOSS 2.327495, EER 31.5714, minDCF 0.989, Train Time 41.80s, Eval Time 72.56s
+2026-01-24 17:29:30,867 - INFO: 2026-01-24 17:29:30, Epoch 8, LR 0.000100, Acc 97.02, LOSS 2.308456, EER 33.2286, minDCF 0.991, Train Time 41.36s, Eval Time 74.96s
+2026-01-24 17:31:29,448 - INFO: 2026-01-24 17:31:29, Epoch 9, LR 0.000100, Acc 96.92, LOSS 2.298811, EER 32.5429, minDCF 0.992, Train Time 41.92s, Eval Time 76.66s
+2026-01-24 17:33:25,766 - INFO: 2026-01-24 17:33:25, Epoch 10, LR 0.000100, Acc 97.27, LOSS 2.281494, EER 33.3429, minDCF 0.995, Train Time 41.25s, Eval Time 75.06s
+2026-01-24 17:35:22,120 - INFO: 2026-01-24 17:35:22, Epoch 11, LR 0.000100, Acc 97.45, LOSS 2.276508, EER 33.1714, minDCF 0.995, Train Time 42.57s, Eval Time 73.79s
+2026-01-24 17:35:22,120 - INFO: Early stopping triggered. No improvement in EER for 10 epochs.
+2026-01-24 17:35:22,120 - INFO: Best EER: 28.8571 at epoch 1
+2026-01-24 17:35:22,121 - INFO: Training completed. Best EER: 28.8571 at epoch 1
