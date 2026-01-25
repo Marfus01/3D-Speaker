@@ -31,12 +31,12 @@ unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比
 
 # Contrastive learning parameters
 contrastive_training_flag=true  # 是否在提取embedding之前进行对比学习
-contrastive_lr=0.0001  # 对比学习学习率
+contrastive_lr=0.00001  # 对比学习学习率
 contrastive_batch_size=128  # 对比学习batch size
 contrastive_max_dur=2.0  # 对比学习最大持续时间（秒）
-contrastive_max_epochs=100  # 对比学习最大epoch数
+contrastive_max_epochs=250  # 对比学习最大epoch数
 contrastive_test_interval=1  # 对比学习评估间隔
-contrastive_early_stop_patience=10  # 对比学习早停patience
+contrastive_early_stop_patience=250  # 对比学习早停patience
 
 # Self-supervised learning parameters
 ft_flag=true  # 是否进行自监督微调
