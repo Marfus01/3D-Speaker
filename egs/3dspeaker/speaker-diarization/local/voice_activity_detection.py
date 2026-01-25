@@ -50,6 +50,7 @@ def main():
     out_dir = os.path.dirname(os.path.abspath(args.out_file))
     segmentation_file = os.path.join(out_dir, 'segmentation.pkl') # 默认不存在
     if os.path.exists(segmentation_file):
+        # Load frame-level speaker count results from overlap detection to help VAD post-processing
         consider_segmentation = True
         with open(segmentation_file, 'rb') as f:
             segmentations = pickle.load(f)
@@ -85,10 +86,10 @@ def main():
     # 对每个音频文件，得到其中每段有效语音的起止时间点，汇总写入egs/3dspeaker/speaker-diarization/exp_video/json/vad.json
     for wpath in wavs:        
         vad_time = vad_pipeline(wpath)[0]
-        vad_time = [[vad_t[0]/1000, vad_t[1]/1000] for vad_t in vad_time['value']]
+        vad_time = [[vad_t[0]/1000, vad_t[1]/1000] for vad_t in vad_time['value']]  # convert ms to s
         if consider_segmentation:
             basename = os.path.basename(wpath).rsplit('.', 1)[0]
-            vad_time = merge_vad(vad_time, segmentations[basename]['valid_field'])
+            vad_time = merge_vad(vad_time, segmentations[basename]['valid_field'])  # merge VAD results with valid speech segments from overlap detection by consider union
         vad_time = [[round(vad_t[0], 3), round(vad_t[1], 3)] for vad_t in vad_time]
 
         wid = os.path.basename(wpath).rsplit('.', 1)[0]

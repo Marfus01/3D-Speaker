@@ -61,20 +61,28 @@ def main():
 
     _segmentation = Inference(
         model,
-        duration=model.specifications.duration,
-        step=0.1 * model.specifications.duration,
-        skip_aggregation=True,
+        duration=model.specifications.duration, # size of chunk to be processed, default 10.0s
+        step=0.1 * model.specifications.duration,   # step size between two consecutive chunks, default 1.0s
+        skip_aggregation=True,  # do not aggregate results over time windows
         batch_size=segmentation_params['segmentation_batch_size'],
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'), 
     )
 
     def get_valid_field(count):
+        """
+        Get valid speech field from count results.
+        Args:
+            count: pyannote.core.SlidingWindowFeature, [total_frames_num, 1], count of speakers per frame
+        Returns:
+            valid_field: list of [start_time, end_time], valid speech segments
+        """
         valid_field = []
-        start = None
+        start = None    # start time of valid speech segment
+        # for each frame
         for i, (c, data) in enumerate(count):
-            if data.item()==0 or i==len(count)-1:
+            if data.item()==0 or i==len(count)-1:   # non-speech
                 if start is not None:
-                    end = c.middle
+                    end = c.middle  # end time of valid speech segment
                     valid_field.append([start, end])
                     start = None
             else:
@@ -87,7 +95,7 @@ def main():
     for wpath in wavs:
         basename = os.path.basename(wpath).rsplit('.', 1)[0]
         # segmentations: [chunk_num, frames_num, speakers_num]
-        segmentations = _segmentation({'audio':wpath})
+        segmentations = _segmentation({'audio':wpath})  # (bs, n_frames, n_classes). each frame in audio is about 16ms
         frame_windows = _segmentation.model.receptive_field
         # count: [total_frames_num, 1]
         count = Inference.aggregate(
@@ -96,12 +104,11 @@ def main():
             hamming=False,
             missing=0.0,
             skip_average=False,
-        )
+        )   # Aggregate all chunks into the full audio frame-level scores to get count of speakers per frame
 
-        count.data = np.rint(count.data).astype(np.uint8)
+        count.data = np.rint(count.data).astype(np.uint8)   # Round to integer
         valid_field = get_valid_field(count)
-        segmentation_dict[basename] = {'segmentations': segmentations.data, 'count': count.data, 'valid_field': valid_field}
-
+        segmentation_dict[basename] = {'segmentations': segmentations.data, 'count': count.data, 'valid_field': valid_field}    # store results: chunk-level predictions, frame-level count, valid speech segments
     out_path = os.path.join(args.out_dir, 'segmentation.pkl')
     with open(out_path, 'wb') as f:
         pickle.dump(segmentation_dict, f)

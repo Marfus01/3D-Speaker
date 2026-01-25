@@ -127,6 +127,21 @@ def load_params(dst_model, src_state, strict=True):
     return dst_model
 
 def merge_vad(vad1: list, vad2: list):
+    """
+    Merge two time interval lists and return their union.
+    
+    Combines two time interval lists, sorts by start time, and sequentially scans
+    to merge overlapping or adjacent intervals.
+    
+    Args:
+        vad1: List of time intervals, with elements in [start, end] format.
+        vad2: List of time intervals, with elements in [start, end] format.
+    
+    Returns:
+        Merged interval list in ascending time order with no overlaps (union).
+        Adjacent intervals are also merged.
+        Example: [[0,1],[2,3]] + [[0.5,2.5]] → [[0,3]]
+    """
     intervals = vad1 + vad2
     intervals.sort(key=lambda x: x[0])
     merged = []
