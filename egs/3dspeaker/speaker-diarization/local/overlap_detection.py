@@ -108,7 +108,8 @@ def main():
 
         count.data = np.rint(count.data).astype(np.uint8)   # Round to integer
         valid_field = get_valid_field(count)
-        segmentation_dict[basename] = {'segmentations': segmentations.data, 'count': count.data, 'valid_field': valid_field}    # store results: chunk-level predictions, frame-level count, valid speech segments
+        count_arr = np.stack([np.array([c.middle for c, _ in count]), count.data.squeeze()], axis=1)
+        segmentation_dict[basename] = {'segmentations': segmentations.data, 'count_arr': count_arr, 'valid_field': valid_field}    # store results: chunk-level predictions, frame-level count, valid speech segments
     out_path = os.path.join(args.out_dir, 'segmentation.pkl')
     with open(out_path, 'wb') as f:
         pickle.dump(segmentation_dict, f)

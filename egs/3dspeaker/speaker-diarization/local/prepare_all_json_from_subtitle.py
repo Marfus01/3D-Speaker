@@ -12,6 +12,8 @@ import sys
 import json
 import argparse
 import re
+import pickle
+import numpy as np
 
 def time_to_seconds(time_str):
     """Convert time string (HH:MM:SS.ss) to seconds"""
@@ -56,6 +58,21 @@ def main():
     parser.add_argument('--out_file_vad', default='', type=str, help='Output file for merged segments')
     
     args = parser.parse_args()
+
+    # Ensure output directory exists
+    assert os.path.dirname(os.path.abspath(args.out_file_subseg)) == os.path.dirname(os.path.abspath(args.out_file_vad)), \
+        "Output files must be in the same directory."
+    out_dir = os.path.dirname(os.path.abspath(args.out_file_subseg))
+    os.makedirs(out_dir, exist_ok=True)
+    
+    segmentation_file = os.path.join(out_dir, 'segmentation.pkl') # 默认不存在
+    if os.path.exists(segmentation_file):
+        # Load frame-level speaker count results from overlap detection to help VAD post-processing
+        consider_segmentation = True
+        with open(segmentation_file, 'rb') as f:
+            segmentations = pickle.load(f)
+    else:
+        consider_segmentation = False
     
     # Read wav.list to a list
     wavs = []
@@ -79,6 +96,12 @@ def main():
     
     # Process each wav file
     for wpath in wavs:
+        if consider_segmentation:
+            basename = os.path.basename(wpath).rsplit('.', 1)[0]
+            count_arr = segmentations[basename]['count_arr']
+            seg_times = np.asarray(count_arr[:, 0], dtype=float)
+            seg_counts = np.asarray(count_arr[:, 1], dtype=int)
+
         # Convert wav path to subtitle path
         # Example: '/f/data/tv_series_plus/tv_data/the big bang theory/raw/E01.wav'
         # ->       '/f/data/tv_series_plus/tv_data/the big bang theory/speaker_text/E01.txt'
@@ -105,7 +128,54 @@ def main():
             line_idx = int(line_idx) - 1
             # Create segment ID
             segment_id = f"{episode_name}-{line_idx}"
-            
+
+            if consider_segmentation:
+                # find indices whose timestamps fall into [start_time, end_time]
+                idxs = np.where((seg_times >= start_time) & (seg_times <= end_time))[0]
+                if idxs.size > 0:
+                    # positions (indices in the full array) where count == 1 within the mask
+                    ones_pos = idxs[seg_counts[idxs] == 1]
+                    if ones_pos.size > 0:
+                        # group consecutive indices into runs
+                        runs = []
+                        run_start = ones_pos[0]
+                        run_end = ones_pos[0]
+                        for p in ones_pos[1:]:
+                            if p == run_end + 1:
+                                run_end = p
+                                continue
+                            else:
+                                runs.append((run_start, run_end))
+                                run_start = p
+                                run_end = p
+                        runs.append((run_start, run_end))
+
+                        # choose the longest run by timestamp duration
+                        best = None
+                        best_dur = -1.0
+                        for s_idx, e_idx in runs:
+                            s_time = float(seg_times[s_idx])
+                            e_time = float(seg_times[e_idx])
+                            dur = e_time - s_time
+                            if dur > best_dur:
+                                best_dur = dur
+                                best = (s_time, e_time)
+
+                        if best is not None:
+                            new_start, new_end = best
+                            # expand by half median frame step to better cover region
+                            if seg_times.size > 1:
+                                median_step = float(np.median(np.diff(seg_times)))
+                                new_start = max(start_time, new_start - median_step / 2.0)
+                                new_end = min(end_time, new_end + median_step / 2.0)
+                                if (new_start-start_time) < median_step:
+                                    new_start = start_time
+                                if (end_time-new_end) < median_step:
+                                    new_end = end_time
+                            # assign refined times
+                            start_time = round(float(new_start), 3)
+                            end_time = round(float(new_end), 3)
+
             json_dict[segment_id] = {
                 'file': wpath,
                 'start': start_time,
@@ -115,7 +185,6 @@ def main():
     # Save individual segments
     if not json_dict:
         raise ValueError("json_dict is empty. No valid subtitle data was processed.")
-    os.makedirs(os.path.dirname(args.out_file_subseg), exist_ok=True)
     with open(args.out_file_subseg, 'w') as f:
         json.dump(json_dict, f, indent=2)
     
@@ -177,12 +246,11 @@ def main():
             i = j  # Move to next unprocessed segment
     
     # Save merged segments
-    os.makedirs(os.path.dirname(args.out_file_vad), exist_ok=True)
     with open(args.out_file_vad, 'w') as f:
         json.dump(merged_dict, f, indent=2)
     
-    print(f'[INFO]: Visual segments saved to {args.out_file_vad}')
-    print(f'[INFO]: Number of audio segments: {len(json_dict)}, number of visual segments: {len(merged_dict)}')
+    print(f'[INFO]: Voice activity segments saved to {args.out_file_vad}')
+    print(f'[INFO]: Number of audio segments: {len(json_dict)}, number of voice activity segments: {len(merged_dict)}')
 
 if __name__ == '__main__':
     main()
