@@ -37,6 +37,7 @@ parser = argparse.ArgumentParser(description='Extract speaker embeddings for dia
 parser.add_argument('--model_id', default=None, help='Model id in modelscope')
 parser.add_argument('--pretrained_model', default=None, type=str, help='Path of local pretrained model')
 parser.add_argument('--conf', default=None, help='Config file')
+parser.add_argument('--subseg_ori_json', default='', type=str, help='Original Sub-segments info')
 parser.add_argument('--subseg_json', default='', type=str, help='Sub-segments info')
 parser.add_argument('--embs_out', default='', type=str, help='Out embedding dir')
 parser.add_argument('--batchsize', default=1, type=int, help='Batchsize for extracting embeddings')
@@ -164,6 +165,8 @@ def main():
     # 将 subseg.json 的内容按录音文件分组，整理为 dict 格式的 metadata，key(str) 是录音文件名，value(dict) 是从该录音文件中提取的所有sub-segment info(包含 id, start, stop, filepath)
     with open(args.subseg_json, "r") as f:
         subseg_json = json.load(f)
+    with open(args.subseg_ori_json, "r") as f:
+        subseg_ori_json = json.load(f)
     ## get unique wav filenames
     all_keys = subseg_json.keys() # list of all sub-segment ids, like "E01-152"
     A = [i.rsplit('-', 1)[0] for i in all_keys] # list of all wav filenames, like 'E01'
@@ -181,7 +184,7 @@ def main():
         for key in subseg_json:
             k = str(key)
             if k.rsplit('-', 1)[0]==rec_id:
-                subset[key] = subseg_json[key]
+                subset[key] = subseg_ori_json[key]
         metadata[rec_id]=subset
 
     print("[INFO]: Start computing embeddings...")

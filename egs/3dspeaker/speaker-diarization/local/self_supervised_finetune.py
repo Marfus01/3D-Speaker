@@ -56,6 +56,7 @@ parser.add_argument('--midframe_face_dir', required=True, type=str, help='Dir of
 
 parser.add_argument('--speaker_model_id', default=None, help='Speaker model id in modelscope')
 parser.add_argument('--speaker_pretrained_model', default=None, type=str, help='Path of local pretrained model')    # Don't need to set, system will detect from cache(and download if necessary)
+parser.add_argument('--subseg_ori_json', default='', type=str, help='Original Sub-segments info')
 parser.add_argument('--subseg_json', required=True, type=str, help='Sub-segments json file')
 
 # Self-supervised learning parameters
@@ -727,13 +728,14 @@ def train_one_epoch(train_loader, model, classifier, optimizer, epoch, logger, d
     }
 
 
-def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_file, subseg_json, audio_embs_out_dir, use_gpu=False, gpu=None):
+def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_file, subseg_ori_json, subseg_json, audio_embs_out_dir, use_gpu=False, gpu=None):
     """
     通过命令行调用 extract_diar_embeddings.py，提取所有语音的 embedding 并保存到指定目录。
 
     Args:
         speaker_model_id: 说话人模型ID（如 iic/speech_campplus_sv_zh-cn_3dspeaker_16k）
         speaker_model_path: 微调后的说话人模型路径
+        subseg_ori_json: 原始子片段信息json
         subseg_json: 子片段信息json
         audio_embs_out_dir: 输出embedding目录
         use_gpu: 是否使用GPU（bool）
@@ -745,6 +747,7 @@ def extract_embeddings_with_model(speaker_model_id, speaker_model_path, conf_fil
         'local/extract_diar_embeddings.py',
         '--model_id', speaker_model_id,
         '--conf', conf_file,
+        '--subseg_ori_json', subseg_ori_json,
         '--subseg_json', subseg_json,
         '--embs_out', audio_embs_out_dir,
     ]
@@ -895,7 +898,7 @@ def compute_acc_from_anno(result_dir, anno_file, mode='all', modal='speaker'):
     return acc
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir, visual_embs_dir, result_dir, cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, audio_embs_dir, visual_embs_dir, result_dir, cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -903,6 +906,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
         conf_file: Configuration file for clustering
         cluster_type: Type of clustering ('audio_only' or 'audio_vision')
         wavs: Wav list file
+        subseg_json: cliped subsegment json file
         audio_embs_dir: Directory of audio embeddings
         visual_embs_dir: Directory of visual embeddings
         result_dir: Directory to save pseudo labels
@@ -934,6 +938,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, audio_embs_dir,
     
     # Add visual embeddings parameters if using audio-vision clustering
     if cluster_type == 'audio_vision':
+        cmd.extend(['--subseg_json', subseg_json])
         cmd.extend(['--visual_embs_dir', visual_embs_dir])
         if fix_mf_flag:
             cmd.append('--fix_mf')
@@ -1051,6 +1056,7 @@ def main():
             args.conf,
             args.cluster_type,
             args.wavs,
+            args.subseg_json,
             args.audio_embs_dir,    # 预先提取的音频embedding所在目录
             args.visual_embs_dir,
             pseudo_label_dir,
@@ -1479,7 +1485,8 @@ def main():
             embs_dir = os.path.join(round_dir, 'embeddings')
             os.makedirs(embs_dir, exist_ok=True)
             if rank == 0:
-                extract_embeddings_with_model(args.speaker_model_id, round_model_save_path_spk, args.conf, args.subseg_json,
+                extract_embeddings_with_model(args.speaker_model_id, round_model_save_path_spk, args.conf, 
+                                              args.subseg_ori_json, args.subseg_json,
                                               embs_dir, args.use_gpu, args.gpu)
             if world_size > 1:
                 dist.barrier()
@@ -1501,7 +1508,7 @@ def main():
         
         if rank == 0:
             crt_acc_r_spk, crt_acc_r_face = run_clustering_and_evaluation(
-                args.conf, args.cluster_type, args.wavs, embs_dir, args.visual_embs_dir, 
+                args.conf, args.cluster_type, args.wavs, args.subseg_json, embs_dir, args.visual_embs_dir, 
                 pseudo_label_dir, args.cluster_enhance_mode, args.fix_mf,
                 args.hmm_visual_info_type,  args.unreliable_pp,
                 args.speaker_anno_file, args.face_anno_file, hmm_model_path, args.from_preds, mode='all')

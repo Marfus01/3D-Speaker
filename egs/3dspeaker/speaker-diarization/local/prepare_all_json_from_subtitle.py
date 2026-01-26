@@ -54,14 +54,14 @@ def normalize_path(path):
 def main():
     parser = argparse.ArgumentParser(description='Voice activity detection from subtitle files')
     parser.add_argument('--wavs', default='', type=str, help='Wav list file')
+    parser.add_argument('--out_file_subseg_ori', default='', type=str, help='Output file for original individual segments')
     parser.add_argument('--out_file_subseg', default='', type=str, help='Output file for individual segments')
     parser.add_argument('--out_file_vad', default='', type=str, help='Output file for merged segments')
     
     args = parser.parse_args()
 
     # Ensure output directory exists
-    assert os.path.dirname(os.path.abspath(args.out_file_subseg)) == os.path.dirname(os.path.abspath(args.out_file_vad)), \
-        "Output files must be in the same directory."
+    assert os.path.dirname(os.path.abspath(args.out_file_subseg_ori)) == os.path.dirname(os.path.abspath(args.out_file_subseg)) == os.path.dirname(os.path.abspath(args.out_file_vad)), "All output files must be in the same directory."
     out_dir = os.path.dirname(os.path.abspath(args.out_file_subseg))
     os.makedirs(out_dir, exist_ok=True)
     
@@ -90,7 +90,7 @@ def main():
             wav_path = normalize_path(wav_path.strip())
             wavs.append(wav_path)
     
-    json_dict = {}
+    json_dict_ori, json_dict = {}, {}
     
     print(f'[INFO]: Start processing subtitle files...')
     
@@ -128,6 +128,13 @@ def main():
             line_idx = int(line_idx) - 1
             # Create segment ID
             segment_id = f"{episode_name}-{line_idx}"
+
+            # Save original segment info
+            json_dict_ori[segment_id] = {
+                'file': wpath,
+                'start': start_time,
+                'stop': end_time,
+            }
 
             if consider_segmentation:
                 # find indices whose timestamps fall into [start_time, end_time]
@@ -173,8 +180,9 @@ def main():
                                 if (end_time-new_end) < median_step:
                                     new_end = end_time
                             # assign refined times
-                            start_time = round(float(new_start), 3)
-                            end_time = round(float(new_end), 3)
+                            if (new_end - new_start) >= 1.0:  # only adjust if duration >= 1s
+                                start_time = round(float(new_start), 3)
+                                end_time = round(float(new_end), 3)
 
             json_dict[segment_id] = {
                 'file': wpath,
@@ -183,12 +191,17 @@ def main():
             }
     
     # Save individual segments
+    if not json_dict_ori:
+        raise ValueError("json_dict_ori is empty. No valid subtitle data was processed.")
+    with open(args.out_file_subseg_ori, 'w') as f:
+        json.dump(json_dict_ori, f, indent=2)
+
     if not json_dict:
         raise ValueError("json_dict is empty. No valid subtitle data was processed.")
     with open(args.out_file_subseg, 'w') as f:
         json.dump(json_dict, f, indent=2)
     
-    print(f'[INFO]: Audio segments info saved to {args.out_file_subseg}')
+    print(f'[INFO]: Audio segments info saved to {args.out_file_subseg_ori}and {args.out_file_subseg}')
     
     # Merge segments that are close in time (within 1 second)
     merged_dict = {}

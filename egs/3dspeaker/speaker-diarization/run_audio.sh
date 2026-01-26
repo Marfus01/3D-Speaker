@@ -27,8 +27,8 @@ else
   exit 1
 fi
 from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
-include_overlap=false
-hf_access_token=
+include_overlap=true
+hf_access_token=  # 用于访问 "pyannote/segmentation-3.0" 模型的 HuggingFace 访问令牌
 
 # Contrastive learning parameters
 contrastive_training_flag=false  # 是否在提取embedding之前进行对比学习
@@ -73,29 +73,32 @@ resolve/master/examples/2speakers_example.rttm" -O $examples/2speakers_example.r
 fi
 
 ###### Begin extracting speaker embeddings ######
-if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ "$from_subtitle" = false ]; then
+if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
   # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用pyannote/segmentation-3.0做重叠说话人检测，汇总为 dict 后保存为 pkl。默认不进行。
   if [ "$include_overlap" = true ]; then
     echo "$(basename $0) Stage2: Do overlap detection for input wavs..."
-    python local/overlap_detection.py --wavs $wav_list --out_dir $json_dir --hf_access_token $hf_access_token
+    python local/overlap_detection.py --wavs "$wav_list" --out_dir "$json_dir" --hf_access_token "$hf_access_token"
   fi
-  echo "$(basename $0) Stage2: Do vad for input wavs..."
-  # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用FSMN-Monophone VAD提取其中每段有效语音的起止时间点，汇总写入exp_video/json/vad.json
-  python local/voice_activity_detection.py --wavs $wav_list --out_file $json_dir/vad.json
+  if [ "$from_subtitle" = false ]; then
+    echo "$(basename $0) Stage2: Do vad for input wavs..."
+    # 对于wav_list（list of unsegmented wav file_paths）包含的每个音频文件，使用FSMN-Monophone VAD提取其中每段有效语音的起止时间点，汇总写入exp_video/json/vad.json
+    python local/voice_activity_detection.py --wavs "$wav_list" --out_file "$json_dir/vad.json"
+  fi
 fi
 
 # 使用滑动窗口(滑动步长 = 0.75, 窗宽 = 1.5)，将vad.json中记录的每段有效语音进一步切分为多个子片段，汇总写入exp_video/json/subseg.json
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   if [ "$from_subtitle" = false ]; then
     echo "$(basename $0) Stage3: Prepare subsegments info..."
-    python local/prepare_subseg_json.py --vad $json_dir/vad.json --out_file $json_dir/subseg.json
+    python local/prepare_subseg_json.py --vad "$json_dir/vad.json" --out_file "$json_dir/subseg.json"
+    cp "$json_dir/subseg.json" "$json_dir/subseg_ori.json"
   else
     echo "$(basename $0) Stage3: Prepare audio&visual subsegments info from subtitle..."
-    if [ -f "$json_dir/vad.json" ] && [ -f "$json_dir/subseg.json" ]; then
-      echo "$(basename $0) Stage3: $json_dir/vad.json and $json_dir/subseg.json exist. Skip this stage."
+    if [ -f "$json_dir/vad.json" ] && [ -f "$json_dir/subseg.json" ] && [ -f "$json_dir/subseg_ori.json" ]; then
+      echo "$(basename $0) Stage3: $json_dir/vad.json, $json_dir/subseg.json and $json_dir/subseg_ori.json exist. Skip this stage."
     else
       python local/prepare_all_json_from_subtitle.py --wavs "$wav_list" \
-      --out_file_vad "$json_dir/vad.json" --out_file_subseg "$json_dir/subseg.json"
+      --out_file_vad "$json_dir/vad.json" --out_file_subseg "$json_dir/subseg.json" --out_file_subseg_ori "$json_dir/subseg_ori.json"
     fi
   fi
 fi
@@ -153,19 +156,22 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Copy conf_file to $exp/conf
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"
-  # Extract speaker embeddings
-  # Update speaker_pretrained_model to use the best contrastive model
-  CONTRASTIVE_MODEL_PATH=$(find "$contrastive_result_dir/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
-  if [ "$contrastive_training_flag" = true ] && [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
-    echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
-    speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
-  else
-    speaker_pretrained_model_arg=()
-  fi
   
+  # Update speaker_pretrained_model to use the best contrastive model
+  speaker_pretrained_model_arg=()
+  if [ "$contrastive_training_flag" = true ]; then
+    echo "Contrastive learning training was performed in the previous stage."
+    CONTRASTIVE_MODEL_PATH=$(find "$contrastive_result_dir/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
+    if [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
+      echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
+      speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
+    fi
+  fi
+
+  # Extract speaker embeddings
   torchrun --nproc_per_node=$nj --master_port $master_port local/extract_diar_embeddings.py \
           --model_id $speaker_model_id "${speaker_pretrained_model_arg[@]}" --conf "$conf_file" \
-          --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
+          --subseg_ori_json "$json_dir/subseg_ori.json" --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
             
 fi
 ###### End extracting speaker embeddings ######

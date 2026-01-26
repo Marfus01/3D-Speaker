@@ -30,7 +30,7 @@ hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类�
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
 
 # Contrastive learning parameters
-contrastive_training_flag=true  # 是否在提取embedding之前进行对比学习
+contrastive_training_flag=false  # 是否在提取embedding之前进行对比学习
 contrastive_lr=0.00001  # 对比学习学习率
 contrastive_batch_size=128  # 对比学习batch size
 contrastive_max_dur=2.0  # 对比学习最大持续时间（秒）
@@ -59,7 +59,7 @@ examples="$data_root/$tv_name" # 存储original video和说话人标注文件的
 video_list=$examples/movie.list # 包含所有original video的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
-exp="runs/$tv_name/exp_video_contrastive" # 存储original video被处理后的所有中间文件和最终结果
+exp="runs/$tv_name/exp_video_overlap" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
 result_dir=$exp/result  # 存储模型给出的说话人分离结果
 
@@ -150,10 +150,14 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "$cluster_type" == "audio_vision" ]; then
   echo "$(basename $0) Stage4: Extract visual speaker embeddings..."
   mkdir -p "$exp/conf"
-  cp "$conf_file" "$exp/conf/"  
-  torchrun --nproc_per_node=$nj --master_port $master_port local/extract_visual_embeddings.py \
-    --conf "$conf_file" --videos "$raw_data_dir/video.list" --vad "$exp/json/vad.json" --subseg "$exp/json/subseg.json"\
-    --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --midframe_face_out "$examples/midframe_faces" --gpu $gpus --use_gpu
+  cp "$conf_file" "$exp/conf/"
+  if [ -d "$visual_embs_dir" ] && [ -d "$examples/midframe_faces" ]; then
+    echo "$(basename $0) Stage4: $visual_embs_dir and $examples/midframe_faces exist. Skip this stage."
+  else
+    torchrun --nproc_per_node=$nj --master_port $master_port local/extract_visual_embeddings.py \
+      --conf "$conf_file" --videos "$raw_data_dir/video.list" --vad "$exp/json/vad.json" --subseg "$exp/json/subseg_ori.json"\
+      --onnx_dir $onnx_dir --embs_out "$visual_embs_dir" --midframe_face_out "$examples/midframe_faces" --gpu $gpus --use_gpu
+  fi
 fi
 
 
@@ -168,7 +172,7 @@ if [ "$ft_flag" = false ]; then
       echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
       torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
               --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-              --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
+              --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" --subseg_json "$exp/json/subseg.json" \
               --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
     fi
   fi
@@ -204,14 +208,16 @@ else
     fi
 
     # Update speaker_pretrained_model to use the best contrastive model
-    CONTRASTIVE_MODEL_PATH=$(find "$exp/contrastive_learning/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
-    if [ "$contrastive_training_flag" = true ] && [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
-      echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
-      speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
-    else
-      speaker_pretrained_model_arg=()
+    speaker_pretrained_model_arg=()
+    if [ "$contrastive_training_flag" = true ]; then
+      echo "Contrastive learning training was performed in the previous stage."
+      CONTRASTIVE_MODEL_PATH=$(find "$exp/contrastive_learning/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
+      if [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
+        echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
+        speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
+      fi
     fi
-    
+
     # Run self-supervised fine-tuning
     torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
       --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
@@ -219,7 +225,7 @@ else
       --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
       --speaker_anno_file "$speaker_anno_file" --face_anno_file "$face_anno_file" \
       --speaker_model_id "$speaker_model_id" "${speaker_pretrained_model_arg[@]}" --face_pretrained_model "$face_pretrained_model" \
-      --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
+      --subseg_ori_json "$json_dir/subseg_ori.json" --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
       --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \

@@ -37,6 +37,7 @@ parser.add_argument('--wavs', default=None, help='Wav list file')
 parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clustering type, support "audio_only" and "audio_vision"')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Embedding dir')
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
+parser.add_argument('--subseg_json', default='', type=str, help='Original Sub-segments info')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 parser.add_argument('--from_preds', action='store_true', help='Use local predictions from classifier model instead of clustering')
 parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
@@ -945,7 +946,7 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_
     else:
         raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
 
-def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config,
+def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config, subseg_json,
                              cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, hmm_model_path=None, from_preds=True):
     if not fix_mf_flag:
         assert 'mid_frame' in hmm_visual_info_type, "When fix_mf_flag is False, 'mid_frame' must be included in hmm_visual_info_type."
@@ -1302,7 +1303,11 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
                                                                        audio_times, visual_times_vad_aligned, vlabels_vad_processed, 
                                                                        audio_seg_ids_mf, vlabels_mf_processed_input)
     ## 将语音时长分组，转化为 onehot 格式
-    audio_durs = audio_times[:,1] - audio_times[:,0]
+    with open(subseg_json, 'r') as f:
+        subseg_ori_dic = json.load(f)
+    audio_times_start = np.array([subseg_ori_dic[seg_id]['start'] for seg_id in audio_seg_ids])
+    audio_times_end = np.array([subseg_ori_dic[seg_id]['stop'] for seg_id in audio_seg_ids]) 
+    audio_durs = audio_times_end - audio_times_start
     audio_dur_bins = [0, 1, 2, 3, 4, float('inf')]
     audio_dur_grps = np.digitize(audio_durs, audio_dur_bins) - 1  # 取值范围 {0,1,2,3,4}
     audio_dur_grps_onehot = np.zeros((len(audio_dur_grps), len(audio_dur_bins)-1), dtype=np.int32)
@@ -1387,7 +1392,7 @@ def main():
     else:
         assert args.visual_embs_dir is not None and args.visual_embs_dir != '', f'--visual_embs_dir should be provided when --cluster_type is "audio_vision"'
         assert args.hmm_visual_info_type in ['', 'vad', 'mid_frame', 'vad+mid_frame'], f'--hmm_visual_info_type should be either "", "vad", "mid_frame" or "vad+mid_frame", but got {args.hmm_visual_info_type}'
-        audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config,
+        audio_vision_func(wav_list, args.audio_embs_dir, args.visual_embs_dir, args.result_dir, config, args.subseg_json,
                           args.cluster_enhance_mode, args.fix_mf, args.hmm_visual_info_type, args.unreliable_pp, args.hmm_model_path, args.from_preds)
 
 

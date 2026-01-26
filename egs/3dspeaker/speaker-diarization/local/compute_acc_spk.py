@@ -123,6 +123,11 @@ def main(args):
             if idx:
                 acc = cal_accuracy_onehot(speaker_onehot[idx], cluster_pred[idx])
                 results[f'group_{i}_accuracy'] = acc
+        if sum([1 for d in durations if d >= 4]) < 0.05 * len(durations):
+            idx = [j for j, g in enumerate(group_indices) if g == 3 or g == 4]
+            if idx:
+                acc = cal_accuracy_onehot(speaker_onehot[idx], cluster_pred[idx])
+                results[f'group_3&4_accuracy'] = acc
         # 7.2 按真实说话人计算 accuracy
         name2idx_sorted = sorted(name2idx.items(), key=lambda x:  speaker_onehot[:, x[1]].sum(), reverse=True)  # 按说话人出现次数排序
         for name, idx in name2idx_sorted:
