@@ -11,7 +11,7 @@ current_file_path = os.path.abspath(__file__)
 project_root = os.path.abspath(os.path.join(os.path.dirname(current_file_path),'..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-from utils import save_testEER, evaluate_EER
+from utils_metric import save_testEER, evaluate_EER
 
 def load_embeddings(TV_name, modal, load_from_pretrain=False, round_idx=0):
     if load_from_pretrain:

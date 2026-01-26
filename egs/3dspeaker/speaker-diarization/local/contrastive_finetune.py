@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader
 from pytorch_revgrad import RevGrad
-from utils import read_testEER, evaluate_EER
+from utils_metric import read_testEER, evaluate_EER
 
 # Add parent directory to path
 current_file_path = os.path.abspath(__file__)

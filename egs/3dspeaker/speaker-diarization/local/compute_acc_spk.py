@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from collections import Counter
-from utils import *
+from utils_metric import *
 
 def main(args):
     assert os.path.isfile(args.ref_xlsx), f"Reference xlsx file {args.ref_xlsx} does not exist."
