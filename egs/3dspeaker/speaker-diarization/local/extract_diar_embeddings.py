@@ -178,14 +178,16 @@ def main():
         print("[WARNING]: The number of threads exceeds the number of files.")
         sys.exit()
     ## group sub-segments by recording id
-    metadata={}
+    metadata={}; metadata_ori={}
     for rec_id in all_rec_ids:
-        subset = {}
+        subset = {}; subset_ori = {}
         for key in subseg_json:
             k = str(key)
             if k.rsplit('-', 1)[0]==rec_id:
-                subset[key] = subseg_ori_json[key]
+                subset[key] = subseg_json[key]
+                subset_ori[key] = subseg_ori_json[key]
         metadata[rec_id]=subset
+        metadata_ori[rec_id]=subset_ori
 
     print("[INFO]: Start computing embeddings...")
 
@@ -221,7 +223,7 @@ def main():
     local_rec_ids = all_rec_ids[rank::threads_num]  # 当前进程负责处理的wav list。例如['file1', 'file5', ...]    
     for rec_id in local_rec_ids:
         # Input: dict of sub-segments info for the current wav file
-        meta = metadata[rec_id] 
+        meta = metadata[rec_id]; meta_ori = metadata_ori[rec_id]
         # Output: save embeddings of all sub-segments from the same wav into one pkl file
         emb_file_name = rec_id + ".pkl"
         stat_emb_file = os.path.join(args.embs_out, emb_file_name)
@@ -246,7 +248,7 @@ def main():
 
             stat_obj = {
                 'embeddings': embeddings, 
-                'times': [[meta[i]['start'], meta[i]['stop']] for i in meta],
+                'times': [[meta_ori[i]['start'], meta_ori[i]['stop']] for i in meta],
                 'subseg_ids': [i for i in meta]
                 }
             pickle.dump(stat_obj, open(stat_emb_file,'wb'))
