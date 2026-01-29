@@ -1,0 +1,92 @@
+Tokens from annotated files not found in chosen name_dic values:
+丹尼斯·金
+乔迪拉弗吉
+哈罗恩
+埃利奥特·王
+埃尔文·薛定谔
+塔维尔
+小尼奥
+居里夫人
+帕特尔医生
+帕特里克·斯图尔特
+彼得·潘
+彼得潘
+惠更斯
+托尔
+托比·鲁本菲尔德
+拉丽塔·古塔
+林肯
+沃尔夫冈·阿玛多伊斯·莫扎特
+沃尔巫师
+法尔曼法尔米安
+玛丽·库珀
+玛莎
+珍·古德
+科特
+简
+罗伯特·李将军
+范德贝尔特
+莱斯利·温克
+贝尔
+路易斯·里克
+辛普森
+辛迪
+达斯·维德
+道格
+里
+里奥珀德·休斯顿
+里奥纳德
+阿列克斯·罗丝
+露易丝·莱恩
+麦当娜
+Raw counts:
+         Sheldon  Leonard  Penny  Howard  Raj  Others
+Sheldon        7       14     16       0    2      26
+Leonard       26        6     18      10    3      22
+Penny         16       17      4       5    2      16
+Howard        13        0      0       0    3       7
+Raj            3        4      4       0    1      12
+Others        10        2      1       4    3      15
+Saved heatmap to D:\wangchen\Research\tv_series_plus\3D-Speaker\docs\figs\name_mention\The Big Bang Theory.png
+
+Tokens from annotated files not found in chosen name_dic values:
+二混子
+孟德斯鸠
+宝财同志
+小三子
+小尤
+小贾
+建军
+张思德
+彭定康
+敬贤
+文怡同志
+春生同志
+春花姑娘
+春花师傅
+晶晶
+李总
+欧阳海
+沈旭佳
+爱迪生
+牛顿
+瓦特
+英宁
+阿丝达黛
+阿丹
+阿宏
+阿山
+阿非理桐
+马羚
+Raw counts:
+           Fulao  Heping  Zhixin  Zhiguo  Yuanyuan  Xiaofan  Xiaozhang  Yanhong  Others
+Fulao          1      11       9       7         1        2          3        0      15      
+Heping         0       1       5       3        11        0          4        2      13      
+Zhixin         1       1       0       2         2        2          3        1      10      
+Zhiguo         0       4       2       3         5        2          4        2       5      
+Yuanyuan       0       0       0       0         0        0          1        0       1      
+Xiaofan        0       0       0       0         1        0          3        0       6      
+Xiaozhang      0       0       0       0         0        0          0        0       5      
+Yanhong        0       0       2       1         0        0          0        0       2      
+Others         7       1       7       1         1        1          1        0      16      
+Saved heatmap to D:\wangchen\Research\tv_series_plus\3D-Speaker\docs\figs\name_mention\I love my family.png
