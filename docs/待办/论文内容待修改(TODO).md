@@ -64,9 +64,31 @@ Multimodal Speaker Diarization on Multi-party Conversation这篇文章给出的�
 - CAM++ & VBx (PLDA参数根据聚类结果估计)✅
 - CAM++ & SC + k-means clustering with visual centers ✅
 - CAM++ & Pairwise Constrained Clustering(PCC) ✅
-- CAM++ & CurricularFace & joint SC (具体而言，首先根据活跃说话人检测结果，定位出知道活跃说话人身份的segment。然后抽取这些segment关键帧中对应身份的人脸，利用这些片段做联合聚类，然后更新两种聚类的簇id。之所以选用中间帧人脸而非活跃说话人人脸，是为了方便在下面作为人脸验证的baseline。) 
 #### Face Recognition
 - CurricularFace & AHC ✅
-- CAM++ & CurricularFace & joint SC
 ### 微调后
 利用这些聚类结果作为伪标签，微调多轮即可。
+可以考虑报告微调后模型分类标签/聚类标签的结果。理论上应该报告后者，但根据过往经验，聚类标签的准确性往往不如分类标签。
+仅在当前环节加入与CAM++ & CurricularFace & joint SC的比较，因为该聚类方法只能确定部分样本（只有一张人脸）的标签。剩余样本的标签需要使用微调后的模型预测。
+#### Speaker Recognition
+- CAM++ & SC 
+> 效果越训越差是正常的，因为没有任何信息增益
+- CAM++ & VBx (PLDA参数根据聚类结果估计)
+> vbx初始化既可以采用微调后预测的标签，也可以重新运行SC。估计前者效果更好
+- CAM++ & SC + k-means clustering with visual centers
+> k-means clustering with visual centers初始化既可以采用微调后预测的标签，也可以重新运行SC。估计前者效果更好
+- CAM++ & Pairwise Constrained Clustering(PCC)
+> 估计效果不会太理想。因为初始化只需要embedding，不需要标签，而重新聚类对超参数敏感
+上述方法都是使用视觉信息/连续性信息单向增强语音聚类结果，因此固定住人脸模块，只微调说话人识别模型即可。在报告结果的时候，也只报告语音识别结果即可。report acc 既可以是微调后分类标签，也可以是重新聚类后的标签。
+
+- CAM++ & CurricularFace & joint SC (具体而言，首先根据活跃说话人检测结果，定位出知道活跃说话人身份的segment。然后抽取这些segment关键帧中对应身份的人脸，利用这些片段做联合聚类，然后更新两种聚类的簇id。之所以选用中间帧人脸而非活跃说话人人脸，是为了方便在下面作为人脸验证的baseline。) 
+> cluster ensemble环节必须做聚类。audio only cluster 和 visual only cluster都可以用微调后的标签代替重新聚类。
+> 此外，在训练模型时，由于部分样本上的簇标签可能无法覆盖全部角色，在全部样本上根据embedding重新audio/visual only聚类，效果可能比直接使用微调后预测的标签更好。
+该方法是双向增强，因此需要微调说话人识别模型和人脸识别模型。在报告结果的时候，语音和人脸都要报告。report acc 只能是微调后分类标签。
+
+#### Face Recognition
+- CurricularFace & AHC
+> 顾名思义，需要在有了embedding之后，重新聚类，不应该用微调后的预测
+> 这个实验可以和 CAM++ & SC 的一起跑，因为两个实验语音、人脸各做各的，没有交互
+- CAM++ & CurricularFace & joint SC
+> 同上
