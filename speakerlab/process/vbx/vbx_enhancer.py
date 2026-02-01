@@ -2,10 +2,16 @@
 # VBx wrapper class for speaker diarization enhancement
 # Licensed under the Apache License, Version 2.0
 
-import os
+import os, sys
 import numpy as np
 from datetime import datetime
 from scipy.linalg import eigh
+
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.dirname(current_file_path))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from vbx_utils import (
     train_lda_transform, 

@@ -27,7 +27,7 @@ else
   exit 1
 fi
 from_subtitle=false  # 是否直接从字幕文件中提取说话人分割信息
-include_overlap=true
+include_overlap=false
 hf_access_token=  # 用于访问 "pyannote/segmentation-3.0" 模型的 HuggingFace 访问令牌
 
 # Contrastive learning parameters

@@ -25,6 +25,7 @@ def main(args):
         print("No speaker cluster json files found in", args.result_dir)
         sys.exit(1)
     
+    overall_acc_dic = {}
     for json_file in json_files:
         # 1. 读取聚类结果
         with open(json_file, 'r', encoding='utf-8') as f:
@@ -151,12 +152,24 @@ def main(args):
                     name_grp_cnt += 1
                 f.write(f"{k}: {v}\n")
 
+        # 9. 汇总 overall accuracy
+        overall_acc_dic[os.path.basename(json_file)] = results['overall_accuracy']
+
         print("Accuracy results saved to", os.path.join(args.result_dir, filename))
+
+    # 汇总打印 overall accuracy
+    print("\nTop-5 overall accuracy results:")
+    overall_acc_sorted = sorted(overall_acc_dic.items(), key=lambda x: x[1], reverse=True)
+    for i in range(min(5, len(overall_acc_sorted))):
+        print(f"{overall_acc_sorted[i][0]}: {overall_acc_sorted[i][1]}")
+    print("All overall accuracy:")
+    for k, v in overall_acc_dic.items():
+        print(f"{k}: {v}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--ref_xlsx', type=str, required=True, help="filepath of reference xlsx")
     parser.add_argument('--result_dir', type=str, default='./result', help="directory containing clustering result json files")
-    parser.add_argument('--mode', type=str, default='test', help="mode: valid or test or all")
+    parser.add_argument('--mode', type=str, default='all', help="mode: valid or test or all")
     args = parser.parse_args()
     main(args)

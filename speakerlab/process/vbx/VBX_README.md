@@ -95,6 +95,8 @@ smoothed_labels = vbx.predict(new_embeddings, new_init_labels)
 - `vbx_plda.h5`: 训练的PLDA模型参数
 
 ## 技术细节
+整个流程包括LDA变换训练、PLDA训练和VBx推理三个主要部分。
+> 主要参考了 Landini et al., "Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization", Computer Speech & Language, 2022，以及对应的 github 实现 [VBx](https://github.com/BUTSpeechFIT/VBx.git) 中的 run_example.sh, VBx/vbhmm.py。
 
 ### LDA变换
 
@@ -103,12 +105,16 @@ smoothed_labels = vbx.predict(new_embeddings, new_init_labels)
 3. 训练LDA矩阵（基于类间/类内协方差）
 4. 应用变换并再次归一化
 
+> 参考了 local/train_transform.py in [VBx-training-recipe](https://github.com/phonexiaresearch/VBx-training-recipe.git) 的实现。
+
 ### PLDA训练
 
 使用Two-Covariance PLDA模型：
 - 建模类间协方差（B）和类内协方差（W）
 - EM算法迭代优化参数
 - 输出变换矩阵和对角协方差
+
+> 参考了 wespeaker/bin/train_plda.py in [WeSpeaker](https://github.com/wenet-e2e/wespeaker.git) 的实现。相较VBx-training-recipe，此处实现更简洁。
 
 ### VBx推理
 
@@ -119,9 +125,12 @@ smoothed_labels = vbx.predict(new_embeddings, new_init_labels)
    - M步：更新模型参数
 4. 使用前向-后向算法解码最优说话人序列
 
+> 参考了 VBx/VBx.py in [VBx](https://github.com/BUTSpeechFIT/VBx.git) 的实现。
+
 ## 参考文献
 
 - Landini et al., "Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization", Computer Speech & Language, 2022
+- Brummer, N., Villiers, E., 2010. The speaker partitioning problem. In: Proc. of Odyssey 2010.
 
 ## 许可
 

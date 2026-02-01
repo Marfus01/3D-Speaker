@@ -10,7 +10,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 
 stage=1 # 标识每个处理步骤的index
 stop_stage=6  # 共6步
-cluster_type="audio_vision" # 聚类方式，支持 "audio_only" 和 "audio_vision"
+cluster_type="audio_only" # 聚类方式，支持 "audio_only" 和 "audio_vision"
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="I love my family" # "the big bang theory", "I love my family"
@@ -24,7 +24,7 @@ master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 # HMM平滑相关参数
-cluster_enhance_mode="hmm"  # "hmm": 在"audio_vision"聚类之后，做 HMM 平滑; "pairwise_constraint": 使用成对约束进行聚类增强; "": 不做聚类增强
+cluster_enhance_mode="vbx"  # "hmm": 在"audio_vision"聚类之后，做 HMM 平滑; "pairwise_constraint": 使用成对约束进行聚类增强; "vbx": 使用 VBx 进行聚类增强; "": 不做聚类增强
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -39,7 +39,7 @@ contrastive_test_interval=1  # 对比学习评估间隔
 contrastive_early_stop_patience=250  # 对比学习早停patience
 
 # Self-supervised learning parameters
-ft_flag=true  # 是否进行自监督微调
+ft_flag=false  # 是否进行自监督微调
 finetune_lr=0.001  # 微调学习率
 finetune_batch_size=64  # 微调batch size
 unfrozen_layers_num=2  # 未冻结层的数量
@@ -59,7 +59,7 @@ examples="$data_root/$tv_name" # 存储original video和说话人标注文件的
 video_list=$examples/movie.list # 包含所有original video的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
-exp="runs/$tv_name/exp_video_overlap" # 存储original video被处理后的所有中间文件和最终结果
+exp="runs/$tv_name/exp_video" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
 result_dir=$exp/result  # 存储模型给出的说话人分离结果
 
@@ -186,12 +186,14 @@ if [ "$ft_flag" = false ]; then
     else
       echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
     fi
-    face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
-    if [ -f "$face_anno_file" ]; then
-      echo "Computing face recognition accuracy..."
-      python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
-    else
-      echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
+    if [ "$cluster_type" == "audio_vision" ]; then
+      face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
+      if [ -f "$face_anno_file" ]; then
+        echo "Computing face recognition accuracy..."
+        python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
+      else
+        echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
+      fi
     fi
   fi
 else

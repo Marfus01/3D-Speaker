@@ -2,10 +2,18 @@
 # Two-cov PLDA implementation for VBx
 # Licensed under the Apache License, Version 2.0
 
+import os, sys
 import collections
 import numpy as np
 import h5py
 from numpy.linalg import inv
+
+# Add parent directory to path
+current_file_path = os.path.abspath(__file__)
+project_root = os.path.abspath(os.path.dirname(current_file_path))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from vbx_utils import compute_normalizing_transform, sort_svd
 
 ClassInfo = collections.namedtuple('ClassInfo', ['weight', 'num_example', 'mu'])
