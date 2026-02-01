@@ -30,6 +30,7 @@ import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
 from speakerlab.process.hmm.nested_hmm_full import NestedHMM_full
+from speakerlab.process.vbx.vbx_enhancer import VBxEnhancer
 
 parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm files')
 parser.add_argument('--conf', default=None, help='Config file')
@@ -197,6 +198,46 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
     with open(os.path.join(result_dir, f'pseudo_labels_audio_hmm.json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
+
+def alabels_vbx_smooth(alabels, embeddings, audio_seg_ids, result_dir):
+    """
+    Use VBx (Variational Bayes HMM over x-vectors) to smooth audio cluster labels.
+    
+    Args:
+        alabels: Initial cluster labels from spectral clustering
+        embeddings: Audio embeddings (N, D) array
+        audio_seg_ids: Audio segment IDs
+        result_dir: Directory to save results
+    """
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} Starting VBx smoothing for audio labels...")
+    
+    # Initialize VBx enhancer
+    vbx = VBxEnhancer(
+        lda_dim=128,      # LDA dimensionality
+        Fa=1.0,           # VBx parameter
+        Fb=1.0,           # VBx parameter
+        loopP=0.9,        # Speaker transition probability
+        num_em_iters=5,   # PLDA EM iterations
+        init_smoothing=5.0,  # Initialization smoothing
+        max_iters=10      # Max VBx iterations
+    )
+    
+    # Train and predict
+    alabels_smoothed = vbx.fit_predict(embeddings, alabels)
+    
+    # Save models for potential reuse
+    transform_path = os.path.join(result_dir, 'vbx_transform.h5')
+    plda_path = os.path.join(result_dir, 'vbx_plda.h5')
+    vbx.save_models(transform_path, plda_path)
+    
+    # Save smoothed results
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    with open(os.path.join(result_dir, 'pseudo_labels_audio_vbx.json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
+    
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} VBx smoothing completed and saved to pseudo_labels_audio_vbx.json")
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
                         flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
@@ -943,6 +984,8 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_
         save_cluster_results_audio(labels, audio_seg_ids, out_json)
     elif cluster_enhance_mode == "hmm":
         alabels_hmm_smooth(labels, lengths, audio_seg_ids, result_dir)
+    elif cluster_enhance_mode == "vbx":
+        alabels_vbx_smooth(labels, embeddings, audio_seg_ids, result_dir)
     else:
         raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
 
