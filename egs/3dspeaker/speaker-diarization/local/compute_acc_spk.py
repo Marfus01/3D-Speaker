@@ -158,13 +158,10 @@ def main(args):
         print("Accuracy results saved to", os.path.join(args.result_dir, filename))
 
     # 汇总打印 overall accuracy
-    print("\nTop-5 overall accuracy results:")
-    overall_acc_sorted = sorted(overall_acc_dic.items(), key=lambda x: x[1], reverse=True)
-    for i in range(min(5, len(overall_acc_sorted))):
-        print(f"{overall_acc_sorted[i][0]}: {overall_acc_sorted[i][1]}")
     print("All overall accuracy:")
-    for k, v in overall_acc_dic.items():
-        print(f"{k}: {v}")
+    overall_acc_sorted = sorted(overall_acc_dic.items(), key=lambda x: x[1], reverse=True)
+    for i in range(len(overall_acc_sorted)):
+        print(f"{overall_acc_sorted[i][0]}: {overall_acc_sorted[i][1]}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

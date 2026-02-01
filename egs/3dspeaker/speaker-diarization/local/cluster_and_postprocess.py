@@ -212,35 +212,29 @@ def alabels_vbx_smooth(alabels, embeddings, audio_seg_ids, result_dir):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[INFO] {current_time} Starting VBx smoothing for audio labels...")
 
-    for loopP in np.arange(0.25, 1.0, 0.05):
-        print(f"[INFO] {current_time} Testing loopP={loopP:.2f}...")
-        for Fa in [1.0]:
-            print(f"[INFO] {current_time} Testing Fa={Fa:.2f}...")
-            for Fb in [1.0]:
-                print(f"[INFO] {current_time} Testing Fb={Fb}...")
-                # Initialize VBx enhancer
-                vbx = VBxEnhancer(
-                    lda_dim=128,      # LDA dimensionality
-                    Fa=Fa,           # VBx parameter
-                    Fb=Fb,           # VBx parameter
-                    loopP=loopP,        # Speaker transition probability
-                    num_em_iters=10,   # PLDA EM iterations
-                    init_smoothing=5.0,  # Initialization smoothing
-                    max_iters=20      # Max VBx iterations
-                )
-                
-                # Train and predict
-                alabels_smoothed = vbx.fit_predict(embeddings, alabels)
-                
-                # # Save models for potential reuse
-                # transform_path = os.path.join(result_dir, 'vbx_transform.h5')
-                # plda_path = os.path.join(result_dir, 'vbx_plda.h5')
-                # vbx.save_models(transform_path, plda_path)
-                
-                # Save smoothed results
-                smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-                with open(os.path.join(result_dir, f'pseudo_labels_audio_vbx(loopP={loopP:.2f}_Fa={Fa:.2f}_Fb={Fb}).json'), 'w', encoding='utf-8') as f:
-                    json.dump(smoothed_cluster_dic, f, indent=2)
+    # Initialize VBx enhancer
+    vbx = VBxEnhancer(
+        lda_dim=128,      # LDA dimensionality
+        Fa=0.40,           # VBx parameter
+        Fb=64,           # VBx parameter
+        loopP=0.65,        # Speaker transition probability
+        num_em_iters=10,   # PLDA EM iterations
+        init_smoothing=5.0,  # Initialization smoothing
+        max_iters=20      # Max VBx iterations
+    )
+    
+    # Train and predict
+    alabels_smoothed = vbx.fit_predict(embeddings, alabels)
+    
+    # # Save models for potential reuse
+    # transform_path = os.path.join(result_dir, 'vbx_transform.h5')
+    # plda_path = os.path.join(result_dir, 'vbx_plda.h5')
+    # vbx.save_models(transform_path, plda_path)
+    
+    # Save smoothed results
+    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
+    with open(os.path.join(result_dir, f'pseudo_labels_audio_vbx.json'), 'w', encoding='utf-8') as f:
+        json.dump(smoothed_cluster_dic, f, indent=2)
     
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[INFO] {current_time} VBx smoothing completed and saved to pseudo_labels_audio_vbx.json")
