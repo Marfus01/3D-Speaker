@@ -56,3 +56,17 @@ Multimodal Speaker Diarization on Multi-party Conversation这篇文章给出的�
 ### 图表
 1. Figure S5, S7: 用新结果重新绘制（✅）
 2. Table S1: Information of samples for evaluation. 重新统计EER所用标注数据的信息（✅）
+
+## Baseline 待补充
+### 无微调
+#### Speaker Recognition
+- CAM++ & SC ✅
+- CAM++ & VBx (PLDA参数根据聚类结果估计)✅
+- CAM++ & SC + k-means clustering with visual centers ✅
+- CAM++ & Pairwise Constrained Clustering(PCC) ✅
+- CAM++ & CurricularFace & joint SC (具体而言，首先根据活跃说话人检测结果，定位出知道活跃说话人身份的segment。然后抽取这些segment关键帧中对应身份的人脸，利用这些片段做联合聚类，然后更新两种聚类的簇id。之所以选用中间帧人脸而非活跃说话人人脸，是为了方便在下面作为人脸验证的baseline。) 
+#### Face Recognition
+- CurricularFace & AHC ✅
+- CAM++ & CurricularFace & joint SC
+### 微调后
+利用这些聚类结果作为伪标签，微调多轮即可。
