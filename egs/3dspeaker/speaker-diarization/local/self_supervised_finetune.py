@@ -43,8 +43,9 @@ parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clus
 parser.add_argument('--audio_embs_dir', required=True, type=str, help='Initial audio embeddings directory')
 parser.add_argument('--visual_embs_dir', required=True, type=str, help='Visual embeddings directory')
 parser.add_argument('--result_dir', required=True, type=str, help='Result directory')
-# HMM parameters
-parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint"')
+parser.add_argument('--baseline_method', default=None, type=str, help='Baseline method to use (sc, vbx, kcenter, pcc). If None, use HMM-based method.')
+# HMM parameters (only used when baseline_method is None)
+parser.add_argument('--cluster_enhance_mode', required=False, type=str, help='HMM method: "hmm" for HMM smoothing or "" for no cluster enhancement smoothing (only used when baseline_method is None)')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
@@ -898,7 +899,9 @@ def compute_acc_from_anno(result_dir, anno_file, mode='all', modal='speaker'):
     return acc
 
 
-def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, audio_embs_dir, visual_embs_dir, result_dir, cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
+def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, audio_embs_dir, visual_embs_dir, result_dir,
+                                  baseline_method, cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, 
+                                  speaker_anno_file, face_anno_file=None, hmm_model_path=None, from_preds=False, mode='all'):
     """
     Run clustering with HMM correction and evaluate accuracy.
     
@@ -910,6 +913,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
         audio_embs_dir: Directory of audio embeddings
         visual_embs_dir: Directory of visual embeddings
         result_dir: Directory to save pseudo labels
+        baseline_method: Baseline method to use (sc, vbx, kcenter, pcc). If None, use HMM-based method.
         cluster_enhance_mode: How to enhance speaker clustering, support "hmm" and "pairwise_constraint"
         fix_mf_flag: Whether to fix key frame visual cluster labels during HMM smoothing
         hmm_visual_info_type: Visual information type for HMM
@@ -924,31 +928,52 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
         speaker_acc: Speaker recognition accuracy
         face_acc: Face recognition accuracy (only if cluster_type=='audio_vision' and face_anno_file is provided)
     """
-    # Prepare command to call cluster_and_postprocess.py
-    cmd = [
-        sys.executable,
-        'local/cluster_and_postprocess.py',
-        '--conf', conf_file,
-        '--cluster_type', cluster_type,
-        '--cluster_enhance_mode', cluster_enhance_mode,
-        '--wavs', wavs,
-        '--audio_embs_dir', audio_embs_dir,
-        '--result_dir', result_dir
-    ]
+    # Prepare command to call clustering script
+    if baseline_method is not None:
+        # Use baseline clustering methods
+        cmd = [
+            sys.executable,
+            'local/cluster_and_postprocess_baseline.py',
+            '--conf', conf_file,
+            '--baseline_method', baseline_method,
+            '--wavs', wavs,
+            '--audio_embs_dir', audio_embs_dir,
+            '--result_dir', result_dir
+        ]
+        
+        # Add visual embeddings if needed for the baseline method
+        if baseline_method in ['kcenter', 'pcc']:
+            cmd.extend(['--visual_embs_dir', visual_embs_dir])
+        
+        if from_preds:
+            cmd.append('--from_preds')
+    else:
+        # Use HMM-based clustering methods (original code)
+        cmd = [
+            sys.executable,
+            'local/cluster_and_postprocess.py',
+            '--conf', conf_file,
+            '--cluster_type', cluster_type,
+            '--cluster_enhance_mode', cluster_enhance_mode,
+            '--wavs', wavs,
+            '--audio_embs_dir', audio_embs_dir,
+            '--result_dir', result_dir
+        ]
+        
+        # Add visual embeddings parameters if using audio-vision clustering
+        if cluster_type == 'audio_vision':
+            cmd.extend(['--subseg_json', subseg_json])
+            cmd.extend(['--visual_embs_dir', visual_embs_dir])
+            if fix_mf_flag:
+                cmd.append('--fix_mf')
+            cmd.extend(['--hmm_visual_info_type', hmm_visual_info_type])
+            cmd.extend(['--unreliable_pp', str(unreliable_pp)])
+        
+        if hmm_model_path is not None:
+            cmd.extend(['--hmm_model_path', hmm_model_path])
+        if from_preds:
+            cmd.append('--from_preds')
     
-    # Add visual embeddings parameters if using audio-vision clustering
-    if cluster_type == 'audio_vision':
-        cmd.extend(['--subseg_json', subseg_json])
-        cmd.extend(['--visual_embs_dir', visual_embs_dir])
-        if fix_mf_flag:
-            cmd.append('--fix_mf')
-        cmd.extend(['--hmm_visual_info_type', hmm_visual_info_type])
-        cmd.extend(['--unreliable_pp', str(unreliable_pp)])
-    
-    if hmm_model_path is not None:
-        cmd.extend(['--hmm_model_path', hmm_model_path])
-    if from_preds:
-        cmd.append('--from_preds')
     # Run clustering
     print(f"[INFO] Running clustering with command: {' '.join(cmd)}")
     try:
@@ -968,7 +993,8 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
     
     # Compute face accuracy if applicable
     face_acc = None
-    if cluster_type == 'audio_vision' and face_anno_file is not None:
+    if (baseline_method == 'sc_joint') or (baseline_method is None and cluster_type == 'audio_vision'):
+        assert face_anno_file is not None, "Face annotation file must be provided for audio-vision clustering!"
         if os.path.exists(face_anno_file):
             face_acc = compute_acc_from_anno(result_dir, face_anno_file, mode, modal='face')
         else:
@@ -1047,7 +1073,8 @@ def main():
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
         initial_acc_spk = compute_acc_from_anno(pseudo_label_dir, args.speaker_anno_file, mode='all', modal='speaker')
-        if args.cluster_type == 'audio_vision' and os.path.exists(args.face_anno_file):
+        if (args.baseline_method == 'sc_joint') or (args.baseline_method is None and args.cluster_type == 'audio_vision'):
+            assert os.path.exists(args.face_anno_file), f"Face annotation file {args.face_anno_file} does not exist!"
             initial_acc_face = compute_acc_from_anno(pseudo_label_dir, args.face_anno_file, mode='all', modal='face')
         else:
             initial_acc_face = None
@@ -1060,6 +1087,7 @@ def main():
             args.audio_embs_dir,    # 预先提取的音频embedding所在目录
             args.visual_embs_dir,
             pseudo_label_dir,
+            args.baseline_method,
             args.cluster_enhance_mode,
             args.fix_mf,
             args.hmm_visual_info_type,
@@ -1147,7 +1175,8 @@ def main():
             # torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_speaker.pth'))
             
             # ============ Face Model ============
-            if args.cluster_type == 'audio_vision':
+            finetune_faceModel_flag = (args.baseline_method == 'sc_joint') or (args.baseline_method is None and args.cluster_type == 'audio_vision')
+            if finetune_faceModel_flag:
                 # Initialize face embedding model
                 face_embedding_model = IR_101(input_size=(112, 112))
                 face_embedding_dim = 512  # IR_101 output dimension
@@ -1209,7 +1238,7 @@ def main():
         train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler, num_workers=4, pin_memory=True, collate_fn=crt_collate_fn)
         
         # Create face dataset and dataloader (if using audio_vision)
-        if args.cluster_type == 'audio_vision':
+        if finetune_faceModel_flag:
             # Find face pseudo label file
             face_pseudo_label_files = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_train' in f]
             face_pseudo_label_files_infer = [f for f in os.listdir(pseudo_label_dir) if f.endswith('.json') and 'pseudo_labels_faces_mid_frame_all' in f]
@@ -1275,7 +1304,7 @@ def main():
             optimizer_spk.zero_grad()
         
         # ============ Face Model: Freeze and Create Classifier ============
-        if args.cluster_type == 'audio_vision' and face_train_loader is not None:
+        if finetune_faceModel_flag and face_train_loader is not None:
             # Freeze face embedding model initially
             for param in face_embedding_model.parameters():
                 param.requires_grad = False
@@ -1392,7 +1421,7 @@ def main():
         # ============================
         # Face Model Fine-tuning
         # ============================
-        if args.cluster_type == 'audio_vision' and face_train_loader is not None:
+        if finetune_faceModel_flag and face_train_loader is not None:
             # Unfreeze face embedding model's output_layer
             unfrozen_model_face_modules(face_embedding_model, print_mod_flag=(round == 0))
             # Optimizer for face fine-tuning (both embedding and classifier)
@@ -1480,6 +1509,10 @@ def main():
         # ============================
         # Part 2: Extract embeddings(if use clustering to get pseudo labels)
         # ============================
+        try:
+            shutil.copy(os.path.join(pseudo_label_dir, 'useful_var_dic.pkl'), os.path.join(round_pseudo_label_dir, 'useful_var_dic.pkl'))
+        except Exception as e:
+            logger.warning(f"Failed to copy useful_var_dic.pkl: {e}")
         if not args.from_preds:
             logger.info(f"Round {round}: Extracting speaker embeddings")
             embs_dir = os.path.join(round_dir, 'embeddings')
@@ -1491,14 +1524,13 @@ def main():
             if world_size > 1:
                 dist.barrier()
         else:
-            shutil.copy(os.path.join(initial_dir, 'pseudo_label', 'useful_var_dic.pkl'), os.path.join(round_pseudo_label_dir, 'useful_var_dic.pkl'))
             embs_dir = ""
 
         # ============================
         # Part 3: Generate pseudo labels and evaluate
         # ============================
         # get HMM model from previous round
-            hmm_model_path = os.path.join(pseudo_label_dir, 'hmm_params.pkl')
+        hmm_model_path = os.path.join(pseudo_label_dir, 'hmm_params.pkl')
         if not os.path.exists(hmm_model_path):
             hmm_model_path = None
         else:
@@ -1508,9 +1540,8 @@ def main():
         
         if rank == 0:
             crt_acc_r_spk, crt_acc_r_face = run_clustering_and_evaluation(
-                args.conf, args.cluster_type, args.wavs, args.subseg_json, embs_dir, args.visual_embs_dir, 
-                pseudo_label_dir, args.cluster_enhance_mode, args.fix_mf,
-                args.hmm_visual_info_type,  args.unreliable_pp,
+                args.conf, args.cluster_type, args.wavs, args.subseg_json, embs_dir, args.visual_embs_dir, pseudo_label_dir, 
+                args.baseline_method, args.cluster_enhance_mode, args.fix_mf, args.hmm_visual_info_type,  args.unreliable_pp,
                 args.speaker_anno_file, args.face_anno_file, hmm_model_path, args.from_preds, mode='all')
 
             logger.info(f"Round {round}: speaker_acc={crt_acc_r_spk:.4f}")

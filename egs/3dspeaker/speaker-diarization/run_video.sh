@@ -10,7 +10,7 @@ set -e  # 如果脚本中的任何命令失败，脚本会立即退出。
 
 stage=1 # 标识每个处理步骤的index
 stop_stage=6  # 共6步
-cluster_type="audio_only" # 聚类方式，支持 "audio_only" 和 "audio_vision"
+cluster_type="audio_only" # 利用模态信息，支持 "audio_only", "audio_vision"。控制：1.数据预处理时，是否提取视觉部分数据及提取人脸特征; 2. 论文中方法的初始化/hmm增强是否使用视觉信息。
 
 data_root=/f/data/tv_series_plus/tv_data # 存储所有电视剧数据集的根目录
 tv_name="I love my family" # "the big bang theory", "I love my family"
@@ -23,8 +23,11 @@ nj=1  # 并行任务数
 master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
+# Baseline method selection
+use_baseline=false  # 是否使用baseline方法而非HMM方法
+
 # HMM平滑相关参数
-cluster_enhance_mode="vbx"  # "hmm": 在"audio_vision"聚类之后，做 HMM 平滑; "pairwise_constraint": 使用成对约束进行聚类增强; "vbx": 使用 VBx 进行聚类增强; "": 不做聚类增强
+cluster_enhance_mode="hmm"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc" for baseline methods (Note: baseline methods should set use_baseline=true)
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -163,17 +166,41 @@ fi
 
 if [ "$ft_flag" = false ]; then
   if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-    if [ "$cluster_type" == "audio_only" ]; then
-      echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
-      torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
-              --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-              --audio_embs_dir "$exp/embs" --result_dir "$result_dir" --cluster_enhance_mode "$cluster_enhance_mode"
+    if [ "$use_baseline" = true ]; then
+      # Use baseline clustering methods
+      baseline_method=$baseline_method
+      echo "$(basename $0) Stage5: Running baseline clustering method: $baseline_method"
+      if [ "$baseline_method" == "sc" ] || [ "$baseline_method" == "vbx" ]; then
+        # Audio-only baseline methods
+        python local/cluster_and_postprocess_baseline.py \
+          --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
+          --baseline_method "$baseline_method" \
+          --audio_embs_dir "$exp/embs" --result_dir "$result_dir"
+      elif [ "$baseline_method" == "kcenter" ] || [ "$baseline_method" == "pcc" ]; then
+        # Audio-vision baseline methods
+        python local/cluster_and_postprocess_baseline.py \
+          --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
+          --baseline_method "$baseline_method" \
+          --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" \
+          --result_dir "$result_dir"
+      else
+        echo "Error: Unknown baseline_method $baseline_method"
+        exit 1
+      fi
     else
-      echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
-      torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
-              --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
-              --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" --subseg_json "$exp/json/subseg.json" \
-              --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
+      # Use HMM-based methods (original code)
+      if [ "$cluster_type" == "audio_only" ]; then
+        echo "$(basename $0) Stage5: Clustering for audio speaker embeddings only..."
+        torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+                --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+                --audio_embs_dir "$exp/embs" --result_dir "$result_dir" --cluster_enhance_mode "$cluster_enhance_mode"
+      else
+        echo "$(basename $0) Stage5: Clustering for both type of speaker embeddings..."
+        torchrun --nproc_per_node=$nj --master_port $master_port local/cluster_and_postprocess.py \
+                --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
+                --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" --subseg_json "$exp/json/subseg.json" \
+                --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp
+      fi
     fi
   fi
 
@@ -186,7 +213,7 @@ if [ "$ft_flag" = false ]; then
     else
       echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
     fi
-    if [ "$cluster_type" == "audio_vision" ]; then
+    if { [ "$use_baseline" = true ] && [ "$baseline_method" == "sc_joint" ]} || { [ "$use_baseline" = false ] && [ "$cluster_type" == "audio_vision" ]; }; then
       face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
       if [ -f "$face_anno_file" ]; then
         echo "Computing face recognition accuracy..."
@@ -221,13 +248,24 @@ else
     fi
 
     # Run self-supervised fine-tuning
+    if [ "$use_baseline" = true ]; then
+      # Use baseline method for self-supervised learning
+      echo "Using baseline method: $baseline_method for self-supervised fine-tuning"
+      baseline_method=$cluster_enhance_mode
+      cluster_enhance_args=(--baseline_method "$baseline_method")
+    else
+      # Use HMM-based method
+      echo "Using HMM-based method for self-supervised fine-tuning"
+      cluster_enhance_args=(--cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp)
+    fi
+
     torchrun --nproc_per_node=$nj --master_port $master_port local/self_supervised_finetune.py \
       --conf "$conf_file" --cluster_type "$cluster_type" --wavs "$raw_data_dir/wav.list" \
       --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" --result_dir "$result_dir" \
-      --cluster_enhance_mode "$cluster_enhance_mode" $fix_mf_flag --hmm_visual_info_type "$hmm_visual_info_type" --unreliable_pp $unreliable_pp \
+      "${cluster_enhance_args[@]}" \
       --speaker_anno_file "$speaker_anno_file" --face_anno_file "$face_anno_file" \
       --speaker_model_id "$speaker_model_id" "${speaker_pretrained_model_arg[@]}" --face_pretrained_model "$face_pretrained_model" \
-      --subseg_ori_json "$json_dir/subseg_ori.json" --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
+      --subseg_ori_json "$exp/json/subseg_ori.json" --subseg_json "$exp/json/subseg.json" --midframe_face_dir "$examples/midframe_faces" \
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
       --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \

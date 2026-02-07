@@ -25,12 +25,10 @@ if project_root not in sys.path:
 from speakerlab.utils.config import build_config
 from speakerlab.utils.builder import build
 from speakerlab.process.cluster import summary_cluster_results, reset_cluster_ids, align_clusters2clusters, align_samples2clusters, get_unreliable_metrics
-from speakerlab.process.cluster import ConstrainedCluster
 import json
 from datetime import datetime
 from speakerlab.process.hmm.hmm_X import HMM_X
 from speakerlab.process.hmm.nested_hmm_full import NestedHMM_full
-from speakerlab.process.vbx.vbx_enhancer import VBxEnhancer
 
 parser = argparse.ArgumentParser(description='Cluster embeddings and output rttm files')
 parser.add_argument('--conf', default=None, help='Config file')
@@ -41,7 +39,7 @@ parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
 parser.add_argument('--subseg_json', default='', type=str, help='Original Sub-segments info')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 parser.add_argument('--from_preds', action='store_true', help='Use local predictions from classifier model instead of clustering')
-parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "", "hmm" and "pairwise_constraint", "vbx"')
+parser.add_argument('--cluster_enhance_mode', required=True, type=str, help='How to enhance speaker clustering, support "" and "hmm"')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
 parser.add_argument('--hmm_visual_info_type', default='vad+mid_frame', type=str, help='Visual information type, support "", "vad", "mid_frame", "vad+mid_frame"')
 parser.add_argument('--unreliable_pp', default=100.0, type=float, help='Percentage of unreliable segments to be smoothed, default 100.0 (all segments)')
@@ -198,46 +196,6 @@ def alabels_hmm_smooth(alabels, lengths, audio_seg_ids, result_dir):
     smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
     with open(os.path.join(result_dir, f'pseudo_labels_audio_hmm.json'), 'w', encoding='utf-8') as f:
         json.dump(smoothed_cluster_dic, f, indent=2)
-
-def alabels_vbx_smooth(alabels, embeddings, audio_seg_ids, result_dir):
-    """
-    Use VBx (Variational Bayes HMM over x-vectors) to smooth audio cluster labels.
-    
-    Args:
-        alabels: Initial cluster labels from spectral clustering
-        embeddings: Audio embeddings (N, D) array
-        audio_seg_ids: Audio segment IDs
-        result_dir: Directory to save results
-    """
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} Starting VBx smoothing for audio labels...")
-
-    # Initialize VBx enhancer
-    vbx = VBxEnhancer(
-        lda_dim=128,      # LDA dimensionality
-        Fa=0.40,           # VBx parameter
-        Fb=64,           # VBx parameter
-        loopP=0.65,        # Speaker transition probability
-        num_em_iters=10,   # PLDA EM iterations
-        init_smoothing=5.0,  # Initialization smoothing
-        max_iters=20      # Max VBx iterations
-    )
-    
-    # Train and predict
-    alabels_smoothed = vbx.fit_predict(embeddings, alabels)
-    
-    # # Save models for potential reuse
-    # transform_path = os.path.join(result_dir, 'vbx_transform.h5')
-    # plda_path = os.path.join(result_dir, 'vbx_plda.h5')
-    # vbx.save_models(transform_path, plda_path)
-    
-    # Save smoothed results
-    smoothed_cluster_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids, alabels_smoothed)}
-    with open(os.path.join(result_dir, f'pseudo_labels_audio_vbx.json'), 'w', encoding='utf-8') as f:
-        json.dump(smoothed_cluster_dic, f, indent=2)
-    
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} VBx smoothing completed and saved to pseudo_labels_audio_vbx.json")
 
 def alabels_hmmX_smooth(S_hat_onehot, F_hat, X_onehot, lengths, params, audio_seg_ids, result_dir, 
                         flag_has_neg1=False, alabels_unreliable_metrics=None, unreliable_pp=100.0, audio_dur_grps_onehot=None, 
@@ -945,13 +903,24 @@ def save_cluster_results_vision_mf(labels, audio_seg_ids_mf, face_idxs_mf, out_j
     with open(out_json, 'w') as f:
         json.dump(cluster_results, f, indent=2)
 
-def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_enhance_mode):
+def load_embeds_audio(local_wav_list, audio_embs_dir):
     """
-    仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
+    Load audio embeddings, segment IDs, and lengths from pickle files.
+
+    Args:
+        local_wav_list (list): List of paths to local audio files.
+        audio_embs_dir (str): Directory where audio embeddings pickle files are stored.
+    Returns:
+        tuple: A tuple containing:
+        - audio_embeddings (ndarray): Array of shape (N, D) containing audio embeddings.
+        - audio_seg_ids (ndarray): Array of shape (N,) containing segment IDs corresponding to the embeddings.
+        - alengths (list): List of integers, where each integer is the number of audio segments for each audio file.
     """
-    embeddings = np.array([], dtype=np.float32)
-    audio_seg_ids = np.array([], dtype='<U50')
-    lengths = []  # list of int, number of audio segments for each audio file
+    audio_embeddings = np.array([], dtype=np.float32)
+    audio_times = np.array([], dtype=np.float32)
+    time_begin_crt_list = []
+    audio_seg_ids = np.array([], dtype='<U50')  # of the same length as audio_embeddings
+    alengths = []  # list of int, number of audio segments for each audio file
 
     # 对每一个音频文件
     for file_idx, wav_file in enumerate(local_wav_list):
@@ -962,19 +931,111 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_
         if not os.path.exists(embs_file):
             print("[WARNING]: %s does not exist, it is possible that vad model did not detect valid speech in file %s, please check it."%(embs_file, wav_file))
             continue
+        time_begin_crt = 0 if file_idx == 0 else np.max(audio_times) + 120
+        time_begin_crt_list.append(time_begin_crt)
         with open(embs_file, 'rb') as f:
             stat_obj = pickle.load(f)
-            lengths.append(len(stat_obj['subseg_ids']))
+            alengths.append(len(stat_obj['subseg_ids']))
             if file_idx == 0:                
-                embeddings = stat_obj['embeddings']
+                audio_embeddings = stat_obj['embeddings']
+                audio_times = stat_obj['times']
                 audio_seg_ids = stat_obj['subseg_ids']
             else:
-                embeddings = np.vstack((embeddings, stat_obj['embeddings']))
+                audio_embeddings = np.vstack((audio_embeddings, stat_obj['embeddings']))
+                audio_times = np.vstack((audio_times, stat_obj['times']+time_begin_crt))
                 audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
+
+    return audio_embeddings, audio_seg_ids, alengths, audio_times, time_begin_crt_list
+
+
+def load_embed_vision_vad(local_wav_list, visual_embs_dir, time_begin_crt_list):
+    """
+    Load visual (active speaker) embeddingss and corresponding times from pickle files.
+
+    Args:
+        local_wav_list (list): List of paths to local audio files.
+        visual_embs_dir (str): Directory where visual embeddings pickle files are stored.
+        time_begin_crt_list (list): List of time offsets for each audio file.
+    Returns:
+        tuple: A tuple containing:
+        - visual_embeddings_vad (ndarray): Array of shape (M, D) containing visual embeddings.
+        - visual_times_vad (ndarray): Array of shape (M,) containing times corresponding to the visual embeddings.
+    """
+    visual_embeddings_vad = np.array([], dtype=np.float32)
+    visual_times_vad = np.array([], dtype=np.float32)
+
+    # 对每一个音频文件，加载其对应的视觉speaker embeddings
+    for file_idx, wav_file in enumerate(local_wav_list):
+        wav_name = os.path.basename(wav_file)
+        rec_id = wav_name.rsplit('.', 1)[0]
+        visual_embs_file_vad = os.path.join(visual_embs_dir, rec_id + '_vad.pkl')
+        if not os.path.exists(visual_embs_file_vad):
+            print("[WARNING]: %s does not exist, it is possible that vad model did not detect valid face in file %s, please check it."%(visual_embs_file_vad, wav_file))
+            continue
+        time_begin_crt = time_begin_crt_list[file_idx]
+        with open(visual_embs_file_vad, 'rb') as f:
+            stat_obj = pickle.load(f)
+            if file_idx == 0:
+                visual_embeddings_vad = stat_obj['embeddings']
+                visual_times_vad = stat_obj['times']
+            else:
+                visual_embeddings_vad = np.vstack((visual_embeddings_vad, stat_obj['embeddings']))
+                visual_times_vad = np.hstack((visual_times_vad, stat_obj['times']+time_begin_crt))
+
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings.")
+    return visual_embeddings_vad, visual_times_vad
+
+def load_embeds_vision_mf(local_wav_list, visual_embs_dir):
+    """
+    Load visual (mid-frame) embeddings, segment IDs, and face indices from pickle files.
+
+    Args:
+        local_wav_list (list): List of paths to local audio files.
+        visual_embs_dir (str): Directory where visual embeddings pickle files are stored.
+    Returns:
+        tuple: A tuple containing:
+        - visual_embeddings_mf (ndarray): Array of shape (P, D) containing visual embeddings.
+        - audio_seg_ids_mf (ndarray): Array of shape (P,) containing audio segment IDs corresponding to the embeddings.
+        - face_idxs_mf (ndarray): Array of shape (P,) containing face indices corresponding to the embeddings in the audio segments.
+    """
+    visual_embeddings_mf = np.array([], dtype=np.float32)
+    audio_seg_ids_mf = np.array([], dtype='<U50')  # of the same length as visual_embeddings_mf
+    face_idxs_mf = np.array([], dtype=np.int32)  # of the same length as visual_embeddings_mf
+
+    # 对每一个音频文件，加载其对应的视觉speaker embeddings
+    for file_idx, wav_file in enumerate(local_wav_list):
+        wav_name = os.path.basename(wav_file)
+        rec_id = wav_name.rsplit('.', 1)[0]
+        visual_embs_file_mf = os.path.join(visual_embs_dir, rec_id + '_midframe.pkl')
+        if not os.path.exists(visual_embs_file_mf):
+            print("[WARNING]: %s does not exist, it is possible that vad model did not detect valid face in file %s, please check it."%(visual_embs_file_mf, wav_file))
+            continue
+        with open(visual_embs_file_mf, 'rb') as f:
+            stat_obj = pickle.load(f)
+            if file_idx == 0:
+                visual_embeddings_mf = stat_obj['feat']
+                audio_seg_ids_mf = stat_obj['audio_seg_id']
+                face_idxs_mf = stat_obj['face_idx']
+            else:
+                visual_embeddings_mf = np.vstack((visual_embeddings_mf, stat_obj['feat']))
+                audio_seg_ids_mf = np.hstack((audio_seg_ids_mf, stat_obj['audio_seg_id']))
+                face_idxs_mf = np.hstack((face_idxs_mf, stat_obj['face_idx']))
+
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_mf)} mid-frame face embeddings.")
+    return visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf
+
+def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_enhance_mode):
+    """
+    仅有speaker embeddings时，通过SpectralCluster(会自动估计说话人数)-->将极小簇就近合并到较大簇-->根据聚类中心余弦相似度合并相似簇 的方式进行聚类
+    """
+    # load embeddings
+    audio_embeddings, audio_seg_ids, alengths, _, _ = load_embeds_audio(local_wav_list, audio_embs_dir)
 
     # cluster
     cluster = build('cluster', config)
-    labels = cluster(embeddings)
+    labels = cluster(audio_embeddings)
     labels = reset_cluster_ids(labels)
     summary_cluster_results(labels, modal_type='audio')
     out_json = os.path.join(result_dir, f'cluster_results_audio.json')
@@ -983,85 +1044,21 @@ def audio_only_func(local_wav_list, audio_embs_dir, result_dir, config, cluster_
         out_json = os.path.join(result_dir, f'pseudo_labels_audio.json')
         save_cluster_results_audio(labels, audio_seg_ids, out_json)
     elif cluster_enhance_mode == "hmm":
-        alabels_hmm_smooth(labels, lengths, audio_seg_ids, result_dir)
-    elif cluster_enhance_mode == "vbx":
-        alabels_vbx_smooth(labels, embeddings, audio_seg_ids, result_dir)
+        alabels_hmm_smooth(labels, alengths, audio_seg_ids, result_dir)
     else:
-        raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
+        raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}. Only '' and 'hmm' are supported in cluster_and_postprocess.py. For baseline methods, use cluster_and_postprocess_baseline.py.")
 
 def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config, subseg_json,
                              cluster_enhance_mode, fix_mf_flag, hmm_visual_info_type, unreliable_pp, hmm_model_path=None, from_preds=True):
     if not fix_mf_flag:
         assert 'mid_frame' in hmm_visual_info_type, "When fix_mf_flag is False, 'mid_frame' must be included in hmm_visual_info_type."
-
+    
     if not from_preds:
         # NOTE: length of audio_embeddings and visual_embeddings_vad, visual_embeddings_mf may be different
-        audio_embeddings = np.array([], dtype=np.float32)
-        audio_times = np.array([], dtype=np.float32)
-        audio_seg_ids = np.array([], dtype='<U50')  # of the same length as audio_embeddings
-        alengths = []  # list of int, number of audio segments for each audio file
-
-        visual_embeddings_vad = np.array([], dtype=np.float32)
-        visual_times_vad = np.array([], dtype=np.float32)
-
+        audio_embeddings, audio_seg_ids, alengths, audio_times, time_begin_crt_list = load_embeds_audio(local_wav_list, audio_embs_dir)
+        visual_embeddings_vad, visual_times_vad = load_embed_vision_vad(local_wav_list, visual_embs_dir, time_begin_crt_list)
         if 'mid_frame' in hmm_visual_info_type:
-            visual_embeddings_mf = np.array([], dtype=np.float32)
-            audio_seg_ids_mf = np.array([], dtype='<U50')  # of the same length as visual_embeddings_mf
-            face_idxs_mf = np.array([], dtype=np.int32)  # of the same length as visual_embeddings_mf
-            # visual_infos = []   # list of tuple (rec_id, time shift, number of visual segments)
-
-        # 对每一个音频文件，加载其对应的音频和视觉speaker embeddings，然后进行多模态聚类
-        for file_idx, wav_file in enumerate(local_wav_list):
-            wav_name = os.path.basename(wav_file)
-            rec_id = wav_name.rsplit('.', 1)[0]
-            audio_embs_file = os.path.join(audio_embs_dir, rec_id + '.pkl')
-            visual_embs_file_vad = os.path.join(visual_embs_dir, rec_id + '_vad.pkl')
-            visual_embs_file_mf = os.path.join(visual_embs_dir, rec_id + '_midframe.pkl')
-            if not os.path.exists(audio_embs_file) or not os.path.exists(visual_embs_file_vad) or not os.path.exists(visual_embs_file_mf):
-                print("[WARNING]: %s or %s or %sdoes not exist, it is possible that vad model did not detect valid speech or face in file %s, please check it."%(audio_embs_file, visual_embs_file_vad, visual_embs_file_mf, wav_file))
-                continue
-            
-            time_begin_crt = 0 if file_idx == 0 else np.max(audio_times) + 120
-            ## load embeddings
-            with open(audio_embs_file, 'rb') as f:
-                stat_obj = pickle.load(f)
-                alengths.append(len(stat_obj['subseg_ids']))
-                if file_idx == 0:
-                    audio_embeddings = stat_obj['embeddings']
-                    audio_times = stat_obj['times']
-                    audio_seg_ids = stat_obj['subseg_ids']
-                else:
-                    audio_embeddings = np.vstack((audio_embeddings, stat_obj['embeddings']))
-                    audio_times = np.vstack((audio_times, stat_obj['times']+time_begin_crt))
-                    audio_seg_ids = np.hstack((audio_seg_ids, stat_obj['subseg_ids']))
-
-            with open(visual_embs_file_vad, 'rb') as f:
-                stat_obj = pickle.load(f)
-                # visual_infos.append((rec_id, time_begin_crt, len(stat_obj['embeddings'])))
-                if file_idx == 0:
-                    visual_embeddings_vad = stat_obj['embeddings']
-                    visual_times_vad = stat_obj['times']
-                else:
-                    visual_embeddings_vad = np.vstack((visual_embeddings_vad, stat_obj['embeddings']))
-                    visual_times_vad = np.hstack((visual_times_vad, stat_obj['times']+time_begin_crt))
-
-            if 'mid_frame' in hmm_visual_info_type:
-                with open(visual_embs_file_mf, 'rb') as f:
-                    stat_obj = pickle.load(f)
-                    if file_idx == 0:
-                        visual_embeddings_mf = stat_obj['feat']
-                        audio_seg_ids_mf = stat_obj['audio_seg_id'] # np.ndarray, (N, )
-                        face_idxs_mf = stat_obj['face_idx'] # np.ndarray, (N, )
-                    else:
-                        visual_embeddings_mf = np.vstack((visual_embeddings_mf, stat_obj['feat']))
-                        audio_seg_ids_mf = np.hstack((audio_seg_ids_mf, stat_obj['audio_seg_id']))
-                        face_idxs_mf = np.hstack((face_idxs_mf, stat_obj['face_idx']))
-
-
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_vad)} active face embeddings.")
-        if 'mid_frame' in hmm_visual_info_type:
-            print(f"[INFO] {current_time} For visual embeddings in {visual_embs_dir}, there are totally {len(visual_embeddings_mf)} mid-frame face embeddings.")
+            visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_embeds_vision_mf(local_wav_list, visual_embs_dir)
 
         # create cluster object for audio-visual(vad) joint clustering and visual(mid-frame) clustering
         if 'mid_frame' in hmm_visual_info_type: # must before create cluster, otherwise raise error
@@ -1115,18 +1112,12 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             alabels, vlabels_vad_arrange_dic = cluster(audio_embeddings, visual_embeddings_vad, audio_times, visual_times_vad, config, alabels, vlabels_vad)
             summary_cluster_results(alabels, modal_type='audio_vision_vad')
             save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad.json'))
-        elif cluster_enhance_mode == "pairwise_constraint":
-            constrainedcluster = ConstrainedCluster(spectralcluster=cluster.audio_cluster.cluster, alpha_v=1, beta=0, delta_percentile=95)
-            alabels = constrainedcluster(audio_embeddings, audio_seg_ids, audio_times, visual_times_vad, vlabels_vad)
-            summary_cluster_results(alabels, modal_type='audio_vision_vad_pairwise_constraint')
-            save_cluster_results_audio(alabels, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_vision_vad_pairwise_constraint.json'))
         else:
-            raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}")
-        del visual_embeddings_vad
-        if cluster_enhance_mode != "hmm":
+            raise ValueError(f"Unsupported cluster_enhance_mode: {cluster_enhance_mode}. Only '' and 'hmm' are supported in cluster_and_postprocess.py. For baseline methods, use cluster_and_postprocess_baseline.py.")
+        del visual_embeddings_vad 
+        if cluster_enhance_mode == "":
             alabels_save = reset_cluster_ids(copy.deepcopy(alabels))
-            save_name = '' if cluster_enhance_mode == "" else '(pairwise_constraint)'
-            out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad{save_name}.json')
+            out_json = os.path.join(result_dir, f'pseudo_labels_audio_vision_vad.json')
             save_cluster_results_audio(alabels_save, audio_seg_ids, out_json)
             return 
 
