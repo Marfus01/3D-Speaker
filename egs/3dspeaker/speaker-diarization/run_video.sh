@@ -81,6 +81,11 @@ else
   exit 1
 fi
 
+if [ "$use_baseline" = true ]; then
+  baseline_method=$cluster_enhance_mode
+  echo "Using baseline method: $baseline_method"
+fi
+
 fix_mf_flag=""
 if [ "$fix_mf" = true ]; then
   fix_mf_flag="--fix_mf"
@@ -168,7 +173,6 @@ if [ "$ft_flag" = false ]; then
   if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     if [ "$use_baseline" = true ]; then
       # Use baseline clustering methods
-      baseline_method=$baseline_method
       echo "$(basename $0) Stage5: Running baseline clustering method: $baseline_method"
       if [ "$baseline_method" == "sc" ] || [ "$baseline_method" == "vbx" ]; then
         # Audio-only baseline methods
@@ -213,7 +217,7 @@ if [ "$ft_flag" = false ]; then
     else
       echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
     fi
-    if { [ "$use_baseline" = true ] && [ "$baseline_method" == "sc_joint" ]} || { [ "$use_baseline" = false ] && [ "$cluster_type" == "audio_vision" ]; }; then
+    if { [ "$use_baseline" = true ] && [ "$baseline_method" = "sc_joint" ]; } || { [ "$use_baseline" = false ] && [ "$cluster_type" = "audio_vision" ]; }; then
       face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
       if [ -f "$face_anno_file" ]; then
         echo "Computing face recognition accuracy..."
@@ -250,8 +254,6 @@ else
     # Run self-supervised fine-tuning
     if [ "$use_baseline" = true ]; then
       # Use baseline method for self-supervised learning
-      echo "Using baseline method: $baseline_method for self-supervised fine-tuning"
-      baseline_method=$cluster_enhance_mode
       cluster_enhance_args=(--baseline_method "$baseline_method")
     else
       # Use HMM-based method
@@ -269,7 +271,7 @@ else
       --max_rounds $max_rounds --warmup_epochs_num $warmup_epochs_num --max_finetune_epochs $max_finetune_epochs \
       --finetune_lr $finetune_lr --finetune_batch_size $finetune_batch_size --unfrozen_layers_num $unfrozen_layers_num \
       --early_stop_patience_epoch $early_stop_patience_epoch --early_stop_patience_round $early_stop_patience_round \
-      $from_preds_flag $use_hidfeat_flag --use_gpu --gpu $gpus --seed 1234 \
+      $from_preds_flag $use_hidfeat_flag --use_gpu --gpu $gpus --seed 1234
     
     echo "$(basename $0) Stage5: Self-supervised fine-tuning completed!"
     echo "Results saved in $result_dir/self_supervised/"

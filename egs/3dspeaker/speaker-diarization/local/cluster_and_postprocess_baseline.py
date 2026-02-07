@@ -354,7 +354,7 @@ def main():
         if hasattr(config, 'audio_cluster') and hasattr(config, 'vision_cluster'):
             config.cluster = config.audio_cluster
             del config.audio_cluster, config.vision_cluster
-        baseline_audio_sc(wav_list, args.audio_embs_dir, args.result_dir, config, args.from_preds)
+        baseline_audio_sc(wav_list, args.audio_embs_dir, args.result_dir, config)
     elif args.baseline_method == 'vbx':
         if hasattr(config, 'audio_cluster') and hasattr(config, 'vision_cluster'):
             config.cluster = config.audio_cluster
@@ -367,7 +367,7 @@ def main():
     elif args.baseline_method == 'pcc':
         assert args.visual_embs_dir is not None, "--visual_embs_dir required for pcc method"
         baseline_audio_pcc(wav_list, args.audio_embs_dir, args.visual_embs_dir, 
-                          args.result_dir, config, args.from_preds)
+                          args.result_dir, config)
     else:
         raise ValueError(f"Unknown baseline method: {args.baseline_method}")
     

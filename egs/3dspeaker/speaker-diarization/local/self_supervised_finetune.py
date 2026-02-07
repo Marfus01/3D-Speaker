@@ -1035,6 +1035,8 @@ def main():
     # Create directories
     ## Create directory for self-supervised fine-tuning
     finetune_dir = os.path.join(args.result_dir, 'self_supervised')
+    if args.baseline_method is not None:
+        finetune_dir = os.path.join(finetune_dir, f'baseline_{args.baseline_method}')
     os.makedirs(finetune_dir, exist_ok=True)
     ## Create dictory for current experiment
     existing_exp_dirs = [d for d in os.listdir(finetune_dir) if os.path.isdir(os.path.join(finetune_dir, d)) and d.startswith("exp") and d[3:].isdigit()]
@@ -1062,7 +1064,10 @@ def main():
     # Initial clustering
     # ============================
     logger.info("="*20)
-    logger.info("Initialization: Initial clustering with HMM correction")
+    if args.baseline_method is not None:
+        logger.info(f"Initialization: Initial clustering with baseline method {args.baseline_method}")
+    else:
+        logger.info("Initialization: Initial clustering with HMM correction")
     logger.info("="*20)
     
     initial_dir = os.path.join(exp_dir, 'initial')
@@ -1109,13 +1114,14 @@ def main():
     acc_history_face = [{'round': 'Initial', 'acc': initial_acc_face}] if initial_acc_face is not None else None
 
     # define pseudo_valid_label_dic for speaker and save
-    with open(os.path.join(pseudo_label_dir, 'cluster_results_vision_vad_processed_for_HMM_nested_X_uniq.json'), 'r', encoding='utf-8') as f:
-        vad_cluster_results = json.load(f)
-    with open(os.path.join(pseudo_label_dir, 'cluster_results_audio_processed_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
-        audio_obs_init_results = json.load(f)
-    pseudo_valid_label_dic_spk = {k: vad_cluster_results[k] for k in vad_cluster_results if vad_cluster_results[k] == audio_obs_init_results[k]}
-    with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_speaker.json'), 'w', encoding='utf-8') as f:
-        json.dump(pseudo_valid_label_dic_spk, f, indent=2)
+    if args.baseline_method is None:
+        with open(os.path.join(pseudo_label_dir, 'cluster_results_vision_vad_processed_for_HMM_nested_X_uniq.json'), 'r', encoding='utf-8') as f:
+            vad_cluster_results = json.load(f)
+        with open(os.path.join(pseudo_label_dir, 'cluster_results_audio_processed_for_HMM_nested_X.json'), 'r', encoding='utf-8') as f:
+            audio_obs_init_results = json.load(f)
+        pseudo_valid_label_dic_spk = {k: vad_cluster_results[k] for k in vad_cluster_results if vad_cluster_results[k] == audio_obs_init_results[k]}
+        with open(os.path.join(pseudo_label_dir, 'pseudo_valid_labels_speaker.json'), 'w', encoding='utf-8') as f:
+            json.dump(pseudo_valid_label_dic_spk, f, indent=2)
 
     # ============================
     # Iterative fine-tuning
@@ -1379,9 +1385,13 @@ def main():
             os.makedirs(epoch_dir, exist_ok=True)
             with open(os.path.join(epoch_dir, f'pseudo_labels_audio_pred.json'), 'w') as f:
                 json.dump(preds_dic, f, indent=2)
-            crt_acc_valid_e_pseudo_spk = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic_spk)
             crt_acc_e = compute_acc_from_anno(epoch_dir, args.speaker_anno_file, mode='all', modal='speaker')
+            if args.baseline_method is not None:
+                crt_acc_valid_e_pseudo_spk = copy.deepcopy(crt_acc_e)
+            else:
+                crt_acc_valid_e_pseudo_spk = compute_acc_from_dic(preds_dic, pseudo_valid_label_dic_spk)
             logger.info(f"Round {round}, Fine-tune Epoch {ft_epoch}: acc(valid_pseudo): {crt_acc_valid_e_pseudo_spk:.4f}, acc: {crt_acc_e:.4f}")
+            
             if crt_acc_valid_e_pseudo_spk > best_acc_valid_e_pseudo_spk:  # epoch0 must be better
                 best_acc_valid_e_pseudo_spk, best_epoch_spk  = crt_acc_valid_e_pseudo_spk, ft_epoch
                 patience_counter_epoch_spk = 0
