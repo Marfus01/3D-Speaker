@@ -27,7 +27,7 @@ FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 use_baseline=false  # 是否使用baseline方法而非HMM方法
 
 # HMM平滑相关参数
-cluster_enhance_mode="hmm"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc", "joint" for baseline methods (Note: baseline methods should set use_baseline=true)
+cluster_enhance_mode="hmm"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc", "joint", "sc_ahc" for baseline methods (Note: baseline methods should set use_baseline=true)
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -174,23 +174,27 @@ if [ "$ft_flag" = false ]; then
     if [ "$use_baseline" = true ]; then
       # Use baseline clustering methods
       echo "$(basename $0) Stage5: Running baseline clustering method: $baseline_method"
-      if [ "$baseline_method" == "sc" ] || [ "$baseline_method" == "vbx" ]; then
-        # Audio-only baseline methods
-        python local/cluster_and_postprocess_baseline.py \
-          --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
-          --baseline_method "$baseline_method" \
-          --audio_embs_dir "$exp/embs" --result_dir "$result_dir"
-      elif [ "$baseline_method" == "kcenter" ] || [ "$baseline_method" == "pcc" ] || [ "$baseline_method" == "joint" ]; then
-        # Audio-vision baseline methods
-        python local/cluster_and_postprocess_baseline.py \
-          --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
-          --baseline_method "$baseline_method" \
-          --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" \
-          --result_dir "$result_dir"
-      else
-        echo "Error: Unknown baseline_method $baseline_method"
-        exit 1
-      fi
+      case "$baseline_method" in
+        sc|vbx)
+          # Audio-only baseline methods
+          python local/cluster_and_postprocess_baseline.py \
+            --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
+            --baseline_method "$baseline_method" \
+            --audio_embs_dir "$exp/embs" --result_dir "$result_dir"
+          ;;
+        kcenter|pcc|joint|sc_ahc)
+          # Audio-vision baseline methods
+          python local/cluster_and_postprocess_baseline.py \
+            --conf "$conf_file" --wavs "$raw_data_dir/wav.list" \
+            --baseline_method "$baseline_method" \
+            --audio_embs_dir "$exp/embs" --visual_embs_dir "$visual_embs_dir" \
+            --result_dir "$result_dir"
+          ;;
+        *)
+          echo "Error: Unknown baseline_method $baseline_method"
+          exit 1
+          ;;
+      esac
     else
       # Use HMM-based methods (original code)
       if [ "$cluster_type" == "audio_only" ]; then
@@ -217,7 +221,7 @@ if [ "$ft_flag" = false ]; then
     else
       echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
     fi
-    if { [ "$use_baseline" = true ] && [ "$baseline_method" = "joint" ]; } || { [ "$use_baseline" = false ] && [ "$cluster_type" = "audio_vision" ]; }; then
+    if { [ "$use_baseline" = true ] && [[ "$baseline_method" =~ ^(joint|sc_ahc)$ ]]; } || { [ "$use_baseline" = false ] && [ "$cluster_type" = "audio_vision" ]; }; then
       face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
       if [ -f "$face_anno_file" ]; then
         echo "Computing face recognition accuracy..."

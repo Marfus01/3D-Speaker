@@ -43,7 +43,7 @@ parser.add_argument('--cluster_type', default='audio_only', type=str, help='Clus
 parser.add_argument('--audio_embs_dir', required=True, type=str, help='Initial audio embeddings directory')
 parser.add_argument('--visual_embs_dir', required=True, type=str, help='Visual embeddings directory')
 parser.add_argument('--result_dir', required=True, type=str, help='Result directory')
-parser.add_argument('--baseline_method', default=None, type=str, help='Baseline method to use (sc, vbx, kcenter, pcc, joint). If None, use HMM-based method.')
+parser.add_argument('--baseline_method', default=None, type=str, help='Baseline method to use (sc, vbx, kcenter, pcc, joint, sc_ahc). If None, use HMM-based method.')
 # HMM parameters (only used when baseline_method is None)
 parser.add_argument('--cluster_enhance_mode', required=False, type=str, help='HMM method: "hmm" for HMM smoothing or "" for no cluster enhancement smoothing (only used when baseline_method is None)')
 parser.add_argument('--fix_mf', action='store_true', help='Fix key frame visual cluster labels during HMM smoothing')
@@ -942,7 +942,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
         ]
         
         # Add visual embeddings if needed for the baseline method
-        if baseline_method in ['kcenter', 'pcc', 'joint']:
+        if baseline_method in ['kcenter', 'pcc', 'joint', 'sc_ahc']:
             cmd.extend(['--visual_embs_dir', visual_embs_dir])
         
         if from_preds:
@@ -993,7 +993,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
     
     # Compute face accuracy if applicable
     face_acc = None
-    if (baseline_method == 'joint') or (baseline_method is None and cluster_type == 'audio_vision'):
+    if (baseline_method in ['joint', 'sc_ahc']) or (baseline_method is None and cluster_type == 'audio_vision'):
         assert face_anno_file is not None, "Face annotation file must be provided for audio-vision clustering!"
         if os.path.exists(face_anno_file):
             face_acc = compute_acc_from_anno(result_dir, face_anno_file, mode, modal='face')
@@ -1078,7 +1078,7 @@ def main():
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
         initial_acc_spk = compute_acc_from_anno(pseudo_label_dir, args.speaker_anno_file, mode='all', modal='speaker')
-        if (args.baseline_method == 'joint') or (args.baseline_method is None and args.cluster_type == 'audio_vision'):
+        if (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision'):
             assert os.path.exists(args.face_anno_file), f"Face annotation file {args.face_anno_file} does not exist!"
             initial_acc_face = compute_acc_from_anno(pseudo_label_dir, args.face_anno_file, mode='all', modal='face')
         else:
@@ -1181,7 +1181,7 @@ def main():
             # torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_speaker.pth'))
             
             # ============ Face Model ============
-            finetune_faceModel_flag = (args.baseline_method == 'joint') or (args.baseline_method is None and args.cluster_type == 'audio_vision')
+            finetune_faceModel_flag = (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision')
             if finetune_faceModel_flag:
                 # Initialize face embedding model
                 face_embedding_model = IR_101(input_size=(112, 112))

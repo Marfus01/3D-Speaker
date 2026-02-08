@@ -44,7 +44,7 @@ from cluster_and_postprocess import (
 parser = argparse.ArgumentParser(description='Baseline clustering methods for speaker diarization')
 parser.add_argument('--conf', default=None, help='Config file')
 parser.add_argument('--wavs', default=None, help='Wav list file')
-parser.add_argument('--baseline_method', required=True, type=str, choices=['sc', 'vbx', 'kcenter', 'pcc', 'joint'], help='Baseline method to run')
+parser.add_argument('--baseline_method', required=True, type=str, choices=['sc', 'vbx', 'kcenter', 'pcc', 'joint', 'sc_ahc'], help='Baseline method to run')
 parser.add_argument('--audio_embs_dir', default=None, type=str, help='Audio embedding dir')
 parser.add_argument('--visual_embs_dir', default=None, type=str, help='Visual embedding dir')
 parser.add_argument('--result_dir', default=None, type=str, help='Result dir')
@@ -75,6 +75,26 @@ def load_alabels_embeddings_ft(alabels_embeddings_ft_path):
     audio_embeddings = np.array([audio_embeddings_dic[seg_id] for seg_id in audio_seg_ids])
     
     return audio_embeddings, audio_seg_ids, useful_var_dic
+
+def load_vlabels_mf_embeddings_ft(vlabels_mf_embeddings_ft_path, useful_var_dic):
+    """
+    Load visual mid-frame embeddings from fine-tuned model.
+    
+    Args:
+        - vlabels_mf_embeddings_ft_path: Path to the pickle file containing visual mid-frame embeddings after fine-tuning
+        - useful_var_dic: dictionary containing useful variables copied from previous clustering step (e.g., audio_seg_ids_mf, face_idxs_mf)
+    Returns:
+        - visual_embeddings_mf: numpy array of shape (num_mid_frame_faces, embedding_dim)
+    """
+    with open(vlabels_mf_embeddings_ft_path, 'rb') as f:
+        visual_embeddings_dic = pickle.load(f)
+    
+    audio_seg_ids_mf = useful_var_dic['audio_seg_ids_mf']
+    face_idxs_mf = useful_var_dic['face_idxs_mf']
+    keys_mf_all = [f"{audio_seg_id_mf}_{int(face_idx)}" for audio_seg_id_mf, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
+    visual_embeddings_mf = np.array([visual_embeddings_dic[key] for key in keys_mf_all])
+    
+    return visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf
 
 def load_alabels_preds(result_dir, audio_seg_ids):
     """
@@ -339,7 +359,7 @@ def baseline_audio_pcc(local_wav_list, audio_embs_dir, visual_embs_dir, result_d
 
 def baseline_joint(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config, from_preds=False, K=10):
     """
-    Baseline: CAM++ & CurricularFace & joint SC
+    Baseline: CAM++ & CurricularFace & joint clustering(Cai, Wang, et al. 2022)
     
     使用联合聚类方法：
     1. 对 active speaker face 和 mid-frame face 进行聚类并对齐
@@ -357,7 +377,7 @@ def baseline_joint(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, 
         from_preds: If True, use predictions from model
     """
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[INFO] {current_time} Running baseline: CAM++ & CurricularFace & joint SC")
+    print(f"[INFO] {current_time} Running baseline: CAM++ & CurricularFace & joint clustering(Cai, Wang, et al. 2022)")
     
     # Build cluster object
     config_mf = copy.deepcopy(config)
@@ -380,13 +400,7 @@ def baseline_joint(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, 
     # Load visual embeddings for mid-frame clustering
     vlabels_mf_embeddings_ft_path = os.path.join(result_dir, 'vlabels_mf_embeddings.pkl')
     if os.path.exists(vlabels_mf_embeddings_ft_path):
-        with open(vlabels_mf_embeddings_ft_path, 'rb') as f:
-            visual_embeddings_dic = pickle.load(f)
-        
-        audio_seg_ids_mf = useful_var_dic['audio_seg_ids_mf']
-        face_idxs_mf = useful_var_dic['face_idxs_mf']
-        keys_mf_all = [f"{audio_seg_id_mf}_{int(face_idx)}" for audio_seg_id_mf, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
-        visual_embeddings_mf = np.array([visual_embeddings_dic[key] for key in keys_mf_all])
+        visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_vlabels_mf_embeddings_ft(vlabels_mf_embeddings_ft_path, useful_var_dic)
     else:
         visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_embeds_vision_mf(local_wav_list, visual_embs_dir)
 
@@ -511,6 +525,80 @@ def baseline_joint(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, 
         pickle.dump(useful_var_dic, f)
     print(f"[INFO] Saved useful variables to {useful_var_path}")
 
+def baseline_sc_ahc(local_wav_list, audio_embs_dir, visual_embs_dir, result_dir, config):
+    """
+    Baseline: CAM++ SC & CurricularFace AHC
+    
+    流程：
+    1. 对 audio embeddings 做谱聚类
+    2. 对 visual mid-frame embeddings 做层次聚类
+    3. 保存聚类结果为伪标签
+    
+    Args:
+        local_wav_list: List of wav file paths
+        audio_embs_dir: Directory containing audio embeddings
+        visual_embs_dir: Directory containing visual embeddings
+        result_dir: Directory to save results
+        config: Configuration object
+    """
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[INFO] {current_time} Running baseline: CAM++ SC & CurricularFace AHC")
+    
+    # Build cluster objects
+    config_mf = copy.deepcopy(config)
+    config_mf.vision_cluster['args']['fix_cos_thr'] = config_mf.fix_cos_thr_mf
+    del config_mf.audio_cluster, config_mf.cluster
+    cluster_mf = build('vision_cluster', config_mf)
+    cluster = build('cluster', config)
+    
+    # ============ Step 1: Load embeddings ============
+    # Load audio embeddings
+    alabels_embeddings_ft_path = os.path.join(result_dir, 'alabels_embeddings.pkl')
+    if os.path.exists(alabels_embeddings_ft_path):
+        audio_embeddings, audio_seg_ids, useful_var_dic = load_alabels_embeddings_ft(alabels_embeddings_ft_path)
+    else:
+        audio_embeddings, audio_seg_ids, _, _, _ = load_embeds_audio(local_wav_list, audio_embs_dir)
+    
+    # Load visual embeddings for mid-frame clustering
+    vlabels_mf_embeddings_ft_path = os.path.join(result_dir, 'vlabels_mf_embeddings.pkl')
+    if os.path.exists(vlabels_mf_embeddings_ft_path):
+        visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_vlabels_mf_embeddings_ft(vlabels_mf_embeddings_ft_path, useful_var_dic)
+    else:
+        visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_embeds_vision_mf(local_wav_list, visual_embs_dir)
+    
+    # ============ Step 2: Audio spectral clustering ============
+    alabels = cluster.audio_cluster(audio_embeddings)
+    alabels = reset_cluster_ids(alabels)
+    summary_cluster_results(alabels, modal_type='audio_baseline_sc_ahc')
+    
+    # ============ Step 3: Visual mid-frame hierarchical clustering ============
+    vlabels_mf = cluster_mf(visual_embeddings_mf)
+    vlabels_mf = reset_cluster_ids(vlabels_mf)
+    summary_cluster_results(vlabels_mf, modal_type='visual_mid_frame_baseline_sc_ahc')
+    
+    # ============ Step 4: Save results ============
+    # Save audio pseudo labels
+    out_json_audio = os.path.join(result_dir, 'pseudo_labels_audio_baseline_sc_ahc.json')
+    save_cluster_results_audio(alabels, audio_seg_ids, out_json_audio)
+    
+    # Save visual mid-frame pseudo labels
+    out_json_visual = os.path.join(result_dir, 'pseudo_labels_faces_mid_frame_all_baseline_sc_ahc.json')
+    save_cluster_results_vision_mf(vlabels_mf, audio_seg_ids_mf, face_idxs_mf, out_json_visual)
+    
+    # Also save as train version (same as all version for this baseline)
+    out_json_visual_train = os.path.join(result_dir, 'pseudo_labels_faces_mid_frame_train_baseline_sc_ahc.json')
+    shutil.copy(out_json_visual, out_json_visual_train)
+    
+    # Save useful variables
+    useful_var_dic = {}
+    useful_var_dic['audio_seg_ids'] = audio_seg_ids
+    useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
+    useful_var_dic['face_idxs_mf'] = face_idxs_mf
+    useful_var_path = os.path.join(result_dir, 'useful_var_dic.pkl')
+    with open(useful_var_path, 'wb') as f:
+        pickle.dump(useful_var_dic, f)
+    print(f"[INFO] Saved useful variables to {useful_var_path}")
+
 def main():
     args = parser.parse_args()
     
@@ -548,6 +636,10 @@ def main():
         assert args.visual_embs_dir is not None, "--visual_embs_dir required for joint method"
         baseline_joint(wav_list, args.audio_embs_dir, args.visual_embs_dir, 
                       args.result_dir, config, args.from_preds)
+    elif args.baseline_method == 'sc_ahc':
+        assert args.visual_embs_dir is not None, "--visual_embs_dir required for sc_ahc method"
+        baseline_sc_ahc(wav_list, args.audio_embs_dir, args.visual_embs_dir, 
+                       args.result_dir, config)
     else:
         raise ValueError(f"Unknown baseline method: {args.baseline_method}")
     
