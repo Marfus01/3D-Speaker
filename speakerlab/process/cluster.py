@@ -10,6 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import fastcluster
 from scipy.cluster.hierarchy import fcluster
 from scipy.spatial.distance import squareform
+from scipy.optimize import linear_sum_assignment
 from datetime import datetime
 
 # Add parent directory to path
@@ -950,3 +951,206 @@ class ConstrainedCluster:
         print(f"[INFO] {current_time} Generated {len(must_link)} must-link and {len(cannot_link)} cannot-link constraints from visual information.")
         
         return constraints_dict
+
+
+class JointClustering_baseline:
+    """
+    Perform joint clustering for audio and visual (mid-frame faces) embeddings.
+    This is a baseline method that combines audio and visual information through
+    embedding concatenation and spectral clustering.
+    
+    The method:
+    1. Concatenates audio and visual embeddings for samples with the same segment ID
+    2. Performs spectral clustering on concatenated embeddings
+    3. Establishes mapping between single-modal labels and joint labels based on co-occurrence
+    4. Uses majority voting to determine final labels for selected samples
+    """
+    
+    def __init__(self, audio_cluster, vision_cluster):
+        """
+        Args:
+            audio_cluster: Audio clustering object (e.g., CommonClustering with SpectralCluster)
+            vision_cluster: Vision clustering object (e.g., CommonClustering with AHC)
+        """
+        self.audio_cluster = audio_cluster
+        self.vision_cluster = vision_cluster
+    
+    def __call__(self, audio_embeddings, visual_embeddings_mf, audio_seg_ids, audio_seg_ids_mf, 
+                 audio_selected_index, visual_mf_selected_index, alabels, vlabels_mf, K=10):
+        """
+        Perform joint clustering and return aligned labels for all samples.
+        
+        Args:
+            audio_embeddings: Audio embeddings, shape [N_audio, D_audio]
+            visual_embeddings_mf: Visual (mid-frame face) embeddings, shape [N_visual, D_visual]
+            audio_seg_ids: Audio segment IDs, shape [N_audio]
+            audio_seg_ids_mf: Visual segment IDs (corresponding to audio segments), shape [N_visual]
+            audio_selected_index: Indices of selected audio samples for joint clustering
+            visual_mf_selected_index: Indices of selected visual samples for joint clustering
+            alabels: Audio cluster labels from single-modal clustering, shape [N_audio]
+            vlabels_mf: Visual cluster labels from single-modal clustering, shape [N_visual]
+            K: Number of main clusters to keep (others marked as -1), default 10
+            
+        Returns:
+            alabels_final: Final audio labels for all samples, with the same order as input audio_embeddings, shape [N_audio]
+            vlabels_mf_final: Final visual labels for all samples, with the same order as input visual_embeddings_mf, shape [N_visual]
+            joint_labels_dic: {seg_id: joint_label}
+        """
+        # Step 1: Extract selected samples and their segment IDs
+        audio_embs_selected = audio_embeddings[audio_selected_index]  # [N_selected, D_audio]
+        visual_embs_selected = visual_embeddings_mf[visual_mf_selected_index]  # [N_selected, D_visual]
+        audio_seg_ids_selected = audio_seg_ids[audio_selected_index]  # [N_selected]
+        
+        # Verify that audio and visual selected samples correspond to the same segments
+        visual_seg_ids_selected = audio_seg_ids_mf[visual_mf_selected_index]  # [N_selected]
+        assert np.array_equal(audio_seg_ids_selected, visual_seg_ids_selected), \
+            "Selected audio and visual samples must have matching segment IDs!"
+        
+        # Step 2: Concatenate audio and visual embeddings for joint clustering
+        joint_embeddings = np.concatenate([audio_embs_selected, visual_embs_selected], axis=1)  # [N_selected, D_audio + D_visual]
+        
+        # Perform spectral clustering on concatenated embeddings
+        joint_labels_raw = self.audio_cluster(joint_embeddings)  # Use audio cluster's SpectralCluster
+        joint_labels = reset_cluster_ids(joint_labels_raw)
+        
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[INFO] {current_time} Joint clustering completed for {len(joint_labels)} selected samples")
+        summary_cluster_results(joint_labels, modal_type='joint_selected')
+        
+        # Step 3: Extract single-modal labels for selected samples
+        alabels_selected = alabels[audio_selected_index]  # [N_selected]
+        vlabels_selected = vlabels_mf[visual_mf_selected_index]  # [N_selected]
+        
+        # Step 4: Process labels - mark clusters >= K as -1 (to focus on main clusters)
+        joint_labels_processed = np.where(joint_labels >= K, -1, joint_labels)
+        alabels_selected_processed = np.where(alabels_selected >= K, -1, alabels_selected)
+        vlabels_selected_processed = np.where(vlabels_selected >= K, -1, vlabels_selected)
+        
+        # Step 5: Establish mapping from single-modal labels to joint labels based on co-occurrence
+        # Get mappings from audio/visual to joint labels
+        audio_to_joint = self.get_label_mapping(alabels_selected_processed, joint_labels_processed)
+        visual_to_joint = self.get_label_mapping(vlabels_selected_processed, joint_labels_processed)
+        
+        print(f"[INFO] Audio to joint mapping: {audio_to_joint}")
+        print(f"[INFO] Visual to joint mapping: {visual_to_joint}")
+        
+        # Step 6: Remap single-modal labels according to joint labels, and restore original labels for -1
+        alabels_selected_mapped = np.array([audio_to_joint.get(label, label) for label in alabels_selected_processed])
+        vlabels_selected_mapped = np.array([visual_to_joint.get(label, label) for label in vlabels_selected_processed])
+        alabels_selected_mapped[alabels_selected_processed == -1] = alabels_selected[alabels_selected_processed == -1]
+        vlabels_selected_mapped[vlabels_selected_processed == -1] = vlabels_selected[vlabels_selected_processed == -1]
+        
+        # Step 7: Majority voting to determine final labels for selected samples
+        final_labels_selected = np.zeros(len(joint_labels), dtype=int)
+        for i in range(len(joint_labels)):
+            votes = [alabels_selected_mapped[i], vlabels_selected_mapped[i], joint_labels[i]]
+            # Count votes
+            unique_votes, vote_counts = np.unique(votes, return_counts=True)
+            # If there's a clear majority (>= 2 votes)
+            if np.max(vote_counts) >= 2:
+                final_labels_selected[i] = unique_votes[np.argmax(vote_counts)]
+            else:
+                # No majority - keep joint label
+                final_labels_selected[i] = joint_labels[i]
+        
+        summary_cluster_results(final_labels_selected, modal_type='joint_selected_voted')
+        
+        # Step 8: Create dictionaries for selected samples
+        joint_labels_dic = {seg_id: int(label) for seg_id, label in zip(audio_seg_ids_selected, final_labels_selected)}
+        
+        # Step 9: Extend to all samples using nearest neighbor
+        ## cluster-cluster level mapping(better in practice)
+        alabels_final = align_clusters2clusters(
+            alabels, final_labels_selected, audio_embeddings, audio_embeddings[audio_selected_index])
+        vlabels_mf_final = align_clusters2clusters(
+            vlabels_mf, final_labels_selected, visual_embeddings_mf, visual_embeddings_mf[visual_mf_selected_index])
+        # ## sample-cluster level mapping
+        # alabels_final = self.assign_labels_to_all_samples(
+        #     audio_embeddings, audio_selected_index, final_labels_selected)
+        # vlabels_mf_final = self.assign_labels_to_all_samples(
+        #     visual_embeddings_mf, visual_mf_selected_index, final_labels_selected)
+        
+        return alabels_final, vlabels_mf_final, joint_labels_dic
+    
+    def assign_labels_to_all_samples(self, all_embeddings, selected_index, final_labels_selected, align_cos_thr=0.5, unaligned_label=-3):
+        """
+        Assign final labels to all samples based on selected samples and their labels.
+        Unselected samples are assigned to the nearest cluster center using cosine similarity.
+        
+        Args:
+            all_embeddings (ndarray): All sample embeddings, shape [N, D]
+            selected_index (ndarray): Indices of selected samples, shape [N_selected]
+            final_labels_selected (ndarray): Final labels for selected samples, shape [N_selected]
+            align_cos_thr (float): Cosine similarity threshold for alignment. Default is 0.5.
+            unaligned_label (int): Label to assign to samples that do not meet the similarity threshold. Default is -3.
+        
+        Returns:
+            ndarray: Final labels for all samples, shape [N]
+        """
+        # Initialize labels_final
+        labels_final = np.zeros(len(all_embeddings), dtype=int)
+        
+        # Assign final labels to selected samples
+        labels_final[selected_index] = final_labels_selected
+        
+        # Compute centers of final clusters from selected samples
+        unique_final_labels = np.unique(final_labels_selected)
+        selected_embeddings = all_embeddings[selected_index]
+        centers = {}
+        for label in unique_final_labels:
+            centers[label] = selected_embeddings[final_labels_selected == label].mean(axis=0)
+        
+        # Assign unselected samples to nearest cluster
+        unselected_indices = np.where(~np.isin(np.arange(len(all_embeddings)), selected_index))[0]
+        if len(unselected_indices) > 0 and len(centers) > 0:
+            labels_array = np.array(sorted(centers.keys()))
+            centers_array = np.stack([centers[label] for label in labels_array])
+            
+            for idx in unselected_indices:
+                emb = all_embeddings[idx]
+                sim = cosine_similarity(emb.reshape(1, -1), centers_array)[0]
+                best_center_idx = np.argmax(sim)
+                if sim[best_center_idx] >= align_cos_thr:
+                    labels_final[idx] = labels_array[best_center_idx]
+                else:
+                    labels_final[idx] = unaligned_label  # Mark as unaligned if similarity is below threshold
+        
+        return labels_final
+
+    def get_label_mapping(self, source_labels, target_labels):
+        """
+        Map source labels to target labels based on co-occurrence count.
+        Uses Hungarian algorithm to find optimal assignment.
+        
+        Returns:
+            mapping_dict: {source_label: target_label} for labels > 0
+        """
+        # Only consider positive labels (exclude -1)
+        valid_mask = (source_labels >= 0) & (target_labels >= 0)
+        valid_source = source_labels[valid_mask]
+        valid_target = target_labels[valid_mask]
+        
+        if len(valid_source) == 0:
+            return {}
+        
+        # Build co-occurrence matrix
+        source_unique = np.unique(valid_source)
+        target_unique = np.unique(valid_target)
+        count_matrix = np.zeros((len(source_unique), len(target_unique)), dtype=int)
+        
+        source_to_idx = {label: idx for idx, label in enumerate(source_unique)}
+        target_to_idx = {label: idx for idx, label in enumerate(target_unique)}
+        
+        for s_label, t_label in zip(valid_source, valid_target):
+            count_matrix[source_to_idx[s_label], target_to_idx[t_label]] += 1
+        
+        # Use Hungarian algorithm for optimal assignment
+        row_ind, col_ind = linear_sum_assignment(-count_matrix)  # Maximize co-occurrence
+        
+        # Build mapping dictionary
+        mapping = {}
+        for i, j in zip(row_ind, col_ind):
+            if count_matrix[i, j] > 0:  # Only map if there's actual co-occurrence
+                mapping[source_unique[i]] = target_unique[j]
+        
+        return mapping
