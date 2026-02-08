@@ -24,10 +24,10 @@ master_port=29567  # 用于分布式训练的主节点端口号
 FFMPEG_PATH="/d/wangchen/useful_tools/ffmpeg/install/bin/ffmpeg.exe"
 
 # Baseline method selection
-use_baseline=false  # 是否使用baseline方法而非HMM方法
+use_baseline=true  # 是否使用baseline方法而非HMM方法
 
 # HMM平滑相关参数
-cluster_enhance_mode="hmm"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc", "joint", "sc_ahc" for baseline methods (Note: baseline methods should set use_baseline=true)
+cluster_enhance_mode="sc_ahc"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc", "joint", "sc_ahc" for baseline methods (Note: baseline methods should set use_baseline=true)
 fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
@@ -42,7 +42,7 @@ contrastive_test_interval=1  # 对比学习评估间隔
 contrastive_early_stop_patience=250  # 对比学习早停patience
 
 # Self-supervised learning parameters
-ft_flag=false  # 是否进行自监督微调
+ft_flag=true  # 是否进行自监督微调
 finetune_lr=0.001  # 微调学习率
 finetune_batch_size=64  # 微调batch size
 unfrozen_layers_num=2  # 未冻结层的数量
