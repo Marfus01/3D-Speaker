@@ -1,0 +1,17 @@
+overall_accuracy: 0.5015
+group_0_accuracy: 0.2381
+group_1_accuracy: 0.464
+group_2_accuracy: 0.537
+group_3_accuracy: 0.6032
+group_4_accuracy: 0.5714
+group_3&4_accuracy: 0.5964
+
+accuracy_Others: 0.6104
+accuracy_傅老: 0.6202
+accuracy_和平: 0.4419
+accuracy_志新: 0.5517
+accuracy_志国: 0.3291
+accuracy_圆圆: 0.5238
+accuracy_燕红: 0.2424
+accuracy_小张: 0.2
+accuracy_小凡: 0.2
