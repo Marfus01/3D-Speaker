@@ -789,6 +789,12 @@ def main():
     score_file.close()
     logger.info(f"Training completed. Best EER: {best_eer:.4f} at epoch {best_epoch}")
     
+    # save the last model
+    final_model_path = os.path.join(model_save_dir, f'model_epoch_{epoch:04d}.pth')
+    if not os.path.exists(final_model_path):
+        torch.save(speaker_model.state_dict(), final_model_path)
+    logger.info(f"Saved final model to {final_model_path}")
+    
     # Save final summary
     summary = {
         'best_epoch': best_epoch,

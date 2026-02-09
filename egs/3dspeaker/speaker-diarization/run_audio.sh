@@ -157,20 +157,20 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   mkdir -p "$exp/conf"
   cp "$conf_file" "$exp/conf/"
   
-  # Update speaker_pretrained_model to use the best contrastive model
-  speaker_pretrained_model_arg=()
+  # Update pretrained_model_arg to use the best contrastive model
+  pretrained_model_arg=()
   if [ "$contrastive_training_flag" = true ]; then
     echo "Contrastive learning training was performed in the previous stage."
     CONTRASTIVE_MODEL_PATH=$(find "$contrastive_result_dir/contrastive_models" -name "model_epoch_*.pth" -type f | sort -V | tail -1)
     if [ -f "$CONTRASTIVE_MODEL_PATH" ]; then
       echo "Using contrastive learning model: $CONTRASTIVE_MODEL_PATH"
-      speaker_pretrained_model_arg=(--speaker_pretrained_model "$CONTRASTIVE_MODEL_PATH")
+      pretrained_model_arg=(--pretrained_model "$CONTRASTIVE_MODEL_PATH")
     fi
   fi
 
   # Extract speaker embeddings
   torchrun --nproc_per_node=$nj --master_port $master_port local/extract_diar_embeddings.py \
-          --model_id $speaker_model_id "${speaker_pretrained_model_arg[@]}" --conf "$conf_file" \
+          --model_id $speaker_model_id "${pretrained_model_arg[@]}" --conf "$conf_file" \
           --subseg_ori_json "$json_dir/subseg_ori.json" --subseg_json "$json_dir/subseg.json" --embs_out "$embs_dir" --gpu $gpus --use_gpu
             
 fi
