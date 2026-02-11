@@ -1,0 +1,246 @@
+2026-02-08 23:54:11,354 - INFO: Arguments: Namespace(conf='conf/I love my family/diar_video.yaml', subseg_json='runs/I love my family/exp_video_contrastive/json/subseg.json', musan_path='/data/home/scv7387/run/tv_series_plus/dataset/musan_split', rir_filepath='/data/home/scv7387/run/tv_series_plus/dataset/rirs_noises/rir.npy', testEER_file='/data/home/scv7387/run/tv_series_plus/dataset/I love my family/annotation/audio_testEER.txt', result_dir='runs/I love my family/exp_video_contrastive/contrastive_learning', speaker_model_id='iic/speech_campplus_sv_zh-cn_3dspeaker_16k', speaker_pretrained_model=None, lr=1e-05, batch_size=128, max_dur=2.0, max_epochs=200, test_interval=1, early_stop_patience=200, use_gpu=True, gpu=['0'], seed=1234)
+2026-02-08 23:54:13,588 - INFO: Loading speaker model...
+2026-02-08 23:54:14,500 - INFO: Preparing training dataset...
+2026-02-08 23:58:29,572 - INFO: AAT components initialized
+2026-02-08 23:58:29,572 - INFO: AATNet parameters: 0.53M
+2026-02-08 23:58:29,573 - INFO: Starting contrastive learning training with AAT...
+2026-02-09 00:00:11,189 - INFO: 2026-02-09 00:00:11, Epoch 0, EER 33.9143, minDCF 0.956, 
+2026-02-09 00:03:58,091 - INFO: 2026-02-09 00:03:58, Epoch 1, LR 0.000010, Acc 95.94, LOSS 0.498029, EER 33.6000, minDCF 0.977, Train Time 147.81s, Eval Time 79.09s
+2026-02-09 00:03:58,226 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0001.pth
+2026-02-09 00:08:11,067 - INFO: 2026-02-09 00:08:11, Epoch 2, LR 0.000010, Acc 96.44, LOSS 0.284690, EER 33.2857, minDCF 0.993, Train Time 133.96s, Eval Time 118.87s
+2026-02-09 00:08:11,293 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0002.pth
+2026-02-09 00:11:38,871 - INFO: 2026-02-09 00:11:38, Epoch 3, LR 0.000010, Acc 96.98, LOSS 0.239026, EER 32.2571, minDCF 0.986, Train Time 125.00s, Eval Time 82.58s
+2026-02-09 00:11:39,038 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0003.pth
+2026-02-09 00:15:00,702 - INFO: 2026-02-09 00:15:00, Epoch 4, LR 0.000010, Acc 97.24, LOSS 0.221660, EER 32.0000, minDCF 0.974, Train Time 120.40s, Eval Time 81.26s
+2026-02-09 00:15:00,867 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0004.pth
+2026-02-09 00:18:16,703 - INFO: 2026-02-09 00:18:16, Epoch 5, LR 0.000010, Acc 97.52, LOSS 0.206456, EER 31.9143, minDCF 0.979, Train Time 116.54s, Eval Time 79.30s
+2026-02-09 00:18:16,844 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0005.pth
+2026-02-09 00:21:35,361 - INFO: 2026-02-09 00:21:35, Epoch 6, LR 0.000010, Acc 97.86, LOSS 0.192110, EER 32.0000, minDCF 0.974, Train Time 111.23s, Eval Time 87.28s
+2026-02-09 00:25:36,329 - INFO: 2026-02-09 00:25:36, Epoch 7, LR 0.000010, Acc 97.91, LOSS 0.185584, EER 31.8000, minDCF 0.981, Train Time 112.61s, Eval Time 128.36s
+2026-02-09 00:25:36,560 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0007.pth
+2026-02-09 00:28:57,646 - INFO: 2026-02-09 00:28:57, Epoch 8, LR 0.000010, Acc 98.12, LOSS 0.179026, EER 31.3143, minDCF 0.979, Train Time 111.42s, Eval Time 89.67s
+2026-02-09 00:28:57,847 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0008.pth
+2026-02-09 00:33:00,611 - INFO: 2026-02-09 00:33:00, Epoch 9, LR 0.000010, Acc 98.34, LOSS 0.171248, EER 31.8000, minDCF 0.986, Train Time 112.14s, Eval Time 130.62s
+2026-02-09 00:36:17,191 - INFO: 2026-02-09 00:36:17, Epoch 10, LR 0.000010, Acc 98.37, LOSS 0.166405, EER 31.6286, minDCF 0.986, Train Time 112.08s, Eval Time 84.50s
+2026-02-09 00:39:33,930 - INFO: 2026-02-09 00:39:33, Epoch 11, LR 0.000010, Acc 98.59, LOSS 0.159434, EER 31.6286, minDCF 0.983, Train Time 111.81s, Eval Time 84.92s
+2026-02-09 00:42:49,472 - INFO: 2026-02-09 00:42:49, Epoch 12, LR 0.000010, Acc 98.60, LOSS 0.154577, EER 31.4571, minDCF 0.981, Train Time 110.94s, Eval Time 84.60s
+2026-02-09 00:46:04,466 - INFO: 2026-02-09 00:46:04, Epoch 13, LR 0.000010, Acc 98.66, LOSS 0.151719, EER 31.5714, minDCF 0.985, Train Time 111.63s, Eval Time 83.36s
+2026-02-09 00:49:20,244 - INFO: 2026-02-09 00:49:20, Epoch 14, LR 0.000010, Acc 98.85, LOSS 0.145252, EER 30.7429, minDCF 0.981, Train Time 111.13s, Eval Time 84.65s
+2026-02-09 00:49:20,444 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0014.pth
+2026-02-09 00:52:34,195 - INFO: 2026-02-09 00:52:34, Epoch 15, LR 0.000010, Acc 98.78, LOSS 0.143671, EER 30.7714, minDCF 0.982, Train Time 111.13s, Eval Time 82.62s
+2026-02-09 00:55:49,051 - INFO: 2026-02-09 00:55:49, Epoch 16, LR 0.000010, Acc 98.90, LOSS 0.139883, EER 30.7714, minDCF 0.983, Train Time 111.30s, Eval Time 83.56s
+2026-02-09 00:59:19,058 - INFO: 2026-02-09 00:59:19, Epoch 17, LR 0.000010, Acc 99.04, LOSS 0.131455, EER 30.4286, minDCF 0.978, Train Time 111.00s, Eval Time 99.00s
+2026-02-09 00:59:19,211 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0017.pth
+2026-02-09 01:02:37,125 - INFO: 2026-02-09 01:02:37, Epoch 18, LR 0.000010, Acc 99.12, LOSS 0.130830, EER 30.3143, minDCF 0.986, Train Time 111.08s, Eval Time 86.83s
+2026-02-09 01:02:37,267 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0018.pth
+2026-02-09 01:05:52,756 - INFO: 2026-02-09 01:05:52, Epoch 19, LR 0.000010, Acc 99.08, LOSS 0.128585, EER 30.0571, minDCF 0.980, Train Time 111.03s, Eval Time 84.46s
+2026-02-09 01:05:52,911 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0019.pth
+2026-02-09 01:09:07,848 - INFO: 2026-02-09 01:09:07, Epoch 20, LR 0.000010, Acc 99.18, LOSS 0.126012, EER 30.4857, minDCF 0.981, Train Time 111.39s, Eval Time 83.54s
+2026-02-09 01:12:25,335 - INFO: 2026-02-09 01:12:25, Epoch 21, LR 0.000010, Acc 99.20, LOSS 0.124995, EER 29.8571, minDCF 0.981, Train Time 111.01s, Eval Time 86.48s
+2026-02-09 01:12:25,507 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0021.pth
+2026-02-09 01:15:38,287 - INFO: 2026-02-09 01:15:38, Epoch 22, LR 0.000010, Acc 99.33, LOSS 0.116743, EER 30.3714, minDCF 0.989, Train Time 110.80s, Eval Time 81.97s
+2026-02-09 01:18:53,383 - INFO: 2026-02-09 01:18:53, Epoch 23, LR 0.000010, Acc 99.28, LOSS 0.119559, EER 30.0571, minDCF 0.985, Train Time 110.78s, Eval Time 84.32s
+2026-02-09 01:22:06,198 - INFO: 2026-02-09 01:22:06, Epoch 24, LR 0.000010, Acc 99.39, LOSS 0.112914, EER 29.7714, minDCF 0.986, Train Time 111.00s, Eval Time 81.81s
+2026-02-09 01:22:06,337 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0024.pth
+2026-02-09 01:25:18,205 - INFO: 2026-02-09 01:25:18, Epoch 25, LR 0.000010, Acc 99.40, LOSS 0.112109, EER 29.9429, minDCF 0.983, Train Time 110.99s, Eval Time 80.88s
+2026-02-09 01:28:29,807 - INFO: 2026-02-09 01:28:29, Epoch 26, LR 0.000010, Acc 99.37, LOSS 0.111158, EER 29.7714, minDCF 0.989, Train Time 110.72s, Eval Time 80.88s
+2026-02-09 01:31:46,178 - INFO: 2026-02-09 01:31:46, Epoch 27, LR 0.000010, Acc 99.43, LOSS 0.108506, EER 29.7429, minDCF 0.985, Train Time 111.06s, Eval Time 85.31s
+2026-02-09 01:31:46,319 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0027.pth
+2026-02-09 01:34:58,891 - INFO: 2026-02-09 01:34:58, Epoch 28, LR 0.000010, Acc 99.45, LOSS 0.106944, EER 29.2571, minDCF 0.988, Train Time 110.67s, Eval Time 81.90s
+2026-02-09 01:34:59,031 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0028.pth
+2026-02-09 01:38:14,574 - INFO: 2026-02-09 01:38:14, Epoch 29, LR 0.000010, Acc 99.41, LOSS 0.105236, EER 29.6857, minDCF 0.988, Train Time 110.73s, Eval Time 84.81s
+2026-02-09 01:41:28,883 - INFO: 2026-02-09 01:41:28, Epoch 30, LR 0.000010, Acc 99.40, LOSS 0.106246, EER 29.2000, minDCF 0.986, Train Time 110.78s, Eval Time 83.53s
+2026-02-09 01:41:29,239 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0030.pth
+2026-02-09 01:44:44,815 - INFO: 2026-02-09 01:44:44, Epoch 31, LR 0.000010, Acc 99.43, LOSS 0.103118, EER 29.0571, minDCF 0.987, Train Time 110.82s, Eval Time 84.76s
+2026-02-09 01:44:44,955 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0031.pth
+2026-02-09 01:48:01,617 - INFO: 2026-02-09 01:48:01, Epoch 32, LR 0.000010, Acc 99.51, LOSS 0.102947, EER 29.0286, minDCF 0.986, Train Time 110.90s, Eval Time 85.76s
+2026-02-09 01:48:01,762 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0032.pth
+2026-02-09 01:51:17,387 - INFO: 2026-02-09 01:51:17, Epoch 33, LR 0.000010, Acc 99.61, LOSS 0.096629, EER 28.9714, minDCF 0.990, Train Time 110.96s, Eval Time 84.67s
+2026-02-09 01:51:17,529 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0033.pth
+2026-02-09 01:54:32,101 - INFO: 2026-02-09 01:54:32, Epoch 34, LR 0.000010, Acc 99.59, LOSS 0.096608, EER 28.8571, minDCF 0.983, Train Time 110.99s, Eval Time 83.58s
+2026-02-09 01:54:32,240 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0034.pth
+2026-02-09 01:57:48,592 - INFO: 2026-02-09 01:57:48, Epoch 35, LR 0.000010, Acc 99.59, LOSS 0.098060, EER 28.9714, minDCF 0.984, Train Time 110.73s, Eval Time 85.63s
+2026-02-09 02:01:04,773 - INFO: 2026-02-09 02:01:04, Epoch 36, LR 0.000010, Acc 99.60, LOSS 0.093764, EER 29.1143, minDCF 0.987, Train Time 110.85s, Eval Time 85.33s
+2026-02-09 02:04:26,961 - INFO: 2026-02-09 02:04:26, Epoch 37, LR 0.000010, Acc 99.72, LOSS 0.091791, EER 28.8286, minDCF 0.986, Train Time 111.01s, Eval Time 91.18s
+2026-02-09 02:04:27,120 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0037.pth
+2026-02-09 02:07:45,028 - INFO: 2026-02-09 02:07:45, Epoch 38, LR 0.000010, Acc 99.60, LOSS 0.092304, EER 28.6286, minDCF 0.985, Train Time 110.86s, Eval Time 87.05s
+2026-02-09 02:07:45,173 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0038.pth
+2026-02-09 02:11:04,184 - INFO: 2026-02-09 02:11:04, Epoch 39, LR 0.000010, Acc 99.63, LOSS 0.091839, EER 28.6286, minDCF 0.982, Train Time 111.05s, Eval Time 87.96s
+2026-02-09 02:14:20,829 - INFO: 2026-02-09 02:14:20, Epoch 40, LR 0.000010, Acc 99.60, LOSS 0.091655, EER 28.4857, minDCF 0.991, Train Time 111.46s, Eval Time 85.19s
+2026-02-09 02:14:20,985 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0040.pth
+2026-02-09 02:17:37,018 - INFO: 2026-02-09 02:17:37, Epoch 41, LR 0.000010, Acc 99.69, LOSS 0.087205, EER 28.9429, minDCF 0.992, Train Time 110.83s, Eval Time 85.20s
+2026-02-09 02:20:54,285 - INFO: 2026-02-09 02:20:54, Epoch 42, LR 0.000010, Acc 99.78, LOSS 0.085029, EER 29.1143, minDCF 0.987, Train Time 110.73s, Eval Time 86.53s
+2026-02-09 02:24:09,741 - INFO: 2026-02-09 02:24:09, Epoch 43, LR 0.000010, Acc 99.66, LOSS 0.088550, EER 28.6000, minDCF 0.989, Train Time 111.02s, Eval Time 84.44s
+2026-02-09 02:27:28,074 - INFO: 2026-02-09 02:27:28, Epoch 44, LR 0.000010, Acc 99.75, LOSS 0.082877, EER 28.6571, minDCF 0.992, Train Time 110.94s, Eval Time 87.39s
+2026-02-09 02:30:44,800 - INFO: 2026-02-09 02:30:44, Epoch 45, LR 0.000010, Acc 99.70, LOSS 0.081802, EER 28.5714, minDCF 0.994, Train Time 110.85s, Eval Time 85.87s
+2026-02-09 02:34:00,236 - INFO: 2026-02-09 02:34:00, Epoch 46, LR 0.000010, Acc 99.71, LOSS 0.080693, EER 28.7714, minDCF 0.994, Train Time 110.84s, Eval Time 84.60s
+2026-02-09 02:37:14,839 - INFO: 2026-02-09 02:37:14, Epoch 47, LR 0.000010, Acc 99.73, LOSS 0.081773, EER 28.9143, minDCF 0.994, Train Time 110.84s, Eval Time 83.76s
+2026-02-09 02:40:33,215 - INFO: 2026-02-09 02:40:33, Epoch 48, LR 0.000010, Acc 99.69, LOSS 0.081259, EER 28.5714, minDCF 0.990, Train Time 110.96s, Eval Time 87.41s
+2026-02-09 02:43:49,619 - INFO: 2026-02-09 02:43:49, Epoch 49, LR 0.000010, Acc 99.73, LOSS 0.079708, EER 28.6571, minDCF 0.991, Train Time 110.80s, Eval Time 85.61s
+2026-02-09 02:47:06,668 - INFO: 2026-02-09 02:47:06, Epoch 50, LR 0.000010, Acc 99.72, LOSS 0.079336, EER 28.4000, minDCF 0.988, Train Time 111.15s, Eval Time 85.90s
+2026-02-09 02:47:06,824 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0050.pth
+2026-02-09 02:50:23,333 - INFO: 2026-02-09 02:50:23, Epoch 51, LR 0.000010, Acc 99.78, LOSS 0.078137, EER 28.8000, minDCF 0.985, Train Time 110.86s, Eval Time 85.65s
+2026-02-09 02:53:40,182 - INFO: 2026-02-09 02:53:40, Epoch 52, LR 0.000010, Acc 99.75, LOSS 0.077268, EER 28.2571, minDCF 0.985, Train Time 110.90s, Eval Time 85.95s
+2026-02-09 02:53:40,322 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0052.pth
+2026-02-09 02:56:57,982 - INFO: 2026-02-09 02:56:57, Epoch 53, LR 0.000010, Acc 99.72, LOSS 0.077126, EER 28.3429, minDCF 0.989, Train Time 111.21s, Eval Time 86.45s
+2026-02-09 03:00:16,383 - INFO: 2026-02-09 03:00:16, Epoch 54, LR 0.000010, Acc 99.79, LOSS 0.074566, EER 28.6571, minDCF 0.988, Train Time 111.08s, Eval Time 87.32s
+2026-02-09 03:03:30,484 - INFO: 2026-02-09 03:03:30, Epoch 55, LR 0.000010, Acc 99.78, LOSS 0.075736, EER 28.5143, minDCF 0.991, Train Time 110.80s, Eval Time 83.30s
+2026-02-09 03:06:45,728 - INFO: 2026-02-09 03:06:45, Epoch 56, LR 0.000010, Acc 99.80, LOSS 0.073814, EER 28.2571, minDCF 0.991, Train Time 110.85s, Eval Time 84.39s
+2026-02-09 03:10:09,667 - INFO: 2026-02-09 03:10:09, Epoch 57, LR 0.000010, Acc 99.74, LOSS 0.073385, EER 28.1429, minDCF 0.989, Train Time 111.02s, Eval Time 92.92s
+2026-02-09 03:10:09,816 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0057.pth
+2026-02-09 03:13:27,871 - INFO: 2026-02-09 03:13:27, Epoch 58, LR 0.000010, Acc 99.80, LOSS 0.071570, EER 28.1143, minDCF 0.988, Train Time 111.36s, Eval Time 86.69s
+2026-02-09 03:13:28,163 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0058.pth
+2026-02-09 03:16:46,533 - INFO: 2026-02-09 03:16:46, Epoch 59, LR 0.000010, Acc 99.78, LOSS 0.072351, EER 28.6286, minDCF 0.988, Train Time 110.89s, Eval Time 87.48s
+2026-02-09 03:20:06,193 - INFO: 2026-02-09 03:20:06, Epoch 60, LR 0.000010, Acc 99.80, LOSS 0.069457, EER 28.5143, minDCF 0.984, Train Time 111.00s, Eval Time 88.66s
+2026-02-09 03:23:24,068 - INFO: 2026-02-09 03:23:24, Epoch 61, LR 0.000010, Acc 99.84, LOSS 0.070347, EER 28.4571, minDCF 0.988, Train Time 111.16s, Eval Time 86.71s
+2026-02-09 03:26:44,525 - INFO: 2026-02-09 03:26:44, Epoch 62, LR 0.000010, Acc 99.81, LOSS 0.068629, EER 28.1143, minDCF 0.988, Train Time 111.17s, Eval Time 89.29s
+2026-02-09 03:30:01,853 - INFO: 2026-02-09 03:30:01, Epoch 63, LR 0.000010, Acc 99.82, LOSS 0.068360, EER 27.9143, minDCF 0.981, Train Time 111.27s, Eval Time 86.06s
+2026-02-09 03:30:02,225 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0063.pth
+2026-02-09 03:33:17,448 - INFO: 2026-02-09 03:33:17, Epoch 64, LR 0.000010, Acc 99.83, LOSS 0.068631, EER 27.8571, minDCF 0.988, Train Time 111.04s, Eval Time 84.18s
+2026-02-09 03:33:17,592 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0064.pth
+2026-02-09 03:36:34,200 - INFO: 2026-02-09 03:36:34, Epoch 65, LR 0.000010, Acc 99.83, LOSS 0.068087, EER 28.7714, minDCF 0.986, Train Time 111.12s, Eval Time 85.49s
+2026-02-09 03:39:49,218 - INFO: 2026-02-09 03:39:49, Epoch 66, LR 0.000010, Acc 99.86, LOSS 0.065410, EER 28.3429, minDCF 0.983, Train Time 110.83s, Eval Time 84.19s
+2026-02-09 03:43:07,001 - INFO: 2026-02-09 03:43:06, Epoch 67, LR 0.000010, Acc 99.83, LOSS 0.066545, EER 28.0857, minDCF 0.986, Train Time 111.30s, Eval Time 86.48s
+2026-02-09 03:46:27,915 - INFO: 2026-02-09 03:46:27, Epoch 68, LR 0.000010, Acc 99.84, LOSS 0.064057, EER 28.0857, minDCF 0.984, Train Time 110.79s, Eval Time 90.13s
+2026-02-09 03:49:44,640 - INFO: 2026-02-09 03:49:44, Epoch 69, LR 0.000010, Acc 99.86, LOSS 0.062996, EER 28.2286, minDCF 0.990, Train Time 111.03s, Eval Time 85.70s
+2026-02-09 03:53:00,119 - INFO: 2026-02-09 03:53:00, Epoch 70, LR 0.000010, Acc 99.88, LOSS 0.064266, EER 28.0857, minDCF 0.988, Train Time 110.89s, Eval Time 84.59s
+2026-02-09 03:56:22,268 - INFO: 2026-02-09 03:56:22, Epoch 71, LR 0.000010, Acc 99.86, LOSS 0.062225, EER 28.6571, minDCF 0.990, Train Time 111.03s, Eval Time 91.12s
+2026-02-09 03:59:37,151 - INFO: 2026-02-09 03:59:37, Epoch 72, LR 0.000010, Acc 99.91, LOSS 0.062303, EER 28.0571, minDCF 0.987, Train Time 110.84s, Eval Time 84.04s
+2026-02-09 04:03:31,516 - INFO: 2026-02-09 04:03:31, Epoch 73, LR 0.000010, Acc 99.85, LOSS 0.062703, EER 28.2571, minDCF 0.989, Train Time 110.75s, Eval Time 123.61s
+2026-02-09 04:06:46,537 - INFO: 2026-02-09 04:06:46, Epoch 74, LR 0.000010, Acc 99.89, LOSS 0.062301, EER 28.0571, minDCF 0.987, Train Time 110.97s, Eval Time 84.05s
+2026-02-09 04:09:59,881 - INFO: 2026-02-09 04:09:59, Epoch 75, LR 0.000010, Acc 99.89, LOSS 0.062037, EER 28.1714, minDCF 0.988, Train Time 110.96s, Eval Time 82.38s
+2026-02-09 04:13:13,976 - INFO: 2026-02-09 04:13:13, Epoch 76, LR 0.000010, Acc 99.89, LOSS 0.060840, EER 28.2571, minDCF 0.987, Train Time 111.26s, Eval Time 82.84s
+2026-02-09 04:16:39,417 - INFO: 2026-02-09 04:16:39, Epoch 77, LR 0.000010, Acc 99.91, LOSS 0.060543, EER 27.6857, minDCF 0.987, Train Time 111.13s, Eval Time 94.31s
+2026-02-09 04:16:39,579 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0077.pth
+2026-02-09 04:19:55,953 - INFO: 2026-02-09 04:19:55, Epoch 78, LR 0.000010, Acc 99.92, LOSS 0.059587, EER 27.9714, minDCF 0.985, Train Time 110.92s, Eval Time 85.45s
+2026-02-09 04:23:11,921 - INFO: 2026-02-09 04:23:11, Epoch 79, LR 0.000010, Acc 99.91, LOSS 0.058404, EER 28.1714, minDCF 0.989, Train Time 111.01s, Eval Time 84.96s
+2026-02-09 04:26:30,874 - INFO: 2026-02-09 04:26:30, Epoch 80, LR 0.000010, Acc 99.90, LOSS 0.058578, EER 28.1143, minDCF 0.985, Train Time 111.17s, Eval Time 87.78s
+2026-02-09 04:29:46,619 - INFO: 2026-02-09 04:29:46, Epoch 81, LR 0.000010, Acc 99.91, LOSS 0.058567, EER 27.8286, minDCF 0.987, Train Time 111.33s, Eval Time 84.41s
+2026-02-09 04:33:04,222 - INFO: 2026-02-09 04:33:04, Epoch 82, LR 0.000010, Acc 99.85, LOSS 0.058258, EER 27.7714, minDCF 0.987, Train Time 110.82s, Eval Time 86.78s
+2026-02-09 04:36:57,846 - INFO: 2026-02-09 04:36:57, Epoch 83, LR 0.000010, Acc 99.89, LOSS 0.058020, EER 27.5143, minDCF 0.987, Train Time 110.82s, Eval Time 122.80s
+2026-02-09 04:36:58,171 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0083.pth
+2026-02-09 04:40:44,042 - INFO: 2026-02-09 04:40:44, Epoch 84, LR 0.000010, Acc 99.89, LOSS 0.057666, EER 27.8000, minDCF 0.985, Train Time 110.93s, Eval Time 114.94s
+2026-02-09 04:44:00,547 - INFO: 2026-02-09 04:44:00, Epoch 85, LR 0.000010, Acc 99.90, LOSS 0.056750, EER 27.6286, minDCF 0.982, Train Time 111.02s, Eval Time 85.48s
+2026-02-09 04:47:16,676 - INFO: 2026-02-09 04:47:16, Epoch 86, LR 0.000010, Acc 99.91, LOSS 0.056119, EER 27.7429, minDCF 0.989, Train Time 111.14s, Eval Time 84.99s
+2026-02-09 04:50:31,747 - INFO: 2026-02-09 04:50:31, Epoch 87, LR 0.000010, Acc 99.92, LOSS 0.055021, EER 28.0571, minDCF 0.988, Train Time 110.84s, Eval Time 84.23s
+2026-02-09 04:53:46,002 - INFO: 2026-02-09 04:53:46, Epoch 88, LR 0.000010, Acc 99.92, LOSS 0.053331, EER 28.1143, minDCF 0.990, Train Time 110.98s, Eval Time 83.28s
+2026-02-09 04:57:12,148 - INFO: 2026-02-09 04:57:12, Epoch 89, LR 0.000010, Acc 99.92, LOSS 0.055815, EER 28.0571, minDCF 0.990, Train Time 110.86s, Eval Time 95.29s
+2026-02-09 05:00:30,435 - INFO: 2026-02-09 05:00:30, Epoch 90, LR 0.000010, Acc 99.93, LOSS 0.054761, EER 27.8857, minDCF 0.987, Train Time 111.16s, Eval Time 87.13s
+2026-02-09 05:03:47,548 - INFO: 2026-02-09 05:03:47, Epoch 91, LR 0.000010, Acc 99.92, LOSS 0.053692, EER 27.6857, minDCF 0.986, Train Time 110.80s, Eval Time 86.31s
+2026-02-09 05:07:04,146 - INFO: 2026-02-09 05:07:04, Epoch 92, LR 0.000010, Acc 99.93, LOSS 0.054047, EER 27.7714, minDCF 0.987, Train Time 111.22s, Eval Time 85.38s
+2026-02-09 05:10:20,042 - INFO: 2026-02-09 05:10:20, Epoch 93, LR 0.000010, Acc 99.95, LOSS 0.051369, EER 27.9429, minDCF 0.986, Train Time 111.14s, Eval Time 84.75s
+2026-02-09 05:13:46,782 - INFO: 2026-02-09 05:13:46, Epoch 94, LR 0.000010, Acc 99.94, LOSS 0.051956, EER 27.6857, minDCF 0.990, Train Time 110.93s, Eval Time 95.81s
+2026-02-09 05:17:02,688 - INFO: 2026-02-09 05:17:02, Epoch 95, LR 0.000010, Acc 99.93, LOSS 0.052452, EER 27.9429, minDCF 0.988, Train Time 110.89s, Eval Time 85.02s
+2026-02-09 05:20:42,708 - INFO: 2026-02-09 05:20:42, Epoch 96, LR 0.000010, Acc 99.94, LOSS 0.050876, EER 28.0857, minDCF 0.989, Train Time 111.08s, Eval Time 108.94s
+2026-02-09 05:24:04,109 - INFO: 2026-02-09 05:24:04, Epoch 97, LR 0.000010, Acc 99.96, LOSS 0.050272, EER 27.7429, minDCF 0.985, Train Time 110.77s, Eval Time 90.62s
+2026-02-09 05:27:20,329 - INFO: 2026-02-09 05:27:20, Epoch 98, LR 0.000010, Acc 99.92, LOSS 0.050975, EER 28.0571, minDCF 0.985, Train Time 111.12s, Eval Time 85.10s
+2026-02-09 05:30:38,576 - INFO: 2026-02-09 05:30:38, Epoch 99, LR 0.000010, Acc 99.90, LOSS 0.051295, EER 28.0857, minDCF 0.982, Train Time 110.90s, Eval Time 87.34s
+2026-02-09 05:33:54,683 - INFO: 2026-02-09 05:33:54, Epoch 100, LR 0.000010, Acc 99.91, LOSS 0.051307, EER 27.8286, minDCF 0.989, Train Time 110.70s, Eval Time 85.40s
+2026-02-09 05:37:08,968 - INFO: 2026-02-09 05:37:08, Epoch 101, LR 0.000010, Acc 99.93, LOSS 0.050158, EER 27.6857, minDCF 0.984, Train Time 110.74s, Eval Time 83.54s
+2026-02-09 05:40:24,461 - INFO: 2026-02-09 05:40:24, Epoch 102, LR 0.000010, Acc 99.95, LOSS 0.049032, EER 27.6000, minDCF 0.984, Train Time 110.85s, Eval Time 84.64s
+2026-02-09 05:43:37,219 - INFO: 2026-02-09 05:43:37, Epoch 103, LR 0.000010, Acc 99.93, LOSS 0.049162, EER 27.6000, minDCF 0.987, Train Time 110.94s, Eval Time 81.82s
+2026-02-09 05:46:52,674 - INFO: 2026-02-09 05:46:52, Epoch 104, LR 0.000010, Acc 99.92, LOSS 0.049489, EER 27.5429, minDCF 0.987, Train Time 110.71s, Eval Time 84.74s
+2026-02-09 05:50:08,210 - INFO: 2026-02-09 05:50:08, Epoch 105, LR 0.000010, Acc 99.92, LOSS 0.049094, EER 27.6857, minDCF 0.983, Train Time 110.65s, Eval Time 84.88s
+2026-02-09 05:53:24,502 - INFO: 2026-02-09 05:53:24, Epoch 106, LR 0.000010, Acc 99.94, LOSS 0.048308, EER 27.8286, minDCF 0.986, Train Time 110.74s, Eval Time 85.55s
+2026-02-09 05:56:43,902 - INFO: 2026-02-09 05:56:43, Epoch 107, LR 0.000010, Acc 99.95, LOSS 0.047766, EER 27.5143, minDCF 0.984, Train Time 110.76s, Eval Time 88.63s
+2026-02-09 05:59:59,573 - INFO: 2026-02-09 05:59:59, Epoch 108, LR 0.000010, Acc 99.92, LOSS 0.047514, EER 27.7429, minDCF 0.988, Train Time 111.14s, Eval Time 84.53s
+2026-02-09 06:03:16,884 - INFO: 2026-02-09 06:03:16, Epoch 109, LR 0.000010, Acc 99.95, LOSS 0.047930, EER 27.6857, minDCF 0.987, Train Time 110.71s, Eval Time 86.60s
+2026-02-09 06:06:31,824 - INFO: 2026-02-09 06:06:31, Epoch 110, LR 0.000010, Acc 99.95, LOSS 0.047664, EER 27.5429, minDCF 0.983, Train Time 110.90s, Eval Time 84.04s
+2026-02-09 06:09:45,334 - INFO: 2026-02-09 06:09:45, Epoch 111, LR 0.000010, Acc 99.94, LOSS 0.047051, EER 27.7429, minDCF 0.985, Train Time 110.87s, Eval Time 82.63s
+2026-02-09 06:13:03,982 - INFO: 2026-02-09 06:13:03, Epoch 112, LR 0.000010, Acc 99.96, LOSS 0.046657, EER 27.6286, minDCF 0.987, Train Time 110.76s, Eval Time 87.89s
+2026-02-09 06:16:19,921 - INFO: 2026-02-09 06:16:19, Epoch 113, LR 0.000010, Acc 99.93, LOSS 0.047074, EER 27.5429, minDCF 0.986, Train Time 111.13s, Eval Time 84.81s
+2026-02-09 06:19:33,623 - INFO: 2026-02-09 06:19:33, Epoch 114, LR 0.000010, Acc 99.95, LOSS 0.046317, EER 27.9143, minDCF 0.989, Train Time 110.93s, Eval Time 82.77s
+2026-02-09 06:22:48,879 - INFO: 2026-02-09 06:22:48, Epoch 115, LR 0.000010, Acc 99.95, LOSS 0.044745, EER 27.5429, minDCF 0.988, Train Time 110.82s, Eval Time 84.44s
+2026-02-09 06:26:05,635 - INFO: 2026-02-09 06:26:05, Epoch 116, LR 0.000010, Acc 99.96, LOSS 0.044575, EER 27.7714, minDCF 0.985, Train Time 111.26s, Eval Time 85.50s
+2026-02-09 06:29:27,370 - INFO: 2026-02-09 06:29:27, Epoch 117, LR 0.000010, Acc 99.94, LOSS 0.044823, EER 27.7714, minDCF 0.985, Train Time 110.70s, Eval Time 91.03s
+2026-02-09 06:32:54,472 - INFO: 2026-02-09 06:32:54, Epoch 118, LR 0.000010, Acc 99.97, LOSS 0.044815, EER 27.7143, minDCF 0.987, Train Time 110.97s, Eval Time 96.13s
+2026-02-09 06:36:10,417 - INFO: 2026-02-09 06:36:10, Epoch 119, LR 0.000010, Acc 99.97, LOSS 0.044451, EER 27.4286, minDCF 0.987, Train Time 110.90s, Eval Time 85.04s
+2026-02-09 06:36:10,725 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0119.pth
+2026-02-09 06:39:27,104 - INFO: 2026-02-09 06:39:27, Epoch 120, LR 0.000010, Acc 99.94, LOSS 0.044566, EER 27.9143, minDCF 0.984, Train Time 110.70s, Eval Time 85.68s
+2026-02-09 06:42:42,342 - INFO: 2026-02-09 06:42:42, Epoch 121, LR 0.000010, Acc 99.97, LOSS 0.043546, EER 27.8000, minDCF 0.984, Train Time 110.71s, Eval Time 84.53s
+2026-02-09 06:45:59,048 - INFO: 2026-02-09 06:45:59, Epoch 122, LR 0.000010, Acc 99.94, LOSS 0.043671, EER 27.4571, minDCF 0.985, Train Time 110.95s, Eval Time 85.76s
+2026-02-09 06:49:14,250 - INFO: 2026-02-09 06:49:14, Epoch 123, LR 0.000010, Acc 99.97, LOSS 0.042892, EER 27.3714, minDCF 0.987, Train Time 110.73s, Eval Time 84.47s
+2026-02-09 06:49:14,410 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0123.pth
+2026-02-09 06:52:27,644 - INFO: 2026-02-09 06:52:27, Epoch 124, LR 0.000010, Acc 99.96, LOSS 0.042859, EER 27.6857, minDCF 0.984, Train Time 110.79s, Eval Time 82.44s
+2026-02-09 06:55:44,040 - INFO: 2026-02-09 06:55:44, Epoch 125, LR 0.000010, Acc 99.96, LOSS 0.041610, EER 27.4000, minDCF 0.989, Train Time 110.87s, Eval Time 85.53s
+2026-02-09 06:59:01,197 - INFO: 2026-02-09 06:59:01, Epoch 126, LR 0.000010, Acc 99.96, LOSS 0.042805, EER 27.2000, minDCF 0.984, Train Time 110.96s, Eval Time 86.20s
+2026-02-09 06:59:01,337 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0126.pth
+2026-02-09 07:02:18,789 - INFO: 2026-02-09 07:02:18, Epoch 127, LR 0.000010, Acc 99.95, LOSS 0.042422, EER 27.3714, minDCF 0.987, Train Time 111.22s, Eval Time 86.23s
+2026-02-09 07:05:34,042 - INFO: 2026-02-09 07:05:34, Epoch 128, LR 0.000010, Acc 99.96, LOSS 0.041877, EER 27.7714, minDCF 0.990, Train Time 110.70s, Eval Time 84.55s
+2026-02-09 07:08:50,977 - INFO: 2026-02-09 07:08:50, Epoch 129, LR 0.000010, Acc 99.97, LOSS 0.042841, EER 27.1429, minDCF 0.987, Train Time 110.90s, Eval Time 86.03s
+2026-02-09 07:08:51,120 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0129.pth
+2026-02-09 07:12:08,434 - INFO: 2026-02-09 07:12:08, Epoch 130, LR 0.000010, Acc 99.98, LOSS 0.040908, EER 27.1714, minDCF 0.987, Train Time 110.79s, Eval Time 86.53s
+2026-02-09 07:15:24,046 - INFO: 2026-02-09 07:15:24, Epoch 131, LR 0.000010, Acc 99.95, LOSS 0.042792, EER 27.7429, minDCF 0.989, Train Time 110.70s, Eval Time 84.91s
+2026-02-09 07:18:44,112 - INFO: 2026-02-09 07:18:44, Epoch 132, LR 0.000010, Acc 99.98, LOSS 0.041452, EER 27.2571, minDCF 0.985, Train Time 110.87s, Eval Time 89.20s
+2026-02-09 07:21:59,477 - INFO: 2026-02-09 07:21:59, Epoch 133, LR 0.000010, Acc 99.95, LOSS 0.040326, EER 27.5143, minDCF 0.990, Train Time 111.58s, Eval Time 83.78s
+2026-02-09 07:25:13,397 - INFO: 2026-02-09 07:25:13, Epoch 134, LR 0.000010, Acc 99.97, LOSS 0.041384, EER 27.6571, minDCF 0.985, Train Time 110.95s, Eval Time 82.96s
+2026-02-09 07:28:27,851 - INFO: 2026-02-09 07:28:27, Epoch 135, LR 0.000010, Acc 99.96, LOSS 0.040244, EER 27.4000, minDCF 0.987, Train Time 110.68s, Eval Time 83.78s
+2026-02-09 07:31:42,435 - INFO: 2026-02-09 07:31:42, Epoch 136, LR 0.000010, Acc 99.98, LOSS 0.041053, EER 27.3714, minDCF 0.988, Train Time 110.88s, Eval Time 83.70s
+2026-02-09 07:35:03,716 - INFO: 2026-02-09 07:35:03, Epoch 137, LR 0.000010, Acc 99.96, LOSS 0.040712, EER 27.3143, minDCF 0.987, Train Time 111.09s, Eval Time 90.19s
+2026-02-09 07:38:27,297 - INFO: 2026-02-09 07:38:27, Epoch 138, LR 0.000010, Acc 99.98, LOSS 0.040166, EER 27.6571, minDCF 0.985, Train Time 110.90s, Eval Time 92.68s
+2026-02-09 07:41:48,261 - INFO: 2026-02-09 07:41:48, Epoch 139, LR 0.000010, Acc 99.97, LOSS 0.039462, EER 27.4571, minDCF 0.981, Train Time 110.84s, Eval Time 90.12s
+2026-02-09 07:45:06,859 - INFO: 2026-02-09 07:45:06, Epoch 140, LR 0.000010, Acc 99.97, LOSS 0.039984, EER 27.2571, minDCF 0.986, Train Time 111.19s, Eval Time 87.40s
+2026-02-09 07:48:25,817 - INFO: 2026-02-09 07:48:25, Epoch 141, LR 0.000010, Acc 99.97, LOSS 0.039916, EER 27.6286, minDCF 0.989, Train Time 111.28s, Eval Time 87.67s
+2026-02-09 07:51:48,065 - INFO: 2026-02-09 07:51:48, Epoch 142, LR 0.000010, Acc 99.98, LOSS 0.039155, EER 27.7143, minDCF 0.985, Train Time 111.06s, Eval Time 91.18s
+2026-02-09 07:55:04,464 - INFO: 2026-02-09 07:55:04, Epoch 143, LR 0.000010, Acc 99.98, LOSS 0.038555, EER 27.2571, minDCF 0.984, Train Time 110.91s, Eval Time 85.49s
+2026-02-09 07:58:19,410 - INFO: 2026-02-09 07:58:19, Epoch 144, LR 0.000010, Acc 99.98, LOSS 0.038482, EER 27.8286, minDCF 0.988, Train Time 110.86s, Eval Time 84.09s
+2026-02-09 08:01:34,178 - INFO: 2026-02-09 08:01:34, Epoch 145, LR 0.000010, Acc 99.96, LOSS 0.039705, EER 27.6857, minDCF 0.989, Train Time 110.79s, Eval Time 83.98s
+2026-02-09 08:04:49,369 - INFO: 2026-02-09 08:04:49, Epoch 146, LR 0.000010, Acc 99.93, LOSS 0.040085, EER 27.1714, minDCF 0.983, Train Time 110.71s, Eval Time 84.47s
+2026-02-09 08:08:06,891 - INFO: 2026-02-09 08:08:06, Epoch 147, LR 0.000010, Acc 99.97, LOSS 0.038563, EER 27.3429, minDCF 0.984, Train Time 111.26s, Eval Time 86.26s
+2026-02-09 08:11:25,476 - INFO: 2026-02-09 08:11:25, Epoch 148, LR 0.000010, Acc 99.98, LOSS 0.037391, EER 27.5143, minDCF 0.986, Train Time 111.33s, Eval Time 87.25s
+2026-02-09 08:14:40,132 - INFO: 2026-02-09 08:14:40, Epoch 149, LR 0.000010, Acc 99.98, LOSS 0.037120, EER 27.5429, minDCF 0.983, Train Time 110.97s, Eval Time 83.68s
+2026-02-09 08:17:56,538 - INFO: 2026-02-09 08:17:56, Epoch 150, LR 0.000010, Acc 99.96, LOSS 0.036642, EER 27.6286, minDCF 0.985, Train Time 110.71s, Eval Time 85.70s
+2026-02-09 08:21:11,425 - INFO: 2026-02-09 08:21:11, Epoch 151, LR 0.000010, Acc 99.98, LOSS 0.036742, EER 27.2571, minDCF 0.986, Train Time 110.75s, Eval Time 84.14s
+2026-02-09 08:24:27,418 - INFO: 2026-02-09 08:24:27, Epoch 152, LR 0.000010, Acc 99.99, LOSS 0.036379, EER 27.4000, minDCF 0.984, Train Time 110.89s, Eval Time 85.10s
+2026-02-09 08:27:42,785 - INFO: 2026-02-09 08:27:42, Epoch 153, LR 0.000010, Acc 99.98, LOSS 0.036714, EER 27.4571, minDCF 0.981, Train Time 111.36s, Eval Time 84.01s
+2026-02-09 08:31:04,987 - INFO: 2026-02-09 08:31:04, Epoch 154, LR 0.000010, Acc 99.99, LOSS 0.035361, EER 27.2000, minDCF 0.985, Train Time 111.09s, Eval Time 91.11s
+2026-02-09 08:34:20,125 - INFO: 2026-02-09 08:34:20, Epoch 155, LR 0.000010, Acc 99.98, LOSS 0.036234, EER 27.5714, minDCF 0.984, Train Time 110.83s, Eval Time 84.31s
+2026-02-09 08:37:36,216 - INFO: 2026-02-09 08:37:36, Epoch 156, LR 0.000010, Acc 99.98, LOSS 0.036810, EER 27.4857, minDCF 0.984, Train Time 110.74s, Eval Time 85.35s
+2026-02-09 08:40:51,648 - INFO: 2026-02-09 08:40:51, Epoch 157, LR 0.000010, Acc 99.98, LOSS 0.036154, EER 27.2571, minDCF 0.986, Train Time 110.74s, Eval Time 84.69s
+2026-02-09 08:44:07,439 - INFO: 2026-02-09 08:44:07, Epoch 158, LR 0.000010, Acc 99.96, LOSS 0.035671, EER 28.2857, minDCF 0.984, Train Time 110.84s, Eval Time 84.95s
+2026-02-09 08:47:21,411 - INFO: 2026-02-09 08:47:21, Epoch 159, LR 0.000010, Acc 99.98, LOSS 0.036977, EER 27.2000, minDCF 0.982, Train Time 111.02s, Eval Time 82.95s
+2026-02-09 08:50:40,469 - INFO: 2026-02-09 08:50:40, Epoch 160, LR 0.000010, Acc 99.97, LOSS 0.035184, EER 27.5429, minDCF 0.980, Train Time 111.08s, Eval Time 87.97s
+2026-02-09 08:53:56,831 - INFO: 2026-02-09 08:53:56, Epoch 161, LR 0.000010, Acc 99.97, LOSS 0.035489, EER 26.9429, minDCF 0.980, Train Time 110.81s, Eval Time 85.56s
+2026-02-09 08:53:56,998 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0161.pth
+2026-02-09 08:57:16,715 - INFO: 2026-02-09 08:57:16, Epoch 162, LR 0.000010, Acc 100.00, LOSS 0.035185, EER 27.9714, minDCF 0.979, Train Time 111.07s, Eval Time 88.65s
+2026-02-09 09:00:36,788 - INFO: 2026-02-09 09:00:36, Epoch 163, LR 0.000010, Acc 99.99, LOSS 0.035386, EER 27.8286, minDCF 0.987, Train Time 110.87s, Eval Time 89.20s
+2026-02-09 09:03:53,285 - INFO: 2026-02-09 09:03:53, Epoch 164, LR 0.000010, Acc 99.98, LOSS 0.034561, EER 27.4286, minDCF 0.985, Train Time 110.77s, Eval Time 85.73s
+2026-02-09 09:07:08,559 - INFO: 2026-02-09 09:07:08, Epoch 165, LR 0.000010, Acc 99.98, LOSS 0.034849, EER 27.4000, minDCF 0.986, Train Time 110.70s, Eval Time 84.57s
+2026-02-09 09:10:26,894 - INFO: 2026-02-09 09:10:26, Epoch 166, LR 0.000010, Acc 99.98, LOSS 0.034263, EER 27.5714, minDCF 0.989, Train Time 110.96s, Eval Time 87.38s
+2026-02-09 09:13:43,743 - INFO: 2026-02-09 09:13:43, Epoch 167, LR 0.000010, Acc 99.98, LOSS 0.034857, EER 27.7429, minDCF 0.984, Train Time 110.73s, Eval Time 86.12s
+2026-02-09 09:16:59,012 - INFO: 2026-02-09 09:16:59, Epoch 168, LR 0.000010, Acc 99.96, LOSS 0.034101, EER 27.4000, minDCF 0.986, Train Time 111.20s, Eval Time 84.07s
+2026-02-09 09:20:16,042 - INFO: 2026-02-09 09:20:16, Epoch 169, LR 0.000010, Acc 99.98, LOSS 0.033917, EER 27.4571, minDCF 0.985, Train Time 110.83s, Eval Time 86.20s
+2026-02-09 09:23:31,852 - INFO: 2026-02-09 09:23:31, Epoch 170, LR 0.000010, Acc 99.98, LOSS 0.033620, EER 27.4857, minDCF 0.988, Train Time 111.04s, Eval Time 84.77s
+2026-02-09 09:26:49,540 - INFO: 2026-02-09 09:26:49, Epoch 171, LR 0.000010, Acc 99.98, LOSS 0.033425, EER 27.3714, minDCF 0.986, Train Time 110.97s, Eval Time 86.72s
+2026-02-09 09:30:03,222 - INFO: 2026-02-09 09:30:03, Epoch 172, LR 0.000010, Acc 99.99, LOSS 0.033208, EER 27.7429, minDCF 0.985, Train Time 110.80s, Eval Time 82.88s
+2026-02-09 09:33:18,183 - INFO: 2026-02-09 09:33:18, Epoch 173, LR 0.000010, Acc 99.99, LOSS 0.033115, EER 27.6286, minDCF 0.983, Train Time 110.88s, Eval Time 84.08s
+2026-02-09 09:36:39,450 - INFO: 2026-02-09 09:36:39, Epoch 174, LR 0.000010, Acc 99.99, LOSS 0.032559, EER 27.9143, minDCF 0.984, Train Time 110.97s, Eval Time 90.29s
+2026-02-09 09:39:59,731 - INFO: 2026-02-09 09:39:59, Epoch 175, LR 0.000010, Acc 99.99, LOSS 0.032577, EER 27.6571, minDCF 0.986, Train Time 110.84s, Eval Time 89.44s
+2026-02-09 09:43:14,007 - INFO: 2026-02-09 09:43:14, Epoch 176, LR 0.000010, Acc 99.98, LOSS 0.032314, EER 27.5143, minDCF 0.984, Train Time 110.84s, Eval Time 83.44s
+2026-02-09 09:46:37,017 - INFO: 2026-02-09 09:46:37, Epoch 177, LR 0.000010, Acc 99.99, LOSS 0.032329, EER 27.5714, minDCF 0.986, Train Time 111.58s, Eval Time 91.43s
+2026-02-09 09:49:53,100 - INFO: 2026-02-09 09:49:53, Epoch 178, LR 0.000010, Acc 99.98, LOSS 0.032856, EER 27.6000, minDCF 0.984, Train Time 110.89s, Eval Time 85.19s
+2026-02-09 09:53:10,448 - INFO: 2026-02-09 09:53:10, Epoch 179, LR 0.000010, Acc 99.99, LOSS 0.031894, EER 27.6571, minDCF 0.984, Train Time 111.01s, Eval Time 86.34s
+2026-02-09 09:56:30,770 - INFO: 2026-02-09 09:56:30, Epoch 180, LR 0.000010, Acc 99.99, LOSS 0.032152, EER 27.2286, minDCF 0.986, Train Time 111.11s, Eval Time 89.21s
+2026-02-09 09:59:48,122 - INFO: 2026-02-09 09:59:48, Epoch 181, LR 0.000010, Acc 99.99, LOSS 0.031815, EER 27.2857, minDCF 0.979, Train Time 111.06s, Eval Time 86.30s
+2026-02-09 10:03:06,167 - INFO: 2026-02-09 10:03:06, Epoch 182, LR 0.000010, Acc 99.97, LOSS 0.031568, EER 27.4286, minDCF 0.983, Train Time 111.21s, Eval Time 86.83s
+2026-02-09 10:06:22,806 - INFO: 2026-02-09 10:06:22, Epoch 183, LR 0.000010, Acc 99.98, LOSS 0.032061, EER 27.3714, minDCF 0.979, Train Time 110.97s, Eval Time 85.67s
+2026-02-09 10:09:36,575 - INFO: 2026-02-09 10:09:36, Epoch 184, LR 0.000010, Acc 99.98, LOSS 0.031378, EER 27.3429, minDCF 0.980, Train Time 111.33s, Eval Time 82.43s
+2026-02-09 10:12:53,840 - INFO: 2026-02-09 10:12:53, Epoch 185, LR 0.000010, Acc 99.99, LOSS 0.030615, EER 26.9143, minDCF 0.980, Train Time 111.05s, Eval Time 86.21s
+2026-02-09 10:12:53,991 - INFO: Saved best model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0185.pth
+2026-02-09 10:16:11,028 - INFO: 2026-02-09 10:16:11, Epoch 186, LR 0.000010, Acc 100.00, LOSS 0.031027, EER 27.6857, minDCF 0.983, Train Time 111.08s, Eval Time 85.95s
+2026-02-09 10:19:28,375 - INFO: 2026-02-09 10:19:28, Epoch 187, LR 0.000010, Acc 99.98, LOSS 0.030937, EER 27.4857, minDCF 0.977, Train Time 110.91s, Eval Time 86.43s
+2026-02-09 10:22:45,439 - INFO: 2026-02-09 10:22:45, Epoch 188, LR 0.000010, Acc 99.98, LOSS 0.031463, EER 27.1714, minDCF 0.979, Train Time 110.95s, Eval Time 86.11s
+2026-02-09 10:26:05,513 - INFO: 2026-02-09 10:26:05, Epoch 189, LR 0.000010, Acc 99.99, LOSS 0.030581, EER 27.4571, minDCF 0.985, Train Time 110.86s, Eval Time 89.21s
+2026-02-09 10:29:20,893 - INFO: 2026-02-09 10:29:20, Epoch 190, LR 0.000010, Acc 99.98, LOSS 0.030825, EER 28.3143, minDCF 0.983, Train Time 110.82s, Eval Time 84.56s
+2026-02-09 10:32:37,328 - INFO: 2026-02-09 10:32:37, Epoch 191, LR 0.000010, Acc 99.99, LOSS 0.030797, EER 27.6286, minDCF 0.985, Train Time 110.84s, Eval Time 85.59s
+2026-02-09 10:35:54,083 - INFO: 2026-02-09 10:35:54, Epoch 192, LR 0.000010, Acc 99.98, LOSS 0.030188, EER 27.9429, minDCF 0.979, Train Time 111.13s, Eval Time 85.63s
+2026-02-09 10:39:12,157 - INFO: 2026-02-09 10:39:12, Epoch 193, LR 0.000010, Acc 99.98, LOSS 0.030551, EER 27.7143, minDCF 0.985, Train Time 110.93s, Eval Time 87.14s
+2026-02-09 10:42:27,527 - INFO: 2026-02-09 10:42:27, Epoch 194, LR 0.000010, Acc 99.98, LOSS 0.029861, EER 27.5143, minDCF 0.983, Train Time 111.14s, Eval Time 84.23s
+2026-02-09 10:45:44,541 - INFO: 2026-02-09 10:45:44, Epoch 195, LR 0.000010, Acc 100.00, LOSS 0.029030, EER 27.3429, minDCF 0.979, Train Time 111.07s, Eval Time 85.94s
+2026-02-09 10:49:02,643 - INFO: 2026-02-09 10:49:02, Epoch 196, LR 0.000010, Acc 99.99, LOSS 0.030110, EER 27.5714, minDCF 0.984, Train Time 111.07s, Eval Time 87.03s
+2026-02-09 10:52:22,576 - INFO: 2026-02-09 10:52:22, Epoch 197, LR 0.000010, Acc 99.99, LOSS 0.029682, EER 27.6571, minDCF 0.987, Train Time 111.11s, Eval Time 88.82s
+2026-02-09 10:55:37,439 - INFO: 2026-02-09 10:55:37, Epoch 198, LR 0.000010, Acc 99.98, LOSS 0.029692, EER 27.4000, minDCF 0.983, Train Time 110.94s, Eval Time 83.93s
+2026-02-09 10:58:59,216 - INFO: 2026-02-09 10:58:59, Epoch 199, LR 0.000010, Acc 99.99, LOSS 0.029751, EER 27.6286, minDCF 0.978, Train Time 111.30s, Eval Time 90.47s
+2026-02-09 11:02:15,335 - INFO: 2026-02-09 11:02:15, Epoch 200, LR 0.000010, Acc 100.00, LOSS 0.029195, EER 27.5429, minDCF 0.979, Train Time 110.98s, Eval Time 85.14s
+2026-02-09 11:02:15,338 - INFO: Training completed. Best EER: 26.9143 at epoch 185
+2026-02-09 11:02:15,476 - INFO: Saved final model to runs/I love my family/exp_video_contrastive/contrastive_learning/contrastive_models/model_epoch_0200.pth

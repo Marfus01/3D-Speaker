@@ -99,3 +99,22 @@ egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_overlap/res
 egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_overlap/result/self_supervised/exp0/**/pseudo_label/alabels_embeddings.pkl
 egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_overlap/result/self_supervised/exp0/**/pseudo_label/vlabels_mf_embeddings.pkl
 egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_overlap/**/segmentation.pkl
+
+# Self-supervised finetuning results(contrastive learning setting)
+egs/3dspeaker/speaker-diarization/runs/**/exp_video_contrastive/embs/
+egs/3dspeaker/speaker-diarization/runs/**/exp_video_contrastive/embs_video/
+## our method
+### IL
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_contrastive/result/self_supervised/exp0/**/pseudo_label/vlabels_mf_embeddings.pkl
+### BB
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/finetuned_classifier_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/finetuned_classifier_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/finetuned_model_face.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/finetuned_model_speaker.pth
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/pseudo_label/alabels_embeddings.pkl
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_contrastive/result/self_supervised/**/**/pseudo_label/vlabels_mf_embeddings.pkl
