@@ -2,6 +2,9 @@
 # https://github.com/Tencent/TFace/blob/master/recognition/torchkit/backbone/model_irse.py
 # based on:
 # https://github.com/ZhaoJ9014/face.evoLVe.PyTorch/blob/master/backbone/model_irse.py
+# NOTE
+## IR: proposed in https://arxiv.org/pdf/1512.03385
+## IR_SE: proposed in https://arxiv.org/pdf/1709.01507
 from collections import namedtuple
 from torch.nn import Linear
 from torch.nn import Conv2d
