@@ -1057,6 +1057,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         # NOTE: length of audio_embeddings and visual_embeddings_vad, visual_embeddings_mf may be different
         audio_embeddings, audio_seg_ids, alengths, audio_times, time_begin_crt_list = load_embeds_audio(local_wav_list, audio_embs_dir)
         visual_embeddings_vad, visual_times_vad = load_embed_vision_vad(local_wav_list, visual_embs_dir, time_begin_crt_list)
+        audio_seg_ids_mf = None
         if 'mid_frame' in hmm_visual_info_type:
             visual_embeddings_mf, audio_seg_ids_mf, face_idxs_mf = load_embeds_vision_mf(local_wav_list, visual_embs_dir)
 
@@ -1165,6 +1166,11 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
 
         ## 仅保留潜在主要说话人簇（top-2*main_actors_num），从大到小依次标记为0,1,...，其他簇统一标记为-1，最终得到2*main_actors_num+1个类。将视觉簇相应重命名
         alabels_processed, vlabels_vad_processed, vlabels_mf_processed = process_top_cluster_ids_together(copy.deepcopy(alabels), vlabels_vad_aligned, vlabels_mf_aligned, main_actors_num = config.main_actors_num)
+        summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
+        summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
+        save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
+        save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
+                                        os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
         vlabels_mf_processed_input = None
         if 'mid_frame' in hmm_visual_info_type:
             ## 将经过两次对齐处理后，仍未能与语音簇对齐的 mid-frame 视觉簇全部按纯视觉聚类标签分配，保存一版结果（hmm只用完全对齐的部分sample）
@@ -1174,12 +1180,7 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
             vlabels_mf_processed_all[~aligned_mask_mf] = -2  # assign -2 to mf faces aligned with vad but not aligned with audio
             vlabels_mf_processed_input = np.where(vlabels_mf_processed_all < 0, -1, vlabels_mf_processed_all).astype(int)  # unqiue -1(aligned with vad&audio, not main actors), -2(aligned with vad, not aligned with audio), -3(unaligned with vad) to -1
 
-            summary_cluster_results(alabels_processed, modal_type='audio_processed_for_HMM_nested_X')
-            summary_cluster_results(vlabels_vad_processed, modal_type='visual_vad_processed_for_HMM_nested_X')
             summary_cluster_results(vlabels_mf_processed_all, modal_type='visual_mid_frame_processed_all_for_HMM_nested_X')
-            save_cluster_results_audio(alabels_processed, audio_seg_ids, os.path.join(result_dir, f'cluster_results_audio_processed_for_HMM_nested_X.json'))
-            save_cluster_results_vision_vad(audio_times, visual_times_vad_aligned, audio_seg_ids, vlabels_vad_processed, 
-                                           os.path.join(result_dir, f'cluster_results_vision_vad_processed_for_HMM_nested_X.json'))
             save_cluster_results_vision_mf(vlabels_mf_processed_all, audio_seg_ids_mf, face_idxs_mf, 
                                         os.path.join(result_dir, f'cluster_results_faces_mid_frame_processed_all_for_HMM_nested_X.json'))
 
@@ -1212,9 +1213,9 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         useful_var_dic['alabels_unreliable_metrics_init'] = alabels_unreliable_metrics_init
         useful_var_dic['visual_times_vad_aligned'] = visual_times_vad_aligned
         useful_var_dic['vlabels_vad_processed'] = vlabels_vad_processed
+        useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
         if 'mid_frame' in hmm_visual_info_type:
             vlabels_mf_processed_all_init = copy.deepcopy(vlabels_mf_processed_all)
-            useful_var_dic['audio_seg_ids_mf'] = audio_seg_ids_mf
             useful_var_dic['face_idxs_mf'] = face_idxs_mf
             useful_var_dic['vlabels_mf_processed_all'] = vlabels_mf_processed_all
             useful_var_dic['vlabels_mf_potential_list'] = vlabels_mf_potential_list
@@ -1275,9 +1276,10 @@ def audio_vision_func(local_wav_list, audio_embs_dir, visual_embs_dir, result_di
         
         # Middle frame face labels loading
         vlabels_mf_processed_input, vlabels_mf_potential_list = None, None
+        audio_seg_ids_mf = useful_var_dic['audio_seg_ids_mf']
         if 'mid_frame' in hmm_visual_info_type:
             ## load useful variables
-            audio_seg_ids_mf, face_idxs_mf = useful_var_dic['audio_seg_ids_mf'], useful_var_dic['face_idxs_mf']
+            face_idxs_mf = useful_var_dic['face_idxs_mf']
             keys_mf_all = [f"{audio_seg_id}_{int(face_idx)}" for audio_seg_id, face_idx in zip(audio_seg_ids_mf, face_idxs_mf)]
             vlabels_mf_processed_all_init = useful_var_dic['vlabels_mf_processed_all']
             ## load vlabels_mf_pred
