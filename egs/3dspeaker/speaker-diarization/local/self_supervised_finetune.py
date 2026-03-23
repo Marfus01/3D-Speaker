@@ -993,7 +993,7 @@ def run_clustering_and_evaluation(conf_file, cluster_type, wavs, subseg_json, au
     
     # Compute face accuracy if applicable
     face_acc = None
-    if (baseline_method in ['joint', 'sc_ahc']) or (baseline_method is None and cluster_type == 'audio_vision'):
+    if (baseline_method in ['joint', 'sc_ahc']) or (baseline_method is None and cluster_type == 'audio_vision' and not fix_mf_flag):
         assert face_anno_file is not None, "Face annotation file must be provided for audio-vision clustering!"
         if os.path.exists(face_anno_file):
             face_acc = compute_acc_from_anno(result_dir, face_anno_file, mode, modal='face')
@@ -1078,7 +1078,7 @@ def main():
         logger.info(f"Skipping initial clustering, using existing results.")
         shutil.copytree(os.path.join(finetune_dir, 'initial'), initial_dir, dirs_exist_ok=True)
         initial_acc_spk = compute_acc_from_anno(pseudo_label_dir, args.speaker_anno_file, mode='all', modal='speaker')
-        if (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision'):
+        if (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision' and not args.fix_mf):
             assert os.path.exists(args.face_anno_file), f"Face annotation file {args.face_anno_file} does not exist!"
             initial_acc_face = compute_acc_from_anno(pseudo_label_dir, args.face_anno_file, mode='all', modal='face')
         else:
