@@ -28,7 +28,7 @@ use_baseline=false  # 是否使用baseline方法而非HMM方法
 
 # HMM平滑相关参数
 cluster_enhance_mode="hmm"  # "hmm" for HMM smoothing after "audio_vision" clustering; or "" for no cluster enhancement smoothing; "sc", "vbx", "kcenter", "pcc", "joint", "sc_ahc" for baseline methods (Note: baseline methods should set use_baseline=true)
-fix_mf=false  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
+fix_mf=true  # HMM平滑时，是否认为中间帧人脸聚类标签为ground truth
 hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类型，支持 "", "vad", "mid_frame", "vad+mid_frame"
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
 
@@ -64,7 +64,7 @@ raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和
 
 exp="runs/$tv_name/exp_video_ablation" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
-result_dir=$exp/result/f  # 存储模型给出的说话人分离结果
+result_dir=$exp/result/e  # 存储模型给出的说话人分离结果
 
 if [[ "$cluster_type" != "audio_only" && "$cluster_type" != "audio_vision" ]]; then
   echo "Error: cluster_type must be either 'audio_only' or 'audio_vision'."

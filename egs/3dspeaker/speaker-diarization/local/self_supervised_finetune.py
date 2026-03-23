@@ -1181,7 +1181,7 @@ def main():
             # torch.save(embedding_model.state_dict(), os.path.join(initial_dir, 'pretrained_model_speaker.pth'))
             
             # ============ Face Model ============
-            finetune_faceModel_flag = (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision')
+            finetune_faceModel_flag = (args.baseline_method in ['joint', 'sc_ahc']) or (args.baseline_method is None and args.cluster_type == 'audio_vision' and not args.fix_mf)
             if finetune_faceModel_flag:
                 # Initialize face embedding model
                 face_embedding_model = IR_101(input_size=(112, 112))
