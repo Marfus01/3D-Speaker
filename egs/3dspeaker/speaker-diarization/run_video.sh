@@ -33,7 +33,7 @@ hmm_visual_info_type="vad+mid_frame"  # HMM平滑时，使用的视觉信息类�
 unreliable_pp=100.0  # HMM平滑时，认为不可靠的说话人标签百分比，范围0-100.0
 
 # Contrastive learning parameters
-contrastive_training_flag=true  # 是否在提取embedding之前进行对比学习
+contrastive_training_flag=false  # 是否在提取embedding之前进行对比学习
 contrastive_lr=0.00001  # 对比学习学习率
 contrastive_batch_size=128  # 对比学习batch size
 contrastive_max_dur=2.0  # 对比学习最大持续时间（秒）
@@ -62,9 +62,9 @@ examples="$data_root/$tv_name" # 存储original video和说话人标注文件的
 video_list=$examples/movie.list # 包含所有original video的路径
 raw_data_dir=$examples/raw # 存储从original video中提取出的pure video和pure audio
 
-exp="runs/$tv_name/exp_video_contrastive" # 存储original video被处理后的所有中间文件和最终结果
+exp="runs/$tv_name/exp_video_ablation" # 存储original video被处理后的所有中间文件和最终结果
 visual_embs_dir=$exp/embs_video
-result_dir=$exp/result  # 存储模型给出的说话人分离结果
+result_dir=$exp/result/f  # 存储模型给出的说话人分离结果
 
 if [[ "$cluster_type" != "audio_only" && "$cluster_type" != "audio_vision" ]]; then
   echo "Error: cluster_type must be either 'audio_only' or 'audio_vision'."
