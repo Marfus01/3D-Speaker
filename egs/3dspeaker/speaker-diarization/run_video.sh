@@ -219,15 +219,15 @@ if [ "$ft_flag" = false ]; then
       echo "Computing speaker recognition accuracy..."
       python local/compute_acc_spk.py --result_dir "$result_dir" --ref_xlsx "$speaker_anno_file"
     else
-      echo "Speaker_anno_file "$speaker_anno_file" is not detected. Can't calculate the result"
+      echo "Speaker_anno_file $speaker_anno_file is not detected. Can't calculate the result"
     fi
-    if { [ "$use_baseline" = true ] && [[ "$baseline_method" =~ ^(joint|sc_ahc)$ ]]; } || { [ "$use_baseline" = false ] && [ "$cluster_type" = "audio_vision" ]; }; then
+    if ( [ "$use_baseline" = true ] && [[ "$baseline_method" =~ ^(joint|sc_ahc)$ ]] ) || ( [ "$use_baseline" = false ] && [ "$cluster_type" = "audio_vision" ] ); then
       face_anno_file=$examples/annotation/faces_annotation_with_loc_new.xlsx
       if [ -f "$face_anno_file" ]; then
         echo "Computing face recognition accuracy..."
         python local/compute_acc_face.py --result_dir "$result_dir" --ref_xlsx "$face_anno_file"
       else
-        echo "Face_anno_file "$face_anno_file" is not detected. Can't calculate the result"
+        echo "Face_anno_file $face_anno_file is not detected. Can't calculate the result"
       fi
     fi
   fi
