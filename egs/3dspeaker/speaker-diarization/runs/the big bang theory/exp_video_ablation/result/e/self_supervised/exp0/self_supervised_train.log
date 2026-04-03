@@ -1,0 +1,456 @@
+2026-03-23 22:24:39,698 - INFO: Starting self-supervised fine-tuning pipeline
+2026-03-23 22:24:39,700 - INFO: Device: cuda:0
+2026-03-23 22:24:39,703 - INFO: Saved arguments to runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/args.json
+2026-03-23 22:24:39,704 - INFO: ====================
+2026-03-23 22:24:39,704 - INFO: Initialization: Initial clustering with HMM correction
+2026-03-23 22:24:39,704 - INFO: ====================
+2026-03-23 23:06:05,216 - INFO: Saved initial clustering results to runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/initial
+2026-03-23 23:06:05,216 - INFO: Initial: speaker_acc=0.9200
+2026-03-23 23:06:05,231 - INFO: ====================
+2026-03-23 23:06:05,231 - INFO: Round 0: Fine-tuning iteration
+2026-03-23 23:06:05,231 - INFO: ====================
+2026-03-23 23:06:05,292 - INFO: Round 0 Part 1: Fine-tuning embedding model
+2026-03-23 23:06:05,296 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/initial/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-23 23:06:08,577 - INFO: Speaker embedding dimension: 512
+2026-03-23 23:06:09,216 - INFO: Saved speaker config_model to runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round0/config_model_speaker.json
+2026-03-23 23:07:32,628 - INFO: Extracting hidden features for all speaker samples, which are outputs of StatsPool layer...
+2026-03-23 23:07:32,629 - INFO: args.unfrozen_layers_num=2 is not used when extracting hidden features.
+2026-03-23 23:11:34,734 - INFO: Hidden features extracted for 6829 speaker samples
+2026-03-23 23:11:34,901 - INFO: Warmup training speaker classifier for 2 epochs...
+2026-03-23 23:11:35,928 - INFO: Epoch: [0][  0/107]	Time  1.016 ( 1.016)	Loss 2.5471e+00 (2.5471e+00)	Acc pseudo   4.69 (  4.69)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,093 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.023)	Loss 8.2046e-01 (1.1913e+00)	Acc pseudo  89.06 ( 77.79)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,242 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.013)	Loss 7.6153e-01 (8.6137e-01)	Acc pseudo  87.50 ( 84.30)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,296 - INFO: Round 0, Speaker Warmup Epoch 0: loss=0.8424, acc(pseudo)=84.67%
+2026-03-23 23:11:36,473 - INFO: Epoch: [1][  0/107]	Time  0.173 ( 0.173)	Loss 3.3706e-01 (3.3706e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,625 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 1.8788e-01 (3.9296e-01)	Acc pseudo  95.31 ( 91.57)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,757 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.004)	Loss 5.0436e-01 (3.8998e-01)	Acc pseudo  87.50 ( 91.86)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:36,807 - INFO: Round 0, Speaker Warmup Epoch 1: loss=0.3872, acc(pseudo)=91.81%
+2026-03-23 23:11:36,818 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-23 23:11:37,578 - INFO: Epoch: [0][  0/107]	Time  0.757 ( 0.757)	Loss 3.8070e-01 (3.8070e-01)	Acc pseudo  90.62 ( 90.62)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:37,759 - INFO: Epoch: [0][ 50/107]	Time  0.004 ( 0.018)	Loss 5.0996e-01 (4.9885e-01)	Acc pseudo  85.94 ( 89.49)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:37,917 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.011)	Loss 4.6021e-01 (4.6111e-01)	Acc pseudo  92.19 ( 89.90)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:37,975 - INFO: Round 0, Fine-tune Epoch 0: loss=0.4575, acc(pseudo)=90.03%
+2026-03-23 23:11:42,857 - INFO: Round 0, Fine-tune Epoch 0: acc(valid_pseudo): 0.9645, acc: 0.8495
+2026-03-23 23:11:43,332 - INFO: Epoch: [1][  0/107]	Time  0.161 ( 0.161)	Loss 3.6310e-01 (3.6310e-01)	Acc pseudo  92.19 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:43,502 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 4.8278e-01 (3.3751e-01)	Acc pseudo  87.50 ( 91.51)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:43,670 - INFO: Epoch: [1][100/107]	Time  0.003 ( 0.005)	Loss 1.8128e-01 (3.4228e-01)	Acc pseudo  95.31 ( 91.65)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:43,733 - INFO: Round 0, Fine-tune Epoch 1: loss=0.3420, acc(pseudo)=91.70%
+2026-03-23 23:11:48,996 - INFO: Round 0, Fine-tune Epoch 1: acc(valid_pseudo): 0.9686, acc: 0.8945
+2026-03-23 23:11:49,456 - INFO: Epoch: [2][  0/107]	Time  0.171 ( 0.171)	Loss 3.7535e-01 (3.7535e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:49,630 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.007)	Loss 3.9533e-01 (2.9234e-01)	Acc pseudo  96.88 ( 92.13)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:49,789 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 1.5987e-01 (2.8211e-01)	Acc pseudo  92.19 ( 92.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:49,844 - INFO: Round 0, Fine-tune Epoch 2: loss=0.2816, acc(pseudo)=92.43%
+2026-03-23 23:11:55,282 - INFO: Round 0, Fine-tune Epoch 2: acc(valid_pseudo): 0.9942, acc: 0.9205
+2026-03-23 23:11:55,733 - INFO: Epoch: [3][  0/107]	Time  0.158 ( 0.158)	Loss 2.1125e-01 (2.1125e-01)	Acc pseudo  92.19 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:55,905 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.006)	Loss 3.4948e-01 (2.3418e-01)	Acc pseudo  85.94 ( 93.23)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:56,063 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 2.3319e-01 (2.3812e-01)	Acc pseudo  93.75 ( 93.13)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:11:56,119 - INFO: Round 0, Fine-tune Epoch 3: loss=0.2368, acc(pseudo)=93.21%
+2026-03-23 23:12:01,321 - INFO: Round 0, Fine-tune Epoch 3: acc(valid_pseudo): 0.9554, acc: 0.8770
+2026-03-23 23:12:01,322 - INFO: Round 0, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-23 23:12:01,490 - INFO: Epoch: [4][  0/107]	Time  0.162 ( 0.162)	Loss 2.0383e-01 (2.0383e-01)	Acc pseudo  92.19 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:01,680 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 1.2108e-01 (2.5715e-01)	Acc pseudo  95.31 ( 93.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:01,850 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 1.6815e-01 (2.5807e-01)	Acc pseudo  92.19 ( 93.49)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:01,913 - INFO: Round 0, Fine-tune Epoch 4: loss=0.2590, acc(pseudo)=93.38%
+2026-03-23 23:12:06,748 - INFO: Round 0, Fine-tune Epoch 4: acc(valid_pseudo): 0.9100, acc: 0.8255
+2026-03-23 23:12:06,748 - INFO: Round 0, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-23 23:12:06,918 - INFO: Epoch: [5][  0/107]	Time  0.165 ( 0.165)	Loss 1.7654e-01 (1.7654e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:07,085 - INFO: Epoch: [5][ 50/107]	Time  0.003 ( 0.006)	Loss 1.5832e-01 (1.9875e-01)	Acc pseudo  95.31 ( 94.24)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:07,246 - INFO: Epoch: [5][100/107]	Time  0.002 ( 0.005)	Loss 2.3350e-01 (2.0540e-01)	Acc pseudo  92.19 ( 94.23)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:12:07,315 - INFO: Round 0, Fine-tune Epoch 5: loss=0.2065, acc(pseudo)=94.26%
+2026-03-23 23:12:12,148 - INFO: Round 0, Fine-tune Epoch 5: acc(valid_pseudo): 0.9917, acc: 0.9175
+2026-03-23 23:12:12,149 - INFO: Round 0, Speaker Fine-tune Epoch 5: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-23 23:12:12,149 - INFO: Early stopping at epoch 5 due to no improvement in validation accuracy for 3 epochs.
+2026-03-23 23:12:12,150 - INFO: Round 0: Best speaker fine-tuned epoch=2, acc(valid_pseudo)=0.9942
+2026-03-23 23:12:12,201 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/initial/pseudo_label/hmm_params.pkl
+2026-03-23 23:24:11,001 - INFO: Round 0: speaker_acc=0.9240
+2026-03-23 23:24:11,007 - INFO: ====================
+2026-03-23 23:24:11,007 - INFO: Round 1: Fine-tuning iteration
+2026-03-23 23:24:11,007 - INFO: ====================
+2026-03-23 23:24:11,119 - INFO: Round 1 Part 1: Fine-tuning embedding model
+2026-03-23 23:24:11,120 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round0/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-23 23:24:11,139 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-23 23:24:11,299 - INFO: Epoch: [0][  0/107]	Time  0.155 ( 0.155)	Loss 5.2697e-01 (5.2697e-01)	Acc pseudo  89.06 ( 89.06)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:11,484 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.007)	Loss 2.6080e-01 (4.2690e-01)	Acc pseudo  95.31 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:11,639 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 1.5776e-01 (3.6974e-01)	Acc pseudo  93.75 ( 92.54)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:11,698 - INFO: Round 1, Fine-tune Epoch 0: loss=0.3696, acc(pseudo)=92.55%
+2026-03-23 23:24:16,518 - INFO: Round 1, Fine-tune Epoch 0: acc(valid_pseudo): 0.9232, acc: 0.8855
+2026-03-23 23:24:17,078 - INFO: Epoch: [1][  0/107]	Time  0.165 ( 0.165)	Loss 2.5724e-01 (2.5724e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:17,246 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 1.7951e-01 (2.3952e-01)	Acc pseudo  95.31 ( 94.03)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:17,395 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 4.7842e-01 (2.5323e-01)	Acc pseudo  87.50 ( 93.95)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:17,449 - INFO: Round 1, Fine-tune Epoch 1: loss=0.2543, acc(pseudo)=93.91%
+2026-03-23 23:24:22,471 - INFO: Round 1, Fine-tune Epoch 1: acc(valid_pseudo): 0.9694, acc: 0.8225
+2026-03-23 23:24:22,944 - INFO: Epoch: [2][  0/107]	Time  0.177 ( 0.177)	Loss 1.8533e-01 (1.8533e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:23,100 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.006)	Loss 1.9615e-01 (2.3158e-01)	Acc pseudo  92.19 ( 94.06)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:23,288 - INFO: Epoch: [2][100/107]	Time  0.003 ( 0.005)	Loss 1.4353e-01 (2.3283e-01)	Acc pseudo  95.31 ( 94.25)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:23,354 - INFO: Round 1, Fine-tune Epoch 2: loss=0.2396, acc(pseudo)=94.16%
+2026-03-23 23:24:29,357 - INFO: Round 1, Fine-tune Epoch 2: acc(valid_pseudo): 0.9851, acc: 0.9125
+2026-03-23 23:24:29,879 - INFO: Epoch: [3][  0/107]	Time  0.194 ( 0.194)	Loss 1.9354e-01 (1.9354e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:30,041 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.007)	Loss 1.9757e-01 (2.0463e-01)	Acc pseudo  96.88 ( 94.79)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:30,210 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 3.0496e-01 (2.0912e-01)	Acc pseudo  93.75 ( 94.71)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:30,273 - INFO: Round 1, Fine-tune Epoch 3: loss=0.2066, acc(pseudo)=94.74%
+2026-03-23 23:24:35,110 - INFO: Round 1, Fine-tune Epoch 3: acc(valid_pseudo): 0.9959, acc: 0.9260
+2026-03-23 23:24:35,587 - INFO: Epoch: [4][  0/107]	Time  0.182 ( 0.182)	Loss 1.0831e-01 (1.0831e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:35,759 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 1.5811e-01 (1.8584e-01)	Acc pseudo  96.88 ( 95.07)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:35,920 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 1.2296e-01 (1.9454e-01)	Acc pseudo  95.31 ( 94.93)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:24:35,982 - INFO: Round 1, Fine-tune Epoch 4: loss=0.1963, acc(pseudo)=94.86%
+2026-03-23 23:24:40,944 - INFO: Round 1, Fine-tune Epoch 4: acc(valid_pseudo): 0.9034, acc: 0.7730
+2026-03-23 23:24:40,945 - INFO: Round 1, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-23 23:24:40,945 - INFO: Early stopping at epoch 4 due to significant drop in pseudo-label validation accuracy: 0.9959 -> 0.9034.
+2026-03-23 23:24:40,946 - INFO: Round 1: Best speaker fine-tuned epoch=3, acc(valid_pseudo)=0.9959
+2026-03-23 23:24:40,993 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round0/pseudo_label/hmm_params.pkl
+2026-03-23 23:39:15,777 - INFO: Round 1: speaker_acc=0.9230
+2026-03-23 23:39:15,780 - INFO: ====================
+2026-03-23 23:39:15,780 - INFO: Round 2: Fine-tuning iteration
+2026-03-23 23:39:15,780 - INFO: ====================
+2026-03-23 23:39:15,955 - INFO: Round 2 Part 1: Fine-tuning embedding model
+2026-03-23 23:39:15,956 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round1/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-23 23:39:15,985 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-23 23:39:16,243 - INFO: Epoch: [0][  0/107]	Time  0.235 ( 0.235)	Loss 2.5744e-01 (2.5744e-01)	Acc pseudo  90.62 ( 90.62)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:16,414 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.008)	Loss 3.0649e-01 (2.2997e-01)	Acc pseudo  93.75 ( 93.84)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:16,565 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 5.0648e-02 (2.2892e-01)	Acc pseudo  96.88 ( 94.21)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:16,621 - INFO: Round 2, Fine-tune Epoch 0: loss=0.2326, acc(pseudo)=94.25%
+2026-03-23 23:39:21,327 - INFO: Round 2, Fine-tune Epoch 0: acc(valid_pseudo): 0.9604, acc: 0.9030
+2026-03-23 23:39:21,772 - INFO: Epoch: [1][  0/107]	Time  0.165 ( 0.165)	Loss 6.5638e-02 (6.5638e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:21,976 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.007)	Loss 9.5738e-02 (1.6639e-01)	Acc pseudo  98.44 ( 95.40)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:22,127 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 2.3577e-01 (1.6411e-01)	Acc pseudo  89.06 ( 95.68)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:22,183 - INFO: Round 2, Fine-tune Epoch 1: loss=0.1634, acc(pseudo)=95.69%
+2026-03-23 23:39:26,893 - INFO: Round 2, Fine-tune Epoch 1: acc(valid_pseudo): 0.9959, acc: 0.9210
+2026-03-23 23:39:27,367 - INFO: Epoch: [2][  0/107]	Time  0.167 ( 0.167)	Loss 5.7596e-02 (5.7596e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:27,535 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.006)	Loss 1.0538e-01 (1.5923e-01)	Acc pseudo  93.75 ( 95.28)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:27,686 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 6.9283e-02 (1.5193e-01)	Acc pseudo  95.31 ( 95.47)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:27,741 - INFO: Round 2, Fine-tune Epoch 2: loss=0.1513, acc(pseudo)=95.53%
+2026-03-23 23:39:32,522 - INFO: Round 2, Fine-tune Epoch 2: acc(valid_pseudo): 0.9917, acc: 0.9155
+2026-03-23 23:39:32,522 - INFO: Round 2, Speaker Fine-tune Epoch 2: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-23 23:39:32,687 - INFO: Epoch: [3][  0/107]	Time  0.160 ( 0.160)	Loss 2.3912e-01 (2.3912e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:32,851 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.006)	Loss 8.3589e-02 (1.3016e-01)	Acc pseudo  95.31 ( 96.20)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:32,998 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 1.6414e-01 (1.4349e-01)	Acc pseudo  93.75 ( 95.65)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:33,053 - INFO: Round 2, Fine-tune Epoch 3: loss=0.1443, acc(pseudo)=95.74%
+2026-03-23 23:39:37,633 - INFO: Round 2, Fine-tune Epoch 3: acc(valid_pseudo): 0.9860, acc: 0.9215
+2026-03-23 23:39:37,633 - INFO: Round 2, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-23 23:39:37,808 - INFO: Epoch: [4][  0/107]	Time  0.169 ( 0.169)	Loss 9.6389e-02 (9.6389e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:37,978 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 7.7120e-02 (1.3987e-01)	Acc pseudo  95.31 ( 96.02)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:38,154 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 9.7394e-02 (1.4535e-01)	Acc pseudo  96.88 ( 95.93)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:39:38,213 - INFO: Round 2, Fine-tune Epoch 4: loss=0.1457, acc(pseudo)=95.86%
+2026-03-23 23:39:42,667 - INFO: Round 2, Fine-tune Epoch 4: acc(valid_pseudo): 0.9901, acc: 0.9215
+2026-03-23 23:39:42,667 - INFO: Round 2, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-23 23:39:42,667 - INFO: Early stopping at epoch 4 due to no improvement in validation accuracy for 3 epochs.
+2026-03-23 23:39:42,668 - INFO: Round 2: Best speaker fine-tuned epoch=1, acc(valid_pseudo)=0.9959
+2026-03-23 23:39:42,711 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round1/pseudo_label/hmm_params.pkl
+2026-03-23 23:57:19,890 - INFO: Round 2: speaker_acc=0.9230
+2026-03-23 23:57:19,893 - INFO: ====================
+2026-03-23 23:57:19,893 - INFO: Round 3: Fine-tuning iteration
+2026-03-23 23:57:19,893 - INFO: ====================
+2026-03-23 23:57:20,038 - INFO: Round 3 Part 1: Fine-tuning embedding model
+2026-03-23 23:57:20,040 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round2/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-23 23:57:20,059 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-23 23:57:20,229 - INFO: Epoch: [0][  0/107]	Time  0.165 ( 0.165)	Loss 2.7883e-01 (2.7883e-01)	Acc pseudo  89.06 ( 89.06)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:20,432 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.007)	Loss 1.8300e-01 (2.7960e-01)	Acc pseudo  95.31 ( 94.39)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:20,784 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.007)	Loss 1.0747e-01 (2.5701e-01)	Acc pseudo  95.31 ( 94.46)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:20,844 - INFO: Round 3, Fine-tune Epoch 0: loss=0.2622, acc(pseudo)=94.49%
+2026-03-23 23:57:25,575 - INFO: Round 3, Fine-tune Epoch 0: acc(valid_pseudo): 0.9975, acc: 0.9310
+2026-03-23 23:57:26,194 - INFO: Epoch: [1][  0/107]	Time  0.251 ( 0.251)	Loss 1.8085e-01 (1.8085e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:26,407 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.009)	Loss 8.7838e-02 (1.6048e-01)	Acc pseudo  98.44 ( 95.71)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:26,559 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.006)	Loss 1.4773e-01 (1.6981e-01)	Acc pseudo  95.31 ( 95.56)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:26,620 - INFO: Round 3, Fine-tune Epoch 1: loss=0.1782, acc(pseudo)=95.53%
+2026-03-23 23:57:31,319 - INFO: Round 3, Fine-tune Epoch 1: acc(valid_pseudo): 0.9975, acc: 0.9255
+2026-03-23 23:57:31,320 - INFO: Round 3, Speaker Fine-tune Epoch 1: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-23 23:57:31,485 - INFO: Epoch: [2][  0/107]	Time  0.160 ( 0.160)	Loss 4.7096e-02 (4.7096e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:31,660 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.006)	Loss 2.6576e-01 (1.6338e-01)	Acc pseudo  93.75 ( 95.71)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:31,811 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 4.5870e-02 (1.5133e-01)	Acc pseudo  98.44 ( 95.87)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:31,867 - INFO: Round 3, Fine-tune Epoch 2: loss=0.1497, acc(pseudo)=95.91%
+2026-03-23 23:57:36,317 - INFO: Round 3, Fine-tune Epoch 2: acc(valid_pseudo): 0.9785, acc: 0.9040
+2026-03-23 23:57:36,318 - INFO: Round 3, Speaker Fine-tune Epoch 2: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-23 23:57:36,481 - INFO: Epoch: [3][  0/107]	Time  0.158 ( 0.158)	Loss 9.8965e-02 (9.8965e-02)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:36,655 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.006)	Loss 6.5297e-02 (1.3741e-01)	Acc pseudo  96.88 ( 95.93)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:36,802 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 1.6207e-01 (1.3449e-01)	Acc pseudo  95.31 ( 96.16)	Lr 1.000e-03 (1.000e-03)
+2026-03-23 23:57:36,858 - INFO: Round 3, Fine-tune Epoch 3: loss=0.1344, acc(pseudo)=96.21%
+2026-03-23 23:57:41,330 - INFO: Round 3, Fine-tune Epoch 3: acc(valid_pseudo): 0.9686, acc: 0.8690
+2026-03-23 23:57:41,330 - INFO: Round 3, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-23 23:57:41,330 - INFO: Early stopping at epoch 3 due to no improvement in validation accuracy for 3 epochs.
+2026-03-23 23:57:41,331 - INFO: Round 3: Best speaker fine-tuned epoch=0, acc(valid_pseudo)=0.9975
+2026-03-23 23:57:41,373 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round2/pseudo_label/hmm_params.pkl
+2026-03-24 00:07:14,188 - INFO: Round 3: speaker_acc=0.9280
+2026-03-24 00:07:14,191 - INFO: ====================
+2026-03-24 00:07:14,191 - INFO: Round 4: Fine-tuning iteration
+2026-03-24 00:07:14,191 - INFO: ====================
+2026-03-24 00:07:14,297 - INFO: Round 4 Part 1: Fine-tuning embedding model
+2026-03-24 00:07:14,298 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round3/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:07:14,318 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:07:14,481 - INFO: Epoch: [0][  0/107]	Time  0.159 ( 0.159)	Loss 3.7243e-01 (3.7243e-01)	Acc pseudo  92.19 ( 92.19)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:14,657 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.006)	Loss 2.4770e-01 (1.9277e-01)	Acc pseudo  96.88 ( 95.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:14,815 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 9.2726e-02 (1.6362e-01)	Acc pseudo  96.88 ( 95.90)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:14,873 - INFO: Round 4, Fine-tune Epoch 0: loss=0.1630, acc(pseudo)=95.86%
+2026-03-24 00:07:19,444 - INFO: Round 4, Fine-tune Epoch 0: acc(valid_pseudo): 0.9810, acc: 0.9125
+2026-03-24 00:07:19,883 - INFO: Epoch: [1][  0/107]	Time  0.161 ( 0.161)	Loss 9.3964e-02 (9.3964e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:20,053 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 4.3000e-02 (1.1353e-01)	Acc pseudo 100.00 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:20,200 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 2.0648e-01 (1.0933e-01)	Acc pseudo  92.19 ( 96.92)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:20,257 - INFO: Round 4, Fine-tune Epoch 1: loss=0.1122, acc(pseudo)=96.84%
+2026-03-24 00:07:24,850 - INFO: Round 4, Fine-tune Epoch 1: acc(valid_pseudo): 0.9719, acc: 0.9045
+2026-03-24 00:07:24,850 - INFO: Round 4, Speaker Fine-tune Epoch 1: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:07:25,022 - INFO: Epoch: [2][  0/107]	Time  0.166 ( 0.166)	Loss 2.2801e-02 (2.2801e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:25,191 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.006)	Loss 9.0930e-02 (9.9905e-02)	Acc pseudo  96.88 ( 96.94)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:25,343 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 1.5445e-02 (1.0206e-01)	Acc pseudo 100.00 ( 96.97)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:25,400 - INFO: Round 4, Fine-tune Epoch 2: loss=0.1053, acc(pseudo)=96.90%
+2026-03-24 00:07:29,869 - INFO: Round 4, Fine-tune Epoch 2: acc(valid_pseudo): 0.9810, acc: 0.9230
+2026-03-24 00:07:29,869 - INFO: Round 4, Speaker Fine-tune Epoch 2: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:07:30,036 - INFO: Epoch: [3][  0/107]	Time  0.162 ( 0.162)	Loss 2.0646e-01 (2.0646e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:30,213 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.007)	Loss 6.7066e-02 (1.2368e-01)	Acc pseudo  96.88 ( 96.26)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:30,365 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 5.5734e-02 (1.3096e-01)	Acc pseudo  98.44 ( 95.92)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:30,438 - INFO: Round 4, Fine-tune Epoch 3: loss=0.1287, acc(pseudo)=95.99%
+2026-03-24 00:07:35,037 - INFO: Round 4, Fine-tune Epoch 3: acc(valid_pseudo): 0.9926, acc: 0.9135
+2026-03-24 00:07:35,494 - INFO: Epoch: [4][  0/107]	Time  0.166 ( 0.166)	Loss 5.2762e-02 (5.2762e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:35,675 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 9.1997e-02 (1.2642e-01)	Acc pseudo  95.31 ( 96.35)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:35,837 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 4.7192e-02 (1.1638e-01)	Acc pseudo  96.88 ( 96.57)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:35,893 - INFO: Round 4, Fine-tune Epoch 4: loss=0.1158, acc(pseudo)=96.60%
+2026-03-24 00:07:40,360 - INFO: Round 4, Fine-tune Epoch 4: acc(valid_pseudo): 0.9703, acc: 0.8860
+2026-03-24 00:07:40,360 - INFO: Round 4, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:07:40,532 - INFO: Epoch: [5][  0/107]	Time  0.166 ( 0.166)	Loss 7.0255e-02 (7.0255e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:40,702 - INFO: Epoch: [5][ 50/107]	Time  0.003 ( 0.007)	Loss 1.2816e-01 (1.1848e-01)	Acc pseudo  93.75 ( 96.38)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:40,856 - INFO: Epoch: [5][100/107]	Time  0.002 ( 0.005)	Loss 8.2899e-03 (1.1380e-01)	Acc pseudo 100.00 ( 96.57)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:40,913 - INFO: Round 4, Fine-tune Epoch 5: loss=0.1188, acc(pseudo)=96.51%
+2026-03-24 00:07:45,661 - INFO: Round 4, Fine-tune Epoch 5: acc(valid_pseudo): 0.9876, acc: 0.9165
+2026-03-24 00:07:45,662 - INFO: Round 4, Speaker Fine-tune Epoch 5: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:07:45,826 - INFO: Epoch: [6][  0/107]	Time  0.159 ( 0.159)	Loss 1.8399e-01 (1.8399e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:45,992 - INFO: Epoch: [6][ 50/107]	Time  0.003 ( 0.006)	Loss 7.3073e-02 (1.2950e-01)	Acc pseudo  98.44 ( 96.11)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:46,140 - INFO: Epoch: [6][100/107]	Time  0.002 ( 0.005)	Loss 2.9585e-01 (1.3054e-01)	Acc pseudo  90.62 ( 96.26)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:46,195 - INFO: Round 4, Fine-tune Epoch 6: loss=0.1298, acc(pseudo)=96.28%
+2026-03-24 00:07:50,920 - INFO: Round 4, Fine-tune Epoch 6: acc(valid_pseudo): 0.9942, acc: 0.9250
+2026-03-24 00:07:51,644 - INFO: Epoch: [7][  0/107]	Time  0.248 ( 0.248)	Loss 1.2880e-01 (1.2880e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:51,816 - INFO: Epoch: [7][ 50/107]	Time  0.003 ( 0.008)	Loss 6.0383e-02 (9.6028e-02)	Acc pseudo  96.88 ( 96.48)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:51,971 - INFO: Epoch: [7][100/107]	Time  0.002 ( 0.006)	Loss 3.3040e-02 (1.0764e-01)	Acc pseudo  98.44 ( 96.47)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:52,027 - INFO: Round 4, Fine-tune Epoch 7: loss=0.1080, acc(pseudo)=96.44%
+2026-03-24 00:07:56,918 - INFO: Round 4, Fine-tune Epoch 7: acc(valid_pseudo): 0.9851, acc: 0.9100
+2026-03-24 00:07:56,918 - INFO: Round 4, Speaker Fine-tune Epoch 7: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:07:57,088 - INFO: Epoch: [8][  0/107]	Time  0.164 ( 0.164)	Loss 4.9811e-02 (4.9811e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:57,265 - INFO: Epoch: [8][ 50/107]	Time  0.003 ( 0.007)	Loss 6.7602e-02 (9.7873e-02)	Acc pseudo  96.88 ( 96.97)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:57,420 - INFO: Epoch: [8][100/107]	Time  0.002 ( 0.005)	Loss 1.0000e-01 (9.6579e-02)	Acc pseudo  95.31 ( 96.86)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:07:57,475 - INFO: Round 4, Fine-tune Epoch 8: loss=0.0957, acc(pseudo)=96.91%
+2026-03-24 00:08:02,427 - INFO: Round 4, Fine-tune Epoch 8: acc(valid_pseudo): 0.9909, acc: 0.9225
+2026-03-24 00:08:02,428 - INFO: Round 4, Speaker Fine-tune Epoch 8: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:08:02,599 - INFO: Epoch: [9][  0/107]	Time  0.167 ( 0.167)	Loss 1.0768e-01 (1.0768e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:08:02,804 - INFO: Epoch: [9][ 50/107]	Time  0.004 ( 0.007)	Loss 4.4241e-02 (8.4131e-02)	Acc pseudo  98.44 ( 97.12)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:08:02,977 - INFO: Epoch: [9][100/107]	Time  0.002 ( 0.005)	Loss 9.3939e-02 (8.5246e-02)	Acc pseudo  96.88 ( 96.94)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:08:03,034 - INFO: Round 4, Fine-tune Epoch 9: loss=0.0888, acc(pseudo)=96.90%
+2026-03-24 00:08:07,913 - INFO: Round 4, Fine-tune Epoch 9: acc(valid_pseudo): 0.9917, acc: 0.9260
+2026-03-24 00:08:07,913 - INFO: Round 4, Speaker Fine-tune Epoch 9: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:08:07,913 - INFO: Early stopping at epoch 9 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:08:07,915 - INFO: Round 4: Best speaker fine-tuned epoch=6, acc(valid_pseudo)=0.9942
+2026-03-24 00:08:07,951 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round3/pseudo_label/hmm_params.pkl
+2026-03-24 00:18:36,938 - INFO: Round 4: speaker_acc=0.9255
+2026-03-24 00:18:36,941 - INFO: ====================
+2026-03-24 00:18:36,941 - INFO: Round 5: Fine-tuning iteration
+2026-03-24 00:18:36,941 - INFO: ====================
+2026-03-24 00:18:37,013 - INFO: Round 5 Part 1: Fine-tuning embedding model
+2026-03-24 00:18:37,015 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round4/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:18:37,035 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:18:37,301 - INFO: Epoch: [0][  0/107]	Time  0.262 ( 0.262)	Loss 2.3252e-01 (2.3252e-01)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:37,459 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.008)	Loss 4.6686e-01 (2.3681e-01)	Acc pseudo  95.31 ( 95.96)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:37,603 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.006)	Loss 5.3085e-02 (2.0016e-01)	Acc pseudo  98.44 ( 95.93)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:37,658 - INFO: Round 5, Fine-tune Epoch 0: loss=0.2018, acc(pseudo)=95.91%
+2026-03-24 00:18:42,128 - INFO: Round 5, Fine-tune Epoch 0: acc(valid_pseudo): 0.9942, acc: 0.9270
+2026-03-24 00:18:42,588 - INFO: Epoch: [1][  0/107]	Time  0.184 ( 0.184)	Loss 5.5810e-02 (5.5810e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:42,749 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.007)	Loss 1.5744e-02 (1.2187e-01)	Acc pseudo 100.00 ( 96.32)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:42,897 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 1.7120e-01 (1.2777e-01)	Acc pseudo  95.31 ( 96.41)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:42,961 - INFO: Round 5, Fine-tune Epoch 1: loss=0.1401, acc(pseudo)=96.38%
+2026-03-24 00:18:47,756 - INFO: Round 5, Fine-tune Epoch 1: acc(valid_pseudo): 0.9909, acc: 0.9205
+2026-03-24 00:18:47,756 - INFO: Round 5, Speaker Fine-tune Epoch 1: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:18:47,978 - INFO: Epoch: [2][  0/107]	Time  0.217 ( 0.217)	Loss 1.7545e-02 (1.7545e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:48,140 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.007)	Loss 1.2936e-02 (1.0445e-01)	Acc pseudo 100.00 ( 96.51)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:48,285 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 1.4588e-02 (1.0510e-01)	Acc pseudo 100.00 ( 96.58)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:48,342 - INFO: Round 5, Fine-tune Epoch 2: loss=0.1061, acc(pseudo)=96.59%
+2026-03-24 00:18:52,933 - INFO: Round 5, Fine-tune Epoch 2: acc(valid_pseudo): 0.9983, acc: 0.9310
+2026-03-24 00:18:53,552 - INFO: Epoch: [3][  0/107]	Time  0.152 ( 0.152)	Loss 1.4782e-01 (1.4782e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:53,727 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.006)	Loss 6.2215e-02 (1.0285e-01)	Acc pseudo  95.31 ( 97.03)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:53,880 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 1.9208e-01 (1.0707e-01)	Acc pseudo  96.88 ( 96.80)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:53,937 - INFO: Round 5, Fine-tune Epoch 3: loss=0.1067, acc(pseudo)=96.82%
+2026-03-24 00:18:58,515 - INFO: Round 5, Fine-tune Epoch 3: acc(valid_pseudo): 0.9917, acc: 0.9185
+2026-03-24 00:18:58,515 - INFO: Round 5, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:18:58,685 - INFO: Epoch: [4][  0/107]	Time  0.165 ( 0.165)	Loss 1.6536e-02 (1.6536e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:58,858 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 2.3992e-02 (1.0518e-01)	Acc pseudo 100.00 ( 97.06)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:59,005 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 9.2537e-03 (9.6836e-02)	Acc pseudo 100.00 ( 97.01)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:18:59,062 - INFO: Round 5, Fine-tune Epoch 4: loss=0.0964, acc(pseudo)=97.03%
+2026-03-24 00:19:03,956 - INFO: Round 5, Fine-tune Epoch 4: acc(valid_pseudo): 0.9983, acc: 0.9225
+2026-03-24 00:19:03,956 - INFO: Round 5, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:19:04,145 - INFO: Epoch: [5][  0/107]	Time  0.184 ( 0.184)	Loss 3.5930e-02 (3.5930e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:19:04,328 - INFO: Epoch: [5][ 50/107]	Time  0.003 ( 0.007)	Loss 8.0646e-02 (9.4939e-02)	Acc pseudo  98.44 ( 96.81)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:19:04,476 - INFO: Epoch: [5][100/107]	Time  0.002 ( 0.005)	Loss 1.6676e-02 (9.6758e-02)	Acc pseudo 100.00 ( 97.05)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:19:04,532 - INFO: Round 5, Fine-tune Epoch 5: loss=0.0969, acc(pseudo)=97.00%
+2026-03-24 00:19:08,971 - INFO: Round 5, Fine-tune Epoch 5: acc(valid_pseudo): 0.9959, acc: 0.9270
+2026-03-24 00:19:08,971 - INFO: Round 5, Speaker Fine-tune Epoch 5: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:19:08,971 - INFO: Early stopping at epoch 5 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:19:08,972 - INFO: Round 5: Best speaker fine-tuned epoch=2, acc(valid_pseudo)=0.9983
+2026-03-24 00:19:09,008 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round4/pseudo_label/hmm_params.pkl
+2026-03-24 00:25:40,463 - INFO: Round 5: speaker_acc=0.9270
+2026-03-24 00:25:40,466 - INFO: ====================
+2026-03-24 00:25:40,466 - INFO: Round 6: Fine-tuning iteration
+2026-03-24 00:25:40,466 - INFO: ====================
+2026-03-24 00:25:40,527 - INFO: Round 6 Part 1: Fine-tuning embedding model
+2026-03-24 00:25:40,528 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round5/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:25:40,548 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:25:40,712 - INFO: Epoch: [0][  0/107]	Time  0.160 ( 0.160)	Loss 7.9924e-02 (7.9924e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:40,892 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.007)	Loss 1.1049e-01 (1.3778e-01)	Acc pseudo  98.44 ( 96.84)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:41,051 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 2.0739e-01 (1.4140e-01)	Acc pseudo  95.31 ( 96.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:41,108 - INFO: Round 6, Fine-tune Epoch 0: loss=0.1384, acc(pseudo)=96.81%
+2026-03-24 00:25:45,520 - INFO: Round 6, Fine-tune Epoch 0: acc(valid_pseudo): 0.9744, acc: 0.8970
+2026-03-24 00:25:45,950 - INFO: Epoch: [1][  0/107]	Time  0.159 ( 0.159)	Loss 2.9663e-02 (2.9663e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:46,112 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 1.2671e-02 (9.1675e-02)	Acc pseudo 100.00 ( 97.40)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:46,257 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 1.4696e-01 (9.4815e-02)	Acc pseudo  93.75 ( 97.37)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:46,312 - INFO: Round 6, Fine-tune Epoch 1: loss=0.1016, acc(pseudo)=97.36%
+2026-03-24 00:25:50,728 - INFO: Round 6, Fine-tune Epoch 1: acc(valid_pseudo): 0.9917, acc: 0.9295
+2026-03-24 00:25:51,179 - INFO: Epoch: [2][  0/107]	Time  0.163 ( 0.163)	Loss 1.5152e-02 (1.5152e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:51,346 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.006)	Loss 2.9198e-02 (9.2011e-02)	Acc pseudo  98.44 ( 97.33)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:51,490 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 1.7185e-02 (8.0004e-02)	Acc pseudo 100.00 ( 97.62)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:51,545 - INFO: Round 6, Fine-tune Epoch 2: loss=0.0814, acc(pseudo)=97.58%
+2026-03-24 00:25:56,262 - INFO: Round 6, Fine-tune Epoch 2: acc(valid_pseudo): 0.9967, acc: 0.9280
+2026-03-24 00:25:56,715 - INFO: Epoch: [3][  0/107]	Time  0.162 ( 0.162)	Loss 8.0131e-02 (8.0131e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:56,893 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.007)	Loss 5.9548e-02 (6.9348e-02)	Acc pseudo  96.88 ( 97.89)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:57,041 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 2.4023e-02 (7.0822e-02)	Acc pseudo 100.00 ( 97.63)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:25:57,096 - INFO: Round 6, Fine-tune Epoch 3: loss=0.0704, acc(pseudo)=97.66%
+2026-03-24 00:26:01,861 - INFO: Round 6, Fine-tune Epoch 3: acc(valid_pseudo): 0.9992, acc: 0.9275
+2026-03-24 00:26:02,325 - INFO: Epoch: [4][  0/107]	Time  0.161 ( 0.161)	Loss 2.0838e-02 (2.0838e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:02,498 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.006)	Loss 6.4374e-02 (8.0389e-02)	Acc pseudo  98.44 ( 97.18)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:02,659 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 1.0323e-01 (7.4274e-02)	Acc pseudo  98.44 ( 97.46)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:02,718 - INFO: Round 6, Fine-tune Epoch 4: loss=0.0740, acc(pseudo)=97.45%
+2026-03-24 00:26:07,253 - INFO: Round 6, Fine-tune Epoch 4: acc(valid_pseudo): 0.9967, acc: 0.9265
+2026-03-24 00:26:07,254 - INFO: Round 6, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:26:07,419 - INFO: Epoch: [5][  0/107]	Time  0.160 ( 0.160)	Loss 4.3053e-02 (4.3053e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:07,589 - INFO: Epoch: [5][ 50/107]	Time  0.003 ( 0.006)	Loss 9.4946e-02 (7.1059e-02)	Acc pseudo  95.31 ( 97.70)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:07,743 - INFO: Epoch: [5][100/107]	Time  0.002 ( 0.005)	Loss 2.5621e-02 (7.4185e-02)	Acc pseudo  98.44 ( 97.59)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:07,800 - INFO: Round 6, Fine-tune Epoch 5: loss=0.0748, acc(pseudo)=97.55%
+2026-03-24 00:26:13,542 - INFO: Round 6, Fine-tune Epoch 5: acc(valid_pseudo): 0.9967, acc: 0.9050
+2026-03-24 00:26:13,543 - INFO: Round 6, Speaker Fine-tune Epoch 5: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:26:13,731 - INFO: Epoch: [6][  0/107]	Time  0.183 ( 0.183)	Loss 1.5000e-01 (1.5000e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:13,892 - INFO: Epoch: [6][ 50/107]	Time  0.003 ( 0.007)	Loss 9.1694e-02 (6.6648e-02)	Acc pseudo  95.31 ( 97.64)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:14,085 - INFO: Epoch: [6][100/107]	Time  0.002 ( 0.005)	Loss 1.0572e-01 (7.4597e-02)	Acc pseudo  95.31 ( 97.60)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:26:14,158 - INFO: Round 6, Fine-tune Epoch 6: loss=0.0779, acc(pseudo)=97.53%
+2026-03-24 00:26:19,320 - INFO: Round 6, Fine-tune Epoch 6: acc(valid_pseudo): 0.9752, acc: 0.8985
+2026-03-24 00:26:19,321 - INFO: Round 6, Speaker Fine-tune Epoch 6: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:26:19,321 - INFO: Early stopping at epoch 6 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:26:19,323 - INFO: Round 6: Best speaker fine-tuned epoch=3, acc(valid_pseudo)=0.9992
+2026-03-24 00:26:19,382 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round5/pseudo_label/hmm_params.pkl
+2026-03-24 00:32:43,377 - INFO: Round 6: speaker_acc=0.9250
+2026-03-24 00:32:43,381 - INFO: ====================
+2026-03-24 00:32:43,381 - INFO: Round 7: Fine-tuning iteration
+2026-03-24 00:32:43,381 - INFO: ====================
+2026-03-24 00:32:43,441 - INFO: Round 7 Part 1: Fine-tuning embedding model
+2026-03-24 00:32:43,443 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round6/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:32:43,478 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:32:43,730 - INFO: Epoch: [0][  0/107]	Time  0.247 ( 0.247)	Loss 7.1513e-02 (7.1513e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:43,923 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.009)	Loss 2.5013e-01 (1.5093e-01)	Acc pseudo  98.44 ( 97.40)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:44,073 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.006)	Loss 4.6115e-02 (1.3472e-01)	Acc pseudo  96.88 ( 97.05)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:44,131 - INFO: Round 7, Fine-tune Epoch 0: loss=0.1305, acc(pseudo)=97.10%
+2026-03-24 00:32:48,733 - INFO: Round 7, Fine-tune Epoch 0: acc(valid_pseudo): 0.9950, acc: 0.9270
+2026-03-24 00:32:49,332 - INFO: Epoch: [1][  0/107]	Time  0.162 ( 0.162)	Loss 4.8498e-02 (4.8498e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:49,498 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.006)	Loss 9.7981e-03 (8.9728e-02)	Acc pseudo 100.00 ( 97.61)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:49,644 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 9.0229e-02 (7.8940e-02)	Acc pseudo  96.88 ( 97.82)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:49,700 - INFO: Round 7, Fine-tune Epoch 1: loss=0.0827, acc(pseudo)=97.83%
+2026-03-24 00:32:54,150 - INFO: Round 7, Fine-tune Epoch 1: acc(valid_pseudo): 0.9992, acc: 0.9265
+2026-03-24 00:32:54,606 - INFO: Epoch: [2][  0/107]	Time  0.158 ( 0.158)	Loss 1.6060e-02 (1.6060e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:54,795 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.007)	Loss 2.7415e-02 (6.4066e-02)	Acc pseudo  98.44 ( 97.86)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:54,953 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 1.7853e-02 (6.8479e-02)	Acc pseudo  98.44 ( 97.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:55,010 - INFO: Round 7, Fine-tune Epoch 2: loss=0.0695, acc(pseudo)=97.86%
+2026-03-24 00:32:59,491 - INFO: Round 7, Fine-tune Epoch 2: acc(valid_pseudo): 0.9959, acc: 0.9230
+2026-03-24 00:32:59,491 - INFO: Round 7, Speaker Fine-tune Epoch 2: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:32:59,672 - INFO: Epoch: [3][  0/107]	Time  0.176 ( 0.176)	Loss 1.0498e-01 (1.0498e-01)	Acc pseudo  95.31 ( 95.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:59,836 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.007)	Loss 1.1903e-01 (6.4228e-02)	Acc pseudo  95.31 ( 98.28)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:32:59,987 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 5.6974e-02 (6.6982e-02)	Acc pseudo  98.44 ( 98.07)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:33:00,043 - INFO: Round 7, Fine-tune Epoch 3: loss=0.0654, acc(pseudo)=98.11%
+2026-03-24 00:33:05,542 - INFO: Round 7, Fine-tune Epoch 3: acc(valid_pseudo): 0.9917, acc: 0.9145
+2026-03-24 00:33:05,542 - INFO: Round 7, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:33:05,735 - INFO: Epoch: [4][  0/107]	Time  0.188 ( 0.188)	Loss 2.9801e-02 (2.9801e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:33:05,899 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.007)	Loss 3.2797e-02 (5.4619e-02)	Acc pseudo  98.44 ( 97.98)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:33:06,100 - INFO: Epoch: [4][100/107]	Time  0.003 ( 0.005)	Loss 2.2694e-01 (5.6484e-02)	Acc pseudo  95.31 ( 98.08)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:33:06,169 - INFO: Round 7, Fine-tune Epoch 4: loss=0.0564, acc(pseudo)=98.08%
+2026-03-24 00:33:12,165 - INFO: Round 7, Fine-tune Epoch 4: acc(valid_pseudo): 0.9323, acc: 0.8395
+2026-03-24 00:33:12,166 - INFO: Round 7, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:33:12,166 - INFO: Early stopping at epoch 4 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:33:12,167 - INFO: Round 7: Best speaker fine-tuned epoch=1, acc(valid_pseudo)=0.9992
+2026-03-24 00:33:12,203 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round6/pseudo_label/hmm_params.pkl
+2026-03-24 00:36:38,449 - INFO: Round 7: speaker_acc=0.9265
+2026-03-24 00:36:38,452 - INFO: ====================
+2026-03-24 00:36:38,453 - INFO: Round 8: Fine-tuning iteration
+2026-03-24 00:36:38,453 - INFO: ====================
+2026-03-24 00:36:38,587 - INFO: Round 8 Part 1: Fine-tuning embedding model
+2026-03-24 00:36:38,589 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round7/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:36:38,625 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:36:38,811 - INFO: Epoch: [0][  0/107]	Time  0.182 ( 0.182)	Loss 5.6486e-02 (5.6486e-02)	Acc pseudo  93.75 ( 93.75)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:38,975 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.007)	Loss 5.3338e-02 (1.6537e-01)	Acc pseudo  98.44 ( 97.40)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:39,123 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 5.9831e-02 (1.5275e-01)	Acc pseudo  98.44 ( 97.31)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:39,179 - INFO: Round 8, Fine-tune Epoch 0: loss=0.1494, acc(pseudo)=97.31%
+2026-03-24 00:36:44,015 - INFO: Round 8, Fine-tune Epoch 0: acc(valid_pseudo): 0.9356, acc: 0.8485
+2026-03-24 00:36:44,618 - INFO: Epoch: [1][  0/107]	Time  0.166 ( 0.166)	Loss 3.9474e-02 (3.9474e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:44,795 - INFO: Epoch: [1][ 50/107]	Time  0.004 ( 0.007)	Loss 1.7685e-01 (1.0909e-01)	Acc pseudo  96.88 ( 97.12)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:44,982 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 2.4729e-02 (9.5177e-02)	Acc pseudo 100.00 ( 97.62)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:45,040 - INFO: Round 8, Fine-tune Epoch 1: loss=0.0951, acc(pseudo)=97.63%
+2026-03-24 00:36:49,616 - INFO: Round 8, Fine-tune Epoch 1: acc(valid_pseudo): 0.9992, acc: 0.9275
+2026-03-24 00:36:50,092 - INFO: Epoch: [2][  0/107]	Time  0.163 ( 0.163)	Loss 3.7406e-03 (3.7406e-03)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:50,289 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.007)	Loss 8.2790e-02 (7.1055e-02)	Acc pseudo  98.44 ( 97.92)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:50,444 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 7.2671e-03 (7.0598e-02)	Acc pseudo 100.00 ( 97.90)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:50,501 - INFO: Round 8, Fine-tune Epoch 2: loss=0.0689, acc(pseudo)=97.95%
+2026-03-24 00:36:55,972 - INFO: Round 8, Fine-tune Epoch 2: acc(valid_pseudo): 0.9983, acc: 0.9205
+2026-03-24 00:36:55,972 - INFO: Round 8, Speaker Fine-tune Epoch 2: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:36:56,139 - INFO: Epoch: [3][  0/107]	Time  0.162 ( 0.162)	Loss 1.0423e-01 (1.0423e-01)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:56,303 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.006)	Loss 2.3778e-01 (6.6197e-02)	Acc pseudo  96.88 ( 98.04)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:56,452 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 1.3250e-02 (6.2526e-02)	Acc pseudo 100.00 ( 97.93)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:36:56,507 - INFO: Round 8, Fine-tune Epoch 3: loss=0.0617, acc(pseudo)=97.95%
+2026-03-24 00:37:01,021 - INFO: Round 8, Fine-tune Epoch 3: acc(valid_pseudo): 0.9917, acc: 0.9240
+2026-03-24 00:37:01,021 - INFO: Round 8, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:37:01,189 - INFO: Epoch: [4][  0/107]	Time  0.162 ( 0.162)	Loss 3.0895e-02 (3.0895e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:37:01,361 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.006)	Loss 4.8408e-02 (7.0199e-02)	Acc pseudo  98.44 ( 98.07)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:37:01,510 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 1.9453e-02 (7.2150e-02)	Acc pseudo 100.00 ( 98.02)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:37:01,567 - INFO: Round 8, Fine-tune Epoch 4: loss=0.0717, acc(pseudo)=97.99%
+2026-03-24 00:37:06,149 - INFO: Round 8, Fine-tune Epoch 4: acc(valid_pseudo): 0.9785, acc: 0.8995
+2026-03-24 00:37:06,149 - INFO: Round 8, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:37:06,149 - INFO: Early stopping at epoch 4 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:37:06,150 - INFO: Round 8: Best speaker fine-tuned epoch=1, acc(valid_pseudo)=0.9992
+2026-03-24 00:37:06,199 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round7/pseudo_label/hmm_params.pkl
+2026-03-24 00:42:27,737 - INFO: Round 8: speaker_acc=0.9245
+2026-03-24 00:42:27,740 - INFO: ====================
+2026-03-24 00:42:27,740 - INFO: Round 9: Fine-tuning iteration
+2026-03-24 00:42:27,740 - INFO: ====================
+2026-03-24 00:42:27,840 - INFO: Round 9 Part 1: Fine-tuning embedding model
+2026-03-24 00:42:27,841 - INFO: Using pseudo-label file: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round8/pseudo_label/pseudo_labels_audio_hmmx_both(unreliable_pp=20.0).json
+2026-03-24 00:42:27,861 - INFO: Fine-tuning speaker embedding model for 20 epochs...
+2026-03-24 00:42:28,030 - INFO: Epoch: [0][  0/107]	Time  0.165 ( 0.165)	Loss 3.0573e-02 (3.0573e-02)	Acc pseudo  96.88 ( 96.88)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:28,199 - INFO: Epoch: [0][ 50/107]	Time  0.003 ( 0.006)	Loss 1.1379e-02 (1.0769e-01)	Acc pseudo 100.00 ( 97.64)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:28,347 - INFO: Epoch: [0][100/107]	Time  0.002 ( 0.005)	Loss 4.9471e-03 (1.4071e-01)	Acc pseudo 100.00 ( 97.43)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:28,404 - INFO: Round 9, Fine-tune Epoch 0: loss=0.1508, acc(pseudo)=97.42%
+2026-03-24 00:42:33,965 - INFO: Round 9, Fine-tune Epoch 0: acc(valid_pseudo): 0.9983, acc: 0.9235
+2026-03-24 00:42:34,623 - INFO: Epoch: [1][  0/107]	Time  0.162 ( 0.162)	Loss 2.6805e-02 (2.6805e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:34,815 - INFO: Epoch: [1][ 50/107]	Time  0.003 ( 0.007)	Loss 6.4647e-02 (1.0225e-01)	Acc pseudo  98.44 ( 97.30)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:34,964 - INFO: Epoch: [1][100/107]	Time  0.002 ( 0.005)	Loss 1.4053e-01 (8.9034e-02)	Acc pseudo  96.88 ( 97.60)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:35,022 - INFO: Round 9, Fine-tune Epoch 1: loss=0.0888, acc(pseudo)=97.55%
+2026-03-24 00:42:39,684 - INFO: Round 9, Fine-tune Epoch 1: acc(valid_pseudo): 0.9992, acc: 0.9260
+2026-03-24 00:42:40,177 - INFO: Epoch: [2][  0/107]	Time  0.171 ( 0.171)	Loss 1.4563e-02 (1.4563e-02)	Acc pseudo 100.00 (100.00)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:40,345 - INFO: Epoch: [2][ 50/107]	Time  0.003 ( 0.007)	Loss 3.1366e-02 (8.4496e-02)	Acc pseudo  98.44 ( 97.82)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:40,496 - INFO: Epoch: [2][100/107]	Time  0.002 ( 0.005)	Loss 4.3568e-02 (9.2571e-02)	Acc pseudo  98.44 ( 97.80)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:40,551 - INFO: Round 9, Fine-tune Epoch 2: loss=0.0905, acc(pseudo)=97.83%
+2026-03-24 00:42:45,266 - INFO: Round 9, Fine-tune Epoch 2: acc(valid_pseudo): 1.0000, acc: 0.9255
+2026-03-24 00:42:45,747 - INFO: Epoch: [3][  0/107]	Time  0.183 ( 0.183)	Loss 2.8923e-02 (2.8923e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:45,925 - INFO: Epoch: [3][ 50/107]	Time  0.003 ( 0.007)	Loss 6.6379e-02 (5.3674e-02)	Acc pseudo  98.44 ( 98.35)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:46,082 - INFO: Epoch: [3][100/107]	Time  0.002 ( 0.005)	Loss 2.9236e-02 (6.5541e-02)	Acc pseudo  98.44 ( 97.91)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:46,137 - INFO: Round 9, Fine-tune Epoch 3: loss=0.0661, acc(pseudo)=97.94%
+2026-03-24 00:42:50,775 - INFO: Round 9, Fine-tune Epoch 3: acc(valid_pseudo): 0.9959, acc: 0.9270
+2026-03-24 00:42:50,775 - INFO: Round 9, Speaker Fine-tune Epoch 3: No improvement in validation accuracy. Patience(epoch): 1/3
+2026-03-24 00:42:50,935 - INFO: Epoch: [4][  0/107]	Time  0.154 ( 0.154)	Loss 1.5551e-02 (1.5551e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:51,105 - INFO: Epoch: [4][ 50/107]	Time  0.003 ( 0.006)	Loss 2.6901e-03 (6.6403e-02)	Acc pseudo 100.00 ( 98.16)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:51,256 - INFO: Epoch: [4][100/107]	Time  0.002 ( 0.005)	Loss 3.5821e-03 (5.9736e-02)	Acc pseudo 100.00 ( 98.22)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:51,311 - INFO: Round 9, Fine-tune Epoch 4: loss=0.0586, acc(pseudo)=98.23%
+2026-03-24 00:42:55,650 - INFO: Round 9, Fine-tune Epoch 4: acc(valid_pseudo): 0.9983, acc: 0.9270
+2026-03-24 00:42:55,651 - INFO: Round 9, Speaker Fine-tune Epoch 4: No improvement in validation accuracy. Patience(epoch): 2/3
+2026-03-24 00:42:55,813 - INFO: Epoch: [5][  0/107]	Time  0.157 ( 0.157)	Loss 1.9210e-02 (1.9210e-02)	Acc pseudo  98.44 ( 98.44)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:55,992 - INFO: Epoch: [5][ 50/107]	Time  0.003 ( 0.007)	Loss 8.1953e-02 (8.9556e-02)	Acc pseudo  96.88 ( 97.43)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:56,135 - INFO: Epoch: [5][100/107]	Time  0.002 ( 0.005)	Loss 9.7673e-03 (8.7897e-02)	Acc pseudo 100.00 ( 97.48)	Lr 1.000e-03 (1.000e-03)
+2026-03-24 00:42:56,192 - INFO: Round 9, Fine-tune Epoch 5: loss=0.0884, acc(pseudo)=97.50%
+2026-03-24 00:43:00,579 - INFO: Round 9, Fine-tune Epoch 5: acc(valid_pseudo): 0.9860, acc: 0.8640
+2026-03-24 00:43:00,580 - INFO: Round 9, Speaker Fine-tune Epoch 5: No improvement in validation accuracy. Patience(epoch): 3/3
+2026-03-24 00:43:00,580 - INFO: Early stopping at epoch 5 due to no improvement in validation accuracy for 3 epochs.
+2026-03-24 00:43:00,581 - INFO: Round 9: Best speaker fine-tuned epoch=2, acc(valid_pseudo)=1.0000
+2026-03-24 00:43:00,620 - INFO: Using HMM model from previous round: runs/the big bang theory/exp_video_ablation/result/e/self_supervised/exp0/round8/pseudo_label/hmm_params.pkl
+2026-03-24 00:46:44,759 - INFO: Round 9: speaker_acc=0.9225
+2026-03-24 00:46:44,762 - INFO: ====================
+2026-03-24 00:46:44,762 - INFO: Self-supervised fine-tuning completed!
+2026-03-24 00:46:44,762 - INFO: Initial speaker: acc=0.9200
+2026-03-24 00:46:44,762 - INFO: Final speaker at round 9: acc=0.9225
+2026-03-24 00:46:44,762 - INFO: Speaker improvement: 0.0025 (0.27%)
+2026-03-24 00:46:44,762 - INFO: ====================
