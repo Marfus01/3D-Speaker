@@ -4,6 +4,7 @@ group_1_accuracy: 0.9054
 group_2_accuracy: 0.9502
 group_3_accuracy: 0.9587
 group_4_accuracy: 0.9545
+group_3&4_accuracy: 0.9577
 
 accuracy_Sheldon: 0.9634
 accuracy_Leonard: 0.9222
@@ -11,3 +12,7 @@ accuracy_Penny: 0.9303
 accuracy_Howard: 0.9268
 accuracy_Others: 0.8265
 accuracy_Raj: 0.9137
+overall_nmi: 0.7925
+overall_ari: 0.8527
+overall_mean_entropy_per_cluster: 0.3963
+overall_mean_maximal_purity_per_cluster: 0.9111

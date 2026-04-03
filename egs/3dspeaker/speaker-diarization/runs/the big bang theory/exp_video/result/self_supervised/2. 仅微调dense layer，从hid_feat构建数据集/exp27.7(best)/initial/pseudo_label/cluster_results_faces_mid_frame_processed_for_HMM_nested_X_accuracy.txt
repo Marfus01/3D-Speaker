@@ -11,3 +11,7 @@ accuracy_Sheldon: 0.9313
 accuracy_Howard: 0.8707
 accuracy_Raj: 0.9167
 accuracy_Penny: 0.8876
+overall_nmi: 0.784
+overall_ari: 0.7697
+overall_mean_entropy_per_cluster: 0.3113
+overall_mean_maximal_purity_per_cluster: 0.9226

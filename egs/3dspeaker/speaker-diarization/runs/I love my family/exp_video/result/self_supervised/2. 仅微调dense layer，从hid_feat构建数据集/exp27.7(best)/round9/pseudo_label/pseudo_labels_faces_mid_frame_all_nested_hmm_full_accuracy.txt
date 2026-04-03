@@ -14,3 +14,7 @@ accuracy_圆圆: 0.9038
 accuracy_小张: 0.8182
 accuracy_小凡: 0.6
 accuracy_燕红: 0.8636
+overall_nmi: 0.7376
+overall_ari: 0.6823
+overall_mean_entropy_per_cluster: 0.3999
+overall_mean_maximal_purity_per_cluster: 0.9017
