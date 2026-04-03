@@ -20,7 +20,7 @@ def main(args):
 
     os.makedirs(args.result_dir, exist_ok=True)
     json_files = [os.path.join(args.result_dir, f) for f in os.listdir(args.result_dir) if f.endswith('.json') and os.path.isfile(os.path.join(args.result_dir, f))]  # all cluster json files for evaluation
-    json_files = [f for f in json_files if 'faces' not in os.path.basename(f)]  # only evaluate speaker clustering results based on audio or audio+vision
+    json_files = [f for f in json_files if 'face' not in os.path.basename(f)]  # only evaluate speaker clustering results based on audio or audio+vision
     if not json_files:
         print("No speaker cluster json files found in", args.result_dir)
         sys.exit(1)
@@ -136,6 +136,8 @@ def main(args):
             if idxs:
                 acc = cal_accuracy_onehot(speaker_onehot[idxs], cluster_pred[idxs])
                 results[f'accuracy_{name}'] = acc
+        clustering_metrics = cal_clustering_metrics(speaker_labels, [mapping[label] for label in cluster_labels])
+        results.update(clustering_metrics)
 
 
         # 8. 保存结果
@@ -155,13 +157,21 @@ def main(args):
         # 9. 汇总 overall accuracy
         overall_acc_dic[os.path.basename(json_file)] = results['overall_accuracy']
 
-        print("Accuracy results saved to", os.path.join(args.result_dir, filename))
+    #     print("Overall clustering metrics:")
+    #     for metric_name in [
+    #         'overall_nmi',
+    #         'overall_ari',
+    #         'overall_mean_entropy_per_cluster',
+    #         'overall_mean_maximal_purity_per_cluster',
+    #     ]:
+    #         print(f"{metric_name}: {results[metric_name]}")
+    #     print("Accuracy results saved to", os.path.join(args.result_dir, filename))
 
-    # 汇总打印 overall accuracy
-    print("All overall accuracy:")
-    overall_acc_sorted = sorted(overall_acc_dic.items(), key=lambda x: x[1], reverse=True)
-    for i in range(len(overall_acc_sorted)):
-        print(f"{overall_acc_sorted[i][0]}: {overall_acc_sorted[i][1]}")
+    # # 汇总打印 overall accuracy
+    # print("All overall accuracy:")
+    # overall_acc_sorted = sorted(overall_acc_dic.items(), key=lambda x: x[1], reverse=True)
+    # for i in range(len(overall_acc_sorted)):
+    #     print(f"{overall_acc_sorted[i][0]}: {overall_acc_sorted[i][1]}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

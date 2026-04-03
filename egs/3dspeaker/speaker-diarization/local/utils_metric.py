@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
+from scipy.stats import entropy
+from sklearn.metrics.cluster import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.model_selection import train_test_split
 
 ###############
@@ -131,6 +133,53 @@ def cal_accuracy_onehot(label_onehot, pred_onehot):
     correct = np.sum(np.all(label_onehot == pred_onehot, axis=1))
     accuracy = correct / n_samples if n_samples > 0 else 0.0
     return round(accuracy, 4)
+
+
+def cal_clustering_metrics(ref_labels, pred_labels):
+    """
+    计算整体聚类指标:
+    - NMI
+    - ARI
+    - mean entropy per cluster
+    - mean maximal purity per cluster
+    """
+    assert len(ref_labels) == len(pred_labels), "ref_labels and pred_labels must have the same length."
+    if len(ref_labels) == 0:
+        return {
+            'overall_nmi': 0.0,
+            'overall_ari': 0.0,
+            'overall_mean_entropy_per_cluster': 0.0,
+            'overall_mean_maximal_purity_per_cluster': 0.0,
+        }
+
+    ref_classes = sorted(set(ref_labels))
+    pred_classes = sorted(set(pred_labels))
+    ref_to_idx = {label: idx for idx, label in enumerate(ref_classes)}
+    pred_to_idx = {label: idx for idx, label in enumerate(pred_classes)}
+
+    ref_ids = np.array([ref_to_idx[label] for label in ref_labels], dtype=int)
+    pred_ids = np.array([pred_to_idx[label] for label in pred_labels], dtype=int)
+
+    nmi = normalized_mutual_info_score(pred_ids, ref_ids, average_method='arithmetic')
+    ari = adjusted_rand_score(pred_ids, ref_ids)
+
+    entropies = []
+    purities = []
+    for pred_id in np.unique(pred_ids):
+        of_this_cluster = (pred_ids == pred_id)
+        if of_this_cluster.sum() == 0:
+            continue
+        _, counts = np.unique(ref_ids[of_this_cluster], return_counts=True)
+        probs = counts / counts.sum()
+        entropies.append(float(entropy(probs)))
+        purities.append(float(counts.max() / counts.sum()))
+
+    return {
+        'overall_nmi': round(float(nmi), 4),
+        'overall_ari': round(float(ari), 4),
+        'overall_mean_entropy_per_cluster': round(float(np.mean(entropies)), 4),
+        'overall_mean_maximal_purity_per_cluster': round(float(np.mean(purities)), 4),
+    }
 
 
 

@@ -127,32 +127,35 @@ def main(args):
             if idxs:
                 acc = cal_accuracy_onehot(face_labels_onehot[idxs], cluster_pred[idxs])
                 results[f'accuracy_{name}'] = acc
-        # 7.3 打印各个聚类簇中不同真实标签的比例
-        cluster_label_mapping_rev = {v: k for k, v in cluster_label_mapping.items()}
-        sorted_cluster_ids = sorted([cluster_label_mapping_rev[cluster_id] for cluster_id in set(cluster_labels)])
-        pred_wrong_keys_all = {}
-        for cluster_id_ori in sorted_cluster_ids:
-            cluster_id = cluster_label_mapping[cluster_id_ori]
-            idxs = [i for i in range(len(cluster_labels)) if cluster_labels[i] == cluster_id]
-            total_in_cluster = len(idxs)
-            if idxs:
-                true_labels_in_cluster = [face_labels[i] for i in idxs]
-                label_counts = {name: true_labels_in_cluster.count(name) for name in set(true_labels_in_cluster)}
-                label_ratios = {name: count / total_in_cluster for name, count in label_counts.items()}
-                label_ratios = dict(sorted(label_ratios.items(), key=lambda item: item[1], reverse=True))
-                pred_wrong_keys, pred_wrong_keys_example = [], {}
-                for name, count in label_counts.items():
-                    if count != max(label_counts.values()):
-                        indices = [i for i in idxs if face_labels[i] == name]
-                        pred_wrong_keys.extend([keys[i] for i in indices])
-                        pred_wrong_keys_example[name] = [keys[i] for i in indices[:3]]
+        clustering_metrics = cal_clustering_metrics(face_labels, [mapping[label] for label in cluster_labels])
+        results.update(clustering_metrics)
+        
+        # # 7.3 打印各个聚类簇中不同真实标签的比例
+        # cluster_label_mapping_rev = {v: k for k, v in cluster_label_mapping.items()}
+        # sorted_cluster_ids = sorted([cluster_label_mapping_rev[cluster_id] for cluster_id in set(cluster_labels)])
+        # pred_wrong_keys_all = {}
+        # for cluster_id_ori in sorted_cluster_ids:
+        #     cluster_id = cluster_label_mapping[cluster_id_ori]
+        #     idxs = [i for i in range(len(cluster_labels)) if cluster_labels[i] == cluster_id]
+        #     total_in_cluster = len(idxs)
+        #     if idxs:
+        #         true_labels_in_cluster = [face_labels[i] for i in idxs]
+        #         label_counts = {name: true_labels_in_cluster.count(name) for name in set(true_labels_in_cluster)}
+        #         label_ratios = {name: count / total_in_cluster for name, count in label_counts.items()}
+        #         label_ratios = dict(sorted(label_ratios.items(), key=lambda item: item[1], reverse=True))
+        #         pred_wrong_keys, pred_wrong_keys_example = [], {}
+        #         for name, count in label_counts.items():
+        #             if count != max(label_counts.values()):
+        #                 indices = [i for i in idxs if face_labels[i] == name]
+        #                 pred_wrong_keys.extend([keys[i] for i in indices])
+        #                 pred_wrong_keys_example[name] = [keys[i] for i in indices[:3]]
                 
-                non_top_label_counts = len(pred_wrong_keys)
-                pred_wrong_keys_all[cluster_id_ori] = pred_wrong_keys
-                if non_top_label_counts == 0:
-                    print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios)
-                else:
-                    print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios, f"; pred wrong count = {non_top_label_counts}, example keys:", pred_wrong_keys_example)
+        #         non_top_label_counts = len(pred_wrong_keys)
+        #         pred_wrong_keys_all[cluster_id_ori] = pred_wrong_keys
+        #         if non_top_label_counts == 0:
+        #             print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios)
+        #         else:
+        #             print(f"Cluster {cluster_id_ori} -- size = {total_in_cluster},  label ratios:", label_ratios, f"; pred wrong count = {non_top_label_counts}, example keys:", pred_wrong_keys_example)
 
         # 8. 保存结果
         if args.mode == 'all':
@@ -168,7 +171,15 @@ def main(args):
                     name_grp_cnt += 1
                 f.write(f"{k}: {v}\n")
 
-        print("Accuracy results saved to", os.path.join(args.result_dir, filename))
+        # print("Overall clustering metrics:")
+        # for metric_name in [
+        #     'overall_nmi',
+        #     'overall_ari',
+        #     'overall_mean_entropy_per_cluster',
+        #     'overall_mean_maximal_purity_per_cluster',
+        # ]:
+        #     print(f"{metric_name}: {results[metric_name]}")
+        # print("Accuracy results saved to", os.path.join(args.result_dir, filename))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
