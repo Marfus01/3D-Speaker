@@ -103,6 +103,11 @@ MANUAL_REVIEW_COLUMNS = [
 
 FINAL_LABELS = ["TP", "FP", "FN", "TN", "Ambiguous", "Exclude"]
 
+REFERENCE_IDENTITY_PERCENT = {
+    "the big bang theory": 93.81,
+    "I love my family": 94.80,
+}
+
 
 @dataclass(frozen=True)
 class DatasetPaths:
@@ -379,6 +384,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-records", type=int, help="Smoke-test limit per dataset.")
     parser.add_argument("--candidates-per-class", type=int, default=20)
     parser.add_argument("--min-recovery-rate", type=float, default=0.99)
+    parser.add_argument(
+        "--require-reference-identity",
+        action="store_true",
+        help="Stop unless identity agreement rounds to the registered paper value.",
+    )
     clip_group = parser.add_mutually_exclusive_group()
     clip_group.add_argument(
         "--write-clips",
@@ -714,6 +724,25 @@ def summarize_dataset(paths: DatasetPaths) -> None:
     print(
         f"[INFO] {paths.short_name}: coverage={len(unique_labels)}/{len(subsegments)}, "
         f"identity agreement={correct}/{len(identity)}={correct / len(identity):.4f}"
+    )
+
+
+def require_reference_identity(paths: DatasetPaths) -> None:
+    summary_path = data_artifact(paths, "identity_agreement_summary.csv")
+    require_files([summary_path], "identity agreement summary")
+    summary = pd.read_csv(summary_path)
+    if len(summary) != 1 or "oracle_hungarian_accuracy" not in summary:
+        raise ValueError(f"Unexpected identity summary format: {summary_path}")
+    actual_percent = round(float(summary.iloc[0]["oracle_hungarian_accuracy"]) * 100, 2)
+    expected_percent = REFERENCE_IDENTITY_PERCENT[paths.tv_name]
+    if actual_percent != expected_percent:
+        raise RuntimeError(
+            f"{paths.short_name} identity agreement is {actual_percent:.2f}%, "
+            f"expected {expected_percent:.2f}%; stopping before bbox recovery."
+        )
+    print(
+        f"[GATE PASS] {paths.short_name}: identity agreement "
+        f"{actual_percent:.2f}% matches the registered result."
     )
 
 
@@ -1415,7 +1444,7 @@ def _write_candidate_media(
                 Path("media") / "full_frames" / episode / f"{candidate_id}.jpg"
             )
             full_path = paths.output_dir / full_relative
-            if overwrite or not full_path.is_file():
+            if overwrite or not full_path.is_file() or full_path.stat().st_size == 0:
                 _draw_full_frame(frame, row, full_path)
             pool.at[row_index, "full_frame_path"] = full_relative.as_posix()
 
@@ -1424,7 +1453,7 @@ def _write_candidate_media(
                     Path("media") / "face_crops" / episode / f"{candidate_id}.jpg"
                 )
                 face_path = paths.output_dir / face_relative
-                if overwrite or not face_path.is_file():
+                if overwrite or not face_path.is_file() or face_path.stat().st_size == 0:
                     _write_face_crop(frame, row, face_path)
                 pool.at[row_index, "face_crop_path"] = face_relative.as_posix()
                 pool.at[row_index, "media_status"] = "complete"
@@ -1884,6 +1913,8 @@ def run_task(paths: DatasetPaths, args: argparse.Namespace) -> None:
     print(f"[INFO] EXP-02 output: {paths.output_dir}")
     if args.task in {"all", "summarize"}:
         summarize_dataset(paths)
+        if args.require_reference_identity:
+            require_reference_identity(paths)
     if args.task in {"all", "recover-bbox"}:
         recover_bboxes(paths, args)
     if args.task in {"all", "plot-bbox"}:
