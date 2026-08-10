@@ -367,7 +367,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-root",
         type=Path,
-        default=Path("/data/home/scv7387/run/tv_series_plus/dataset"),
+        default=Path("/data02/home/scv7387/run/tv_series_plus/dataset"),
     )
     parser.add_argument("--exp-dir", type=Path, help="Allowed only with one --tv-name.")
     parser.add_argument("--output-dir", type=Path, help="Allowed only with one --tv-name.")

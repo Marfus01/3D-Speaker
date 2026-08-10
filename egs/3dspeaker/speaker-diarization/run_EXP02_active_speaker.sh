@@ -4,7 +4,7 @@ set -Ee -o pipefail
 
 trap 'echo "[ERROR] EXP-02 job stopped at line ${LINENO}." >&2' ERR
 
-recipe_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+recipe_root="/data02/home/scv7387/run/tv_series_plus/3D-Speaker/egs/3dspeaker/speaker-diarization"
 analysis_script="$recipe_root/local/analyze_exp02_active_speaker.py"
 
 if [[ "$#" -ne 1 ]]; then
@@ -26,7 +26,7 @@ module purge
 module load miniforge/24.1.2 cuda/11.8 gcc/9.3
 source activate 3D-Speaker
 
-data_root="${DATA_ROOT:-/data/home/scv7387/run/tv_series_plus/dataset}"
+data_root="/data02/home/scv7387/run/tv_series_plus/dataset"
 device_id="${DEVICE_ID:-0}"
 ffmpeg_bin="${FFMPEG_BIN:-ffmpeg}"
 min_recovery_rate="${MIN_RECOVERY_RATE:-0.99}"
