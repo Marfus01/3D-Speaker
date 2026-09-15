@@ -11,7 +11,7 @@ sbatch face_baseline/run_BB.sh
 sbatch face_baseline/run_IL.sh
 ```
 
-默认读取 `runs/<剧名>/exp_video_ablation/embs_video/*_midframe.pkl`、同一实验的 `json/subseg_ori.json`，以及 `/data/home/scv7387/run/tv_series_plus/dataset/<剧名>/raw/wav.list` 和人脸标注。`wav.list` 仅用于确定集名，不读取音频。片段 JSON 必须与人脸缓存对应，空人脸帧仍保留在时间轴中。
+默认读取 `runs/<剧名>/exp_video_ablation/embs_video/*_midframe.pkl`、同一实验的 `json/subseg_ori.json`，以及项目根目录下 `dataset/<剧名>/raw/wav.list` 和人脸标注。数据根目录从 recipe 目录向上四级定位，不绑定服务器绝对路径；若数据另存于其他位置，设置 `DATA_ROOT`。`wav.list` 仅用于确定集名，不读取音频。片段 JSON 必须与人脸缓存对应，空人脸帧仍保留在时间轴中。
 
 若已有 AHC 结果，指定其路径（必须覆盖当前缓存中的全部人脸 key）：
 
@@ -22,7 +22,7 @@ AHC_LABELS="/absolute/path/to/existing_ahc.json" sbatch face_baseline/run_BB.sh
 也可设置 `DATA_ROOT`、`SOURCE_EXP`、`VISUAL_EMBS_DIR`、`SUBSEG_JSON`、`RESULT_DIR` 和 `EVAL_MODE`。例如：
 
 ```bash
-DATA_ROOT="/data02/home/scv7387/run/tv_series_plus/dataset" \
+DATA_ROOT="/absolute/path/to/dataset" \
 SOURCE_EXP="/absolute/path/to/existing/exp_video" \
 AHC_LABELS="/absolute/path/to/existing_ahc.json" \
 sbatch face_baseline/run_IL.sh
