@@ -139,3 +139,5 @@ egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_ablation/re
 egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video_ablation/result/**/self_supervised/**/**/pseudo_label/vlabels_mf_embeddings.pkl
 egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video_ablation/embs_video/E01_midframe.pkl
 
+egs/3dspeaker/speaker-diarization/runs/I love my family/exp_video/active_speaker_results
+egs/3dspeaker/speaker-diarization/runs/the big bang theory/exp_video/active_speaker_results
