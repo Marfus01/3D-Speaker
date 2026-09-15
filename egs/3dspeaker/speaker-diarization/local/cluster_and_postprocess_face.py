@@ -36,23 +36,30 @@ def load_faces(wavs, visual_embs_dir, subseg_json):
         if not set(data["audio_seg_id"]).issubset(ids):
             raise ValueError(f"Face cache and subtitle segments disagree for {record}.")
         if len(data["feat"]):
+            if not np.isfinite(data["feat"]).all():
+                raise ValueError(f"Nonfinite embeddings for {record}.")
             features.append(data["feat"])
             face_segments.extend(data["audio_seg_id"])
             face_indices.extend(data["face_idx"])
+        print(f"[Load] {record}: {len(data['feat'])} faces, {len(ids)} frames", flush=True)
+        del data
     if not features:
         raise ValueError("No cached face embeddings found.")
     features = np.concatenate(features)
     keys = [f"{seg}_{int(idx)}" for seg, idx in zip(face_segments, face_indices)]
-    if len(keys) != len(set(keys)) or not np.isfinite(features).all():
-        raise ValueError("Duplicate face keys or nonfinite embeddings.")
+    if len(keys) != len(set(keys)):
+        raise ValueError("Duplicate face keys.")
     return features, np.array(face_segments), np.array(face_indices), np.array(timeline), lengths
 
 
 def run(args):
     result_dir = Path(args.result_dir)
     result_dir.mkdir(parents=True, exist_ok=True)
+    print("[1/5] Loading cached visual embeddings", flush=True)
     features, face_segments, face_indices, timeline, lengths = load_faces(
         args.wavs, args.visual_embs_dir, args.subseg_json)
+    print(f"[Load] shape={features.shape}, dtype={features.dtype}, "
+          f"embeddings={features.nbytes / 2**30:.2f} GiB", flush=True)
     keys = [f"{seg}_{int(idx)}" for seg, idx in zip(face_segments, face_indices)]
     initial_path = result_dir / "faces_mid_frame_ahc.json"
     source = Path(args.initial_labels) if args.initial_labels else initial_path
@@ -65,28 +72,38 @@ def run(args):
         if any(not isinstance(value, int) or value < -1 for value in cached.values()):
             raise ValueError("AHC labels must be integers >= -1 (Others).")
         labels = np.array([cached[key] for key in keys])
-        print(f"Reusing AHC labels: {source}")
+        del cached
+        print(f"[2/5] Reusing AHC labels: {source}", flush=True)
     else:
         config = build_config(args.conf)
         config.vision_cluster["args"]["fix_cos_thr"] = config.fix_cos_thr_mf
         cluster = build("vision_cluster", config)
+        print(f"[2/5] Starting AHC: fix_cos_thr_mf={config.fix_cos_thr_mf}; "
+              f"N x N matrix alone ~{len(features)**2 * features.dtype.itemsize / 2**30:.2f} GiB "
+              "(excluding temporary arrays and linkage workspace)", flush=True)
         labels = reset_cluster_ids(cluster(features))
-        print(f"AHC: fix_cos_thr_mf={config.fix_cos_thr_mf}")
     save_cluster_results_vision_mf(labels, face_segments, face_indices, initial_path)
+    print(f"[2/5] AHC labels saved: {initial_path}", flush=True)
 
     # Preserve every AHC cluster; reserve the last channel for the helper's Others convention.
     cluster_ids = sorted(set(labels) - {-1})
     label_map = {label: j for j, label in enumerate(cluster_ids)}
     label_map[-1] = -1
     mapped = np.array([label_map[label] for label in labels])
-    F_hat = np.zeros((len(timeline), len(cluster_ids) + 1), dtype=int)
+    print(f"[3/5] Building presence matrix and candidates: "
+          f"T={len(timeline)}, K={len(cluster_ids) + 1}", flush=True)
+    F_hat = np.zeros((len(timeline), len(cluster_ids) + 1), dtype=np.uint8)
     row_map = {seg: row for row, seg in enumerate(timeline)}
     for seg, label in zip(face_segments, mapped):
         F_hat[row_map[seg], label] = 1
-    candidates = align_samples2clusters(mapped, features, candi_align_cluster_num=args.candidates)
+    candidates = align_samples2clusters(mapped, features, candi_align_cluster_num=args.candidates, batch_size=1024)
+    del features
+    print("[4/5] Fitting independent face HMMs", flush=True)
     model = FaceHMM(n_iter=args.n_iter, tol=args.tol, random_state=args.random_state)
     model.fit(F_hat, lengths)
+    print("[4/5] Decoding face states", flush=True)
     F_decode = model.predict(F_hat, lengths)
+    print("[5/5] Correcting face labels", flush=True)
     corrected = correct_face_labels(F_decode, F_hat, timeline, face_segments, mapped, candidates)
     reverse_map = dict(enumerate(cluster_ids))
     reverse_map[-1] = -1

@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=face-hmm-BB
-#SBATCH --cpus-per-task=1
 #SBATCH --output=face-hmm-BB-%j.log
 set -eo pipefail
 

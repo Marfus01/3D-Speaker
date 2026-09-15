@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=face-hmm-IL
-#SBATCH --cpus-per-task=1
 #SBATCH --output=face-hmm-IL-%j.log
 set -eo pipefail
 
@@ -23,12 +22,12 @@ extra_args=()
 if [[ -n "${AHC_LABELS:-}" ]]; then
     extra_args+=(--initial_labels "$AHC_LABELS")
 fi
-python local/cluster_and_postprocess_face.py \
+python -u local/cluster_and_postprocess_face.py \
     --conf "conf/$tv_name/diar_video.yaml" \
     --wavs "$data_root/$tv_name/raw/wav.list" \
     --visual_embs_dir "${VISUAL_EMBS_DIR:-$source_exp/embs_video}" \
     --subseg_json "${SUBSEG_JSON:-$source_exp/json/subseg_ori.json}" \
     --result_dir "$result_dir" "${extra_args[@]}"
-python local/compute_acc_face.py --result_dir "$result_dir" \
+python -u local/compute_acc_face.py --result_dir "$result_dir" \
     --ref_xlsx "$data_root/$tv_name/annotation/faces_annotation_with_loc_new.xlsx" \
     --mode "${EVAL_MODE:-all}"

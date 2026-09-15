@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -38,9 +39,13 @@ class FaceHMMTests(unittest.TestCase):
         np.testing.assert_array_equal(model.predict(observations[:, None], [3, 2])[:, 0], expected)
 
     def test_constant_channels_and_validation(self):
-        observations = np.array([[0, 1]] * 12)
+        observations = np.array([[0, 1]] * 12, dtype=np.uint8)
+        validated, _ = FaceHMM._validate(observations, [5, 7])
+        self.assertTrue(np.shares_memory(validated, observations))
         model = FaceHMM().fit(observations, [5, 7])
-        np.testing.assert_array_equal(model.predict(observations, [5, 7]), observations)
+        decoded = model.predict(observations, [5, 7])
+        self.assertEqual(decoded.dtype, np.uint8)
+        np.testing.assert_array_equal(decoded, observations)
         with self.assertRaises(ValueError):
             model.fit(observations, [11])
         with self.assertRaises(ValueError):
@@ -66,6 +71,36 @@ class FaceHMMTests(unittest.TestCase):
         result = correct_face_labels(decoded, observed, segments, segments,
                                      np.array([0, 0, 0]), [[0, 1], [0, -1], [0, 1]])
         np.testing.assert_array_equal(result, [1, -1, 0])
+
+    def test_batched_candidates_match_dense(self):
+        from speakerlab.process import cluster
+        rng = np.random.RandomState(42)
+        labels = np.repeat([-1, 2, 7, 11], 8)
+        for dtype in (np.float32, np.float64):
+            features = rng.normal(size=(32, 8)).astype(dtype)
+            # Include tied centroids and zero embeddings, preserving the original argsort rule.
+            features[16:] = 0
+            features.setflags(write=False)
+            expected = cluster.align_samples2clusters(labels, features, 2)
+            with patch.object(cluster, 'cosine_similarity', wraps=cluster.cosine_similarity) as similarity:
+                actual = cluster.align_samples2clusters(labels, features, 2, batch_size=3)
+                self.assertTrue(all(len(call.args[0]) <= 3 for call in similarity.call_args_list))
+            self.assertEqual(actual, expected)
+
+    def test_ahc_negation_reuses_similarity_matrix(self):
+        from speakerlab.process import cluster
+        features = np.random.RandomState(42).normal(size=(12, 5)).astype(np.float32)
+        matrix = cluster.cosine_similarity(features)
+        expected = cluster.squareform(-matrix, checks=False)
+        squareform = cluster.squareform
+        def check_squareform(values, **kwargs):
+            self.assertIs(values, matrix)
+            condensed = squareform(values, **kwargs)
+            np.testing.assert_array_equal(condensed, expected)
+            return condensed
+        with patch.object(cluster, 'cosine_similarity', return_value=matrix), \
+                patch.object(cluster, 'squareform', side_effect=check_squareform):
+            cluster.AHCluster(fix_cos_thr=0.15)(features)
 
     def test_visual_pipeline_and_group_metrics(self):
         import pandas as pd
