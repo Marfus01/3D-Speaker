@@ -132,7 +132,7 @@ def align_clusters2clusters(source_labels, target_labels, source_embeddings, tar
           aligned_source_labels[source_labels == reverse_source_label_map[i]] = unaligned_label
     return aligned_source_labels
 
-def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align_cluster_num=0, target_labels=None, target_embeddings=None):
+def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align_cluster_num=0, target_labels=None, target_embeddings=None, batch_size=None):
     """
     For each source sample, get candidate aligned target cluster labels based on cosine similarity of target cluster centroids.
 
@@ -142,14 +142,15 @@ def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align
         candi_align_cluster_num (int): Number of potential alignments for a source to consider. Default is 0 (not used).
         target_labels (ndarray): Target cluster labels, of shape [M].
         target_embeddings (ndarray): Target embeddings, of shape [M, D].
+        batch_size (int or None): Maximum rows per similarity matrix; None uses all rows.
 
     Returns:
         list: A list of length N, where each element is a list of candidate aligned target cluster labels for the corresponding source sample.
     """
-    if target_labels==None:
-        target_labels = copy.deepcopy(aligned_source_labels)
-    if target_embeddings==None:
-        target_embeddings = copy.deepcopy(source_embeddings)
+    if target_labels is None:
+        target_labels = aligned_source_labels
+    if target_embeddings is None:
+        target_embeddings = source_embeddings
     
     assert set(np.unique(aligned_source_labels)) <= set(np.unique(target_labels)).union({-1}), "aligned_source_labels should be aligned to target_labels first."
     # Map target_labels to consecutive integers starting from 0
@@ -162,16 +163,23 @@ def align_samples2clusters(aligned_source_labels, source_embeddings, candi_align
 
     if candi_align_cluster_num > 0:
         candi_aligned_source_labels = []
-        # Compute cosine similarity between each source embedding and each target centroid
-        sim_matrix_sample = cosine_similarity(source_embeddings, target_centroids)
-        for i in range(sim_matrix_sample.shape[0]):  # current source sample
-            ## Get indices of top-k most similar target clusters for current source sample
-            top_k_indices = np.argsort(sim_matrix_sample[i])[::-1][:candi_align_cluster_num]    # descending order
-            # Map indices back to target labels
-            top_k_labels = [reverse_target_label_map[idx] for idx in top_k_indices] # each element is unque
-            # always keep the aligned label at first position
-            merged_labels = [aligned_source_labels[i]] + [label for label in top_k_labels if label != aligned_source_labels[i]]
-            candi_aligned_source_labels.append(merged_labels)
+        batch_size = max(1, len(source_embeddings)) if batch_size is None else batch_size
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive.")
+        # Compute cosine similarity between source embeddings and target centroids in batches to limit memory use
+        for start in range(0, len(source_embeddings), batch_size):
+            sim_matrix_sample = cosine_similarity(source_embeddings[start:start + batch_size], target_centroids)
+            for offset, similarities in enumerate(sim_matrix_sample):
+                i = start + offset  # current source sample in the full sequence
+                ## Get indices of top-k most similar target clusters for current source sample
+                top_k_indices = np.argsort(similarities)[::-1][:candi_align_cluster_num]    # descending order
+                # Map indices back to target labels
+                top_k_labels = [reverse_target_label_map[idx] for idx in top_k_indices]  # each element is unique
+                # always keep the aligned label at first position
+                merged_labels = [aligned_source_labels[i]] + [label for label in top_k_labels if label != aligned_source_labels[i]]
+                candi_aligned_source_labels.append(merged_labels)
+            # Release both the batch matrix and its last row view before allocating the next batch
+            del sim_matrix_sample, similarities
     else:
         candi_aligned_source_labels = [[aligned_source_labels[i]] for i in range(len(aligned_source_labels))]
 
@@ -406,7 +414,9 @@ class AHCluster:
     def __call__(self, X, **kwargs):
         # treat negative cosine similarity as distance
         scr_mx = cosine_similarity(X)
-        scr_mx = squareform(-scr_mx, checks=False)  # [N*(N-1)/2, ]
+        # 原地取负，避免额外分配一个完整的 N x N 距离矩阵
+        np.negative(scr_mx, out=scr_mx)
+        scr_mx = squareform(scr_mx, checks=False)  # [N*(N-1)/2, ]
         # 执行层次聚类：使用average linkage计算聚类间的距离。
         ## lin_mat: [N-1, 4], 每一行表示一次聚类操作，包含被聚类的两个簇的索引、它们之间的距离、以及新簇的大小
         lin_mat = fastcluster.linkage(scr_mx, method='average', preserve_input='False')
