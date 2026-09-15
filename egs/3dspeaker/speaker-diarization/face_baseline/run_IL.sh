@@ -15,7 +15,8 @@ cd "$recipe_root"
 export PYTHONPATH="$recipe_root/../../..:${PYTHONPATH:-}"
 export OMP_NUM_THREADS=1
 tv_name="I love my family"
-data_root="${DATA_ROOT:-/data/home/scv7387/run/tv_series_plus/dataset}"
+workspace_root="$(cd "$recipe_root/../../../.." && pwd)"
+data_root="${DATA_ROOT:-$workspace_root/dataset}"
 source_exp="${SOURCE_EXP:-$recipe_root/runs/$tv_name/exp_video_ablation}"
 result_dir="${RESULT_DIR:-$source_exp/result/face_hmm}"
 extra_args=()
